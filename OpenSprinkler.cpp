@@ -104,6 +104,8 @@ extern unsigned char curr_alert_sid;
 	unsigned char OpenSprinkler::wifi_bssid[6]={0};
 	unsigned char OpenSprinkler::wifi_channel=255;
 	unsigned char OpenSprinkler::wifi_testmode = 0;
+	CH224 OpenSprinkler::usbpd;
+	uint8_t OpenSprinkler::actual_pd_voltage = 0;
 #elif defined(ARDUINO)
 	extern SdFat sd;
 #else
@@ -190,7 +192,7 @@ const char iopt_json_names[] PROGMEM =
 	"ife2\0"
 	"imin\0"
 	"imax\0"
-	"resv6"
+	"tpdv\0"
 	"resv7"
 	"resv8"
 	"wimod"
@@ -269,7 +271,7 @@ const char iopt_prompts[] PROGMEM =
 	"Notif 2 Enable  "
 	"I min threshold "
 	"I max limit     "
-	"Reserved 6      "
+	"Target PD Volt. "
 	"Reserved 7      "
 	"Reserved 8      "
 	"WiFi mode?      "
@@ -347,7 +349,7 @@ const unsigned char iopt_max[] PROGMEM = {
 	255,
 	100,
 	255,
-	255,
+	210,
 	255,
 	255,
 	255,
@@ -429,9 +431,9 @@ unsigned char OpenSprinkler::iopts[] = {
 	0,  // latch on volt
 	0,  // latch off volt
 	0,  // notif enable bits 2
-	DEFAULT_UNDERCURRENT_THRESHOLD/10, // imin threshold scaled down by 10
-	DEFAULT_OVERCURRENT_LIMIT/10,      // imax limit scaled down by 10
-	0,  // reserved 6
+	DEFAULT_UNDERCURRENT_THRESHOLD/10, // imin threshold scaled down by 10.
+	0,  // imax limit scaled down by 10. 0 means using default value
+	DEFAULT_TARGET_PD_VOLTAGE,  // target pd voltage (in unit of 100mV)
 	0,  // reserved 7
 	0,  // reserved 8
 	WIFI_MODE_AP, // wifi mode
@@ -481,10 +483,10 @@ static const char months_str[] PROGMEM =
 	"Dec\0";
 
 #if !defined(ARDUINO)
-static inline int32_t now() {
+static inline uint32_t now() {
 	time_t rawtime;
 	time(&rawtime);
-	return rawtime;
+	return (uint32_t)rawtime;
 }
 #endif
 /** Calculate local time (UTC time plus time zone offset) */
@@ -656,7 +658,7 @@ unsigned char OpenSprinkler::start_ether() {
 	if(!eth.begin((uint8_t*)tmp_buffer))	return 0;
 	lcd_print_line_clear_pgm(PSTR("Start wired link"), 1);
 	lcd_print_line_clear_pgm(eth.isW5500 ? PSTR("  [w5500]    ") : PSTR(" [enc28j60]  "), 2);
-	
+
 	ulong timeout = millis()+60000; // 60 seconds time out
 	unsigned char timecount = 1;
 	while (!eth.connected() && (long)(millis()-timeout)<0) { // overflow proof
@@ -869,11 +871,6 @@ void OpenSprinkler::begin() {
 
 #if defined(ESP8266) // ESP8266 specific initializations
 
-	/* check hardware type */
-	if(detect_i2c(ACDR_I2CADDR)) hw_type = HW_TYPE_AC;
-	else if(detect_i2c(DCDR_I2CADDR)) hw_type = HW_TYPE_DC;
-	else if(detect_i2c(LADR_I2CADDR)) hw_type = HW_TYPE_LATCH;
-
 	/* detect hardware revision type */
 	if(detect_i2c(MAIN_I2CADDR)) {	// check if main PCF8574 exists
 		/* assign revision 0 pins */
@@ -887,12 +884,18 @@ void OpenSprinkler::begin() {
 		PIN_SENSOR1 = V0_PIN_SENSOR1;
 		PIN_SENSOR2 = V0_PIN_SENSOR2;
 
-		// on revision 0, main IOEXP and driver IOEXP are two separate PCF8574 chips
-		if(hw_type==HW_TYPE_DC) {
+		/* check hardware type */
+		if(detect_i2c(ACDR_I2CADDR)) {
+			hw_type = HW_TYPE_AC;
+			drio = new PCF8574(ACDR_I2CADDR);
+		} else if(detect_i2c(DCDR_I2CADDR)) {
+			hw_type = HW_TYPE_DC;
 			drio = new PCF8574(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
+		} else if(detect_i2c(LADR_I2CADDR)) {
+			hw_type = HW_TYPE_LATCH;
 			drio = new PCF8574(LADR_I2CADDR);
 		} else {
+			hw_type = HW_TYPE_UNKNOWN;
 			drio = new PCF8574(ACDR_I2CADDR);
 		}
 
@@ -908,19 +911,25 @@ void OpenSprinkler::begin() {
 
 	} else {
 
-		if(hw_type==HW_TYPE_DC) {
-			drio = new PCA9555(DCDR_I2CADDR);
-		} else if(hw_type==HW_TYPE_LATCH) {
-			drio = new PCA9555(LADR_I2CADDR);
-		} else {
-			drio = new PCA9555(ACDR_I2CADDR);
-		}
-		mainio = drio;
-
 		pinMode(16, INPUT);
 		if(digitalRead(16)==LOW) {
 			// revision 1
 			hw_rev = 1;
+			if(detect_i2c(ACDR_I2CADDR)) {
+				hw_type = HW_TYPE_AC;
+				drio = new PCA9555(ACDR_I2CADDR);
+			} else if(detect_i2c(DCDR_I2CADDR)) {
+				hw_type = HW_TYPE_DC;
+				drio = new PCA9555(DCDR_I2CADDR);
+			} else if(detect_i2c(LADR_I2CADDR)) {
+				hw_type = HW_TYPE_LATCH;
+				drio = new PCA9555(LADR_I2CADDR);
+			} else {
+				hw_type = HW_TYPE_UNKNOWN;
+				drio = new PCA9555(ACDR_I2CADDR);
+			}
+			mainio = drio;
+
 			mainio->i2c_write(NXP_CONFIG_REG, V1_IO_CONFIG);
 			mainio->i2c_write(NXP_OUTPUT_REG, V1_IO_OUTPUT);
 
@@ -935,15 +944,45 @@ void OpenSprinkler::begin() {
 			PIN_LATCH_COM = V1_PIN_LATCH_COM;
 			PIN_SENSOR1 = V1_PIN_SENSOR1;
 			PIN_SENSOR2 = V1_PIN_SENSOR2;
-		} else {
-			// revision 2 and above
-			if(detect_i2c(EEPROM_I2CADDR+2)) { // revision 4 has an I2C EEPROM at this address; skipping +1 due to addr conflict with PCF8563
+		} else { // revision 2 and above
+			// conditions for revision 4:
+			// * has I2C EEPROM @ 0x52? --> OS 3.4 AC (skipping 0x51 due to conflict with PCF8563)
+			// * has CH224A/Q @ both 0x22, 0x23? --> OS 3.4 DC
+			bool has_eeprom_2 = detect_i2c(EEPROM_I2CADDR+2);
+			bool has_ch224_0 = detect_i2c(CH224_I2CADDR);
+			bool has_ch224_1 = detect_i2c(CH224_I2CADDR+1);
+			if(has_eeprom_2 || (has_ch224_0 && has_ch224_1)) {
 				hw_rev = 4;
-			} else if(detect_i2c(EEPROM_I2CADDR)) { // revision 3 has an I2C EEPROM at this address
-				hw_rev = 3;
+				drio = new PCA9555(ACDR_I2CADDR); // all OS 3.4 models have IOEXP at 0x21 due to address conflicts with CH224
+				mainio = drio;
+				if(has_ch224_0 && has_ch224_1) {
+					hw_type = HW_TYPE_DC;
+					usbpd.begin();
+				} else {
+					hw_type = HW_TYPE_AC;
+				}
 			} else {
-				hw_rev = 2;
+				if(detect_i2c(EEPROM_I2CADDR)) { // revision 3 has an I2C EEPROM at this address
+					hw_rev = 3;
+				} else {
+					hw_rev = 2;
+				}
+				if(detect_i2c(ACDR_I2CADDR)) {
+					hw_type = HW_TYPE_AC;
+					drio = new PCA9555(ACDR_I2CADDR);
+				} else if(detect_i2c(DCDR_I2CADDR)) {
+					hw_type = HW_TYPE_DC;
+					drio = new PCA9555(DCDR_I2CADDR);
+				} else if(detect_i2c(LADR_I2CADDR)) {
+					hw_type = HW_TYPE_LATCH;
+					drio = new PCA9555(LADR_I2CADDR);
+				} else {
+					hw_type = HW_TYPE_UNKNOWN;
+					drio = new PCA9555(ACDR_I2CADDR);
+				}
 			}
+			mainio = drio;
+
 			mainio->i2c_write(NXP_CONFIG_REG, V2_IO_CONFIG);
 			mainio->i2c_write(NXP_OUTPUT_REG, V2_IO_OUTPUT);
 
@@ -1175,16 +1214,34 @@ pinModeExt(PIN_BUTTON_3, INPUT_PULLUP);
 }
 
 #if defined(ESP8266)
+/** Setup PD voltage
+ *
+ */
+void OpenSprinkler::setup_pd_voltage() {
+	actual_pd_voltage = 0;
+	if(!(hw_rev==4 && hw_type==HW_TYPE_DC)) return;
+	if(usbpd.update_power_data()) {
+		uint16_t tpdv = iopts[IOPT_TARGET_PD_VOLTAGE];
+		if(tpdv < 50) tpdv = DEFAULT_TARGET_PD_VOLTAGE; // anything below 5.0V will be force converted to default tpdv
+		usbpd.request_voltage_closest(tpdv*100);
+		delay(200);
+		actual_pd_voltage = usbpd.get_output_voltage_mv()/100; // read back the actual voltage
+	} else {
+		// the power source does not support PD
+	}
+}
+
 /** LATCH boost voltage
  *
  */
-void OpenSprinkler::latch_boost(unsigned char volt) {
-	// if volt is 0 or larger than max volt, ignore it and boost according to BOOST_TIME only
-	if(volt==0 || volt>iopt_max[IOPT_LATCH_ON_VOLTAGE]) {
+void OpenSprinkler::latch_boost(int8_t volt) {
+	// if volt is negative or larger than max volt, ignore it and boost according to BOOST_TIME only
+	if(volt<0 || volt>iopt_max[IOPT_LATCH_ON_VOLTAGE]) {
 		digitalWriteExt(PIN_BOOST, HIGH);      // enable boost converter
 		delay((int)iopts[IOPT_BOOST_TIME]<<2); // wait for booster to charge
 		digitalWriteExt(PIN_BOOST, LOW);       // disable boost converter
 	} else {
+		if(volt == 0) volt = DEFAULT_LATCH_BOOST_VOLTAGE;
 		// boost to specified volt, up to time specified by BOOST_TIME
 		uint16_t top = (uint16_t)(volt * 19.25f); // ADC = 1024 * volt * 1.5k / 79.8k
 		if(analogRead(PIN_CURR_SENSE)>=top) return; // if the voltage has already reached top, return right away
@@ -1227,7 +1284,7 @@ void OpenSprinkler::latch_disable_alloutputs_v2() {
 	// latch v2 has a 74hc595 which controls all h-bridge cathode pins
 	drio->shift_out(V2_PIN_SRLAT, V2_PIN_SRCLK, V2_PIN_SRDAT, 0x00);
 
-	// todo: handle expander
+	// todo: handle latch expander
 }
 
 /** Set one zone (for LATCH controller)
@@ -1267,7 +1324,7 @@ void OpenSprinkler::latch_setzoneoutput_v2(unsigned char sid, unsigned char A, u
 		drio->shift_out(V2_PIN_SRLAT, V2_PIN_SRCLK, V2_PIN_SRDAT, K ? (1<<sid) : 0);
 
 	} else { // on expander
-		// todo: handle expander
+		// todo: handle latch expander
 	}
 }
 
@@ -1580,7 +1637,8 @@ void OpenSprinkler::sensor_resetall() {
  * it's further discounted by 1/3.3
  */
 #if defined(ARDUINO)
-uint16_t OpenSprinkler::read_current() {
+uint16_t OpenSprinkler::read_current(bool use_ema) {
+	static uint16_t ema = 0; // exponential moving average
 	static float scale = -1;
 	if(scale < 0) { // assign scale upon first call of this function
 		if (hw_type == HW_TYPE_DC) {
@@ -1599,7 +1657,9 @@ uint16_t OpenSprinkler::read_current() {
 			scale = 0.0;  // for other controllers, current is 0
 		}
 	}
-	return analogRead(PIN_CURR_SENSE)*scale;
+	uint16_t curr = analogRead(PIN_CURR_SENSE)*scale;
+	ema = curr / 5 + ema * 4 / 5; // using alpha=0.2 for exponential moving average
+	return use_ema ? ema : curr;
 }
 #endif
 
@@ -1745,6 +1805,9 @@ int16_t OpenSprinkler::get_imin() {
 
 int16_t OpenSprinkler::get_imax() {
 	unsigned char i = iopts[IOPT_I_MAX_LIMIT];
+	if(hw_type == HW_TYPE_DC) {
+		return (i == 0) ? (DEFAULT_OVERCURRENT_LIMIT+OVERCURRENT_DC_EXTRA) : (i == 255 ? -1 : i*10);
+	}
 	return (i == 0) ? DEFAULT_OVERCURRENT_LIMIT : (i == 255 ? -1 : i*10);
 }
 
@@ -2007,7 +2070,7 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
   		bool mfln = _c->probeMaxFragmentLength(server, port, 512);
   		DEBUG_PRINTF("MFLN supported: %s\n", mfln ? "yes" : "no");
   		if (mfln) {
-				_c->setBufferSizes(512, 512); 
+				_c->setBufferSizes(512, 512);
 			} else {
 				_c->setBufferSizes(2048, 2048);
 			}
@@ -2040,7 +2103,7 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 	}
 #else
 	EthernetClient *client = NULL;
-	
+
 	if (usessl) {
 		client = new EthernetClientSsl();
 	} else {
@@ -2940,7 +3003,7 @@ void OpenSprinkler::lcd_print_time(time_os_t t)
 #endif
 	lcd.setCursor(0, 0);
 	lcd_print_2digit(hour(t));
-	
+
 	lcd_print_pgm(PSTR(":"));
 
 	lcd_print_2digit(minute(t));
@@ -2974,7 +3037,7 @@ void OpenSprinkler::lcd_print_ip(const unsigned char *ip, unsigned char endian) 
 	lcd.setCursor(0, 0);
 	for (unsigned char i=0; i<4; i++) {
 		lcd.print(endian ? (int)ip[3-i] : (int)ip[i]);
-		
+
 		if(i<3) {
 			lcd_print_pgm(PSTR("."));
 		}
@@ -3131,7 +3194,7 @@ void OpenSprinkler::lcd_print_screen(char c) {
 		lcd.setCursor(2, 2);
 		if(status.program_busy && !status.pause_state) {
 			//lcd.print(F("Curr: "));
-			lcd.print(read_current());
+			lcd.print(read_current(true));
 			lcd.print(F(" mA      "));
 		} else {
 	#else
@@ -3244,6 +3307,20 @@ void OpenSprinkler::lcd_print_option(int i) {
 		#if defined(ARDUINO)
 		if(hw_type==HW_TYPE_LATCH) {
 			lcd.print((int)iopts[i]);
+			lcd.print('V');
+		} else {
+			lcd.print('-');
+		}
+		#else
+		lcd.print('-');
+		#endif
+		break;
+	case IOPT_TARGET_PD_VOLTAGE:
+		#if defined(ESP8266)
+		if(hw_rev == 4 && hw_type==HW_TYPE_DC) {
+			lcd.print(iopts[i]/10);
+			lcd.print('.');
+			lcd.print(iopts[i]%10);
 			lcd.print('V');
 		} else {
 			lcd.print('-');
@@ -3369,6 +3446,7 @@ void OpenSprinkler::ui_set_options(int oid)
 				if(i==IOPT_RSO_RETIRED) i++;
 				if (hw_type==HW_TYPE_AC && i==IOPT_BOOST_TIME) i++;	// skip boost time for non-DC controller
 				if (i==IOPT_LATCH_ON_VOLTAGE && hw_type!=HW_TYPE_LATCH) i+= 2; // skip latch voltage defs for non-latch controllers
+				if (i==IOPT_TARGET_PD_VOLTAGE && !(hw_rev==4 && hw_type==HW_TYPE_DC)) i++; // skip target pd voltage if not 3.4 or not DC type
 				#if defined(ESP8266)
 				else if (lcd.type()==LCD_I2C && i==IOPT_LCD_CONTRAST) i+=3;
 				#else

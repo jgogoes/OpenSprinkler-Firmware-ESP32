@@ -183,8 +183,41 @@ void GetWeather() {
 	char *host = tmp_buffer;
 	os.sopt_load(SOPT_WEATHERURL, host);
 
+	// Parse protocol and extract host/port
+	char *host_start = host;
+
+#if defined(OS_AVR)
+	if (strncmp_P(host, PSTR("http://"), 7) == 0) {
+		host_start = host + 7;
+	} else if (strncmp_P(host, PSTR("https://"), 8) == 0) { // note that avr does not support https
+		host_start = host + 8;
+	}
+#else
+	bool use_ssl = true;  // default to https
+	int port = 443;       // default to https port
+
+	// Check for http:// or https://
+	if (strncmp_P(host, PSTR("http://"), 7) == 0) {
+		use_ssl = false;
+		port = 80;
+		host_start = host + 7;
+	} else if (strncmp_P(host, PSTR("https://"), 8) == 0) {
+		use_ssl = true;
+		port = 443;
+		host_start = host + 8;
+	}
+
+	// Check for explicit port number
+	char *colon = strchr(host_start, ':');
+	if (colon) {
+		*colon = '\0';  // null-terminate hostname
+		port = atoi(colon + 1);
+	}
+
+#endif
+
 	strcat(ether_buffer, " HTTP/1.0\r\nHOST: ");
-	strcat(ether_buffer, host);
+	strcat(ether_buffer, host_start);
 	strcat(ether_buffer, "\r\nUser-Agent: ");
 	strcat(ether_buffer, user_agent_string);
 	strcat(ether_buffer, "\r\n\r\n");
@@ -192,9 +225,9 @@ void GetWeather() {
 	wt_errCode = HTTP_RQT_NOT_RECEIVED;
 	DEBUG_PRINT(ether_buffer);
 #if defined(OS_AVR)
-	int ret = os.send_http_request(host, ether_buffer, getweather_callback_with_peel_header);
+	int ret = os.send_http_request(host_start, ether_buffer, getweather_callback_with_peel_header);
 #else
-	int ret = os.send_http_request(host, 443, ether_buffer, getweather_callback_with_peel_header, true);
+	int ret = os.send_http_request(host_start, port, ether_buffer, getweather_callback_with_peel_header, use_ssl);
 #endif
 	if(ret!=HTTP_RQT_SUCCESS) {
 		if(wt_errCode < 0) wt_errCode = ret;

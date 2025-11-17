@@ -72,7 +72,7 @@
 
 const char *user_agent_string = "OpenSprinkler/" TOSTRING(OS_FW_VERSION) "#" TOSTRING(OS_FW_MINOR);
 
-void manual_start_program(unsigned char, unsigned char);
+void manual_start_program(unsigned char, unsigned char, unsigned char);
 
 // Small variations have been added to the timing values below
 // to minimize conflicting events
@@ -85,7 +85,7 @@ void manual_start_program(unsigned char, unsigned char);
 #define UI_STATE_MACHINE_INTERVAL 50    // how often does ui_state_machine run (in ms)
 #define CLIENT_READ_TIMEOUT       5     // client read timeout (in seconds)
 #define DHCP_CHECKLEASE_INTERVAL  3600L // DHCP check lease interval (in seconds)
-#define FLOWPOLL_INTERVAL         3     // flow poll interval (in milli-seconds)
+#define FLOWPOLL_INTERVAL         5     // flow poll interval (in milli-seconds)
 #define CURRPOLL_INTERVAL         20    // current poll interval (in milli-seconds)
 // Define buffers: need them to be sufficiently large to cover string option reading
 char ether_buffer[ETHER_BUFFER_SIZE*2]; // ethernet buffer, make it twice as large to allow overflow
@@ -141,7 +141,7 @@ void flow_poll() {
 	flow_count++;
 
 	/* RAH implementation of flow sensor */
-	if (flow_start == 0) { 
+	if (flow_start == 0) {
 		flow_gallons = 0;
 		flow_start = curr;
 	} // if first pulse, record time
@@ -247,7 +247,7 @@ void ui_state_machine() {
 			if (button & BUTTON_FLAG_HOLD) {  // holding B1
 				if (digitalReadExt(PIN_BUTTON_3)==0) { // if B3 is pressed while holding B1, run a short test (internal test)
 					if(!ui_confirm(PSTR("Start 2s test?"))) {ui_state = UI_STATE_DEFAULT; break;}
-					manual_start_program(255, 0);
+					manual_start_program(255, 0, QUEUE_OPTION_REPLACE);
 				} else if (digitalReadExt(PIN_BUTTON_2)==0) { // if B2 is pressed while holding B1, display gateway IP
 					#if defined(USE_SSD1306)
 						os.lcd.setAutoDisplay(false);
@@ -323,7 +323,7 @@ void ui_state_machine() {
 							break;
 					}
 				#endif
-				
+
 				ui_state = UI_STATE_DISP_IP;
 				#if defined(USE_SSD1306)
 					os.lcd.display();
@@ -388,7 +388,7 @@ void ui_state_machine() {
 		if ((button & BUTTON_MASK)==BUTTON_3) {
 			if (button & BUTTON_FLAG_HOLD) {
 				// start
-				manual_start_program(ui_state_runprog, 0);
+				manual_start_program(ui_state_runprog, 0, QUEUE_OPTION_INSERT_FRONT);
 				ui_state = UI_STATE_DEFAULT;
 			} else {
 				ui_state_runprog = (ui_state_runprog+1) % (pd.nprograms+1);
@@ -430,6 +430,9 @@ void do_setup() {
 
 	os.begin();          // OpenSprinkler init
 	os.options_setup();  // Setup options
+#if defined(ESP8266)
+	os.setup_pd_voltage();
+#endif
 
 	pd.init();           // ProgramData init
 
@@ -606,7 +609,6 @@ void do_loop()
 			}
 		}
 	}
-	
 #endif
 
 	static time_os_t last_time = 0;
@@ -712,10 +714,7 @@ void do_loop()
 				otf->loop();
 				connecting_timeout = 0;
 			} else {
-				// todo: better handling of WiFi disconnection
-				DEBUG_PRINTLN(F("WiFi disconnected, going back to initial"));
-				os.state = OS_STATE_INITIAL;
-				WiFi.disconnect(true);
+				// WiFi disconnected, ESP8266 will handle re-connect
 			}
 		}
 		break;
@@ -855,10 +854,10 @@ void do_loop()
 			reset_all_stations_immediate(); // immediately stop all stations
 		}
 		if (pswitch & 0x01) {
-			if(pd.nprograms > 0)	manual_start_program(1, 0);
+			if(pd.nprograms > 0)	manual_start_program(1, 0, QUEUE_OPTION_INSERT_FRONT);
 		}
 		if (pswitch & 0x02) {
-			if(pd.nprograms > 1)	manual_start_program(2, 0);
+			if(pd.nprograms > 1)	manual_start_program(2, 0, QUEUE_OPTION_INSERT_FRONT);
 		}
 
 		// ====== Schedule program data ======
@@ -967,19 +966,6 @@ void do_loop()
 			// calculate start and end time
 			if (match_found) {
 				schedule_all_stations(curr_time);
-
-				// For debugging: print out queued elements
-				/*DEBUG_PRINT("en:");
-				for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
-					DEBUG_PRINT("[");
-					DEBUG_PRINT(q->sid);
-					DEBUG_PRINT(",");
-					DEBUG_PRINT(q->dur);
-					DEBUG_PRINT(",");
-					DEBUG_PRINT(q->st);
-					DEBUG_PRINT("]");
-				}
-				DEBUG_PRINTLN("");*/
 			}
 		}//if_check_current_minute
 
@@ -1248,7 +1234,6 @@ void check_weather() {
 		// if last successful weather call timestamp is more than allowed threshold
 		// and if the selected adjustment method is not one of the manual methods
 		// reset watering percentage to 100
-		// todo: the firmware currently needs to be explicitly aware of which adjustment methods, this is not ideal
 		os.checkwt_success_lasttime = 0;
 		unsigned char method = os.iopts[IOPT_USE_WEATHER];
 		if(!(method==WEATHER_METHOD_MANUAL || method==WEATHER_METHOD_AUTORAINDELAY || method==WEATHER_METHOD_MONTHLY)) {
@@ -1276,7 +1261,7 @@ void turn_on_station(unsigned char sid, ulong duration) {
 	// RAH implementation of flow sensor
 	flow_start=0;
 	//Added flow_gallons reset to station turn on.
-	flow_gallons=0;  
+	flow_gallons=0;
 
 	if (os.set_station_bit(sid, 1, duration)) {
 		notif.add(NOTIFY_STATION_ON, sid, duration);
@@ -1368,7 +1353,7 @@ void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shif
 	} //else { return; }
 
 	#if defined(ARDUINO)
-	int16_t current = (int16_t)os.read_current();
+	int16_t current = (int16_t)os.read_current(true); // use ema value
 	int16_t imin = os.get_imin();
 	// if current is less than imin threshold and hardware type is AC or DC
 	// send an station undercurrent alert
@@ -1499,8 +1484,10 @@ void handle_master_adjustments(time_os_t curr_time, RuntimeQueueStruct *q, unsig
 /** Scheduler
  * This function loops through the queue
  * and schedules the start time of each station
+ * If qo>0, new stations (whose st=0) will be scheduled
+ * preemptively, before existing queued stations
  */
-void schedule_all_stations(time_os_t curr_time) {
+void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 	ulong con_start_time = curr_time;   // concurrent start time
 	// if the queue is paused, make sure the start time is after the scheduled pause ends
 	if (os.status.pause_state) {
@@ -1521,18 +1508,78 @@ void schedule_all_stations(time_os_t curr_time) {
 	for(unsigned char i=1;i<NUM_SEQ_GROUPS;i++) {
 		stagger[i] += stagger[i-1]; // accumulate stagger time
 	}
+
 	ulong seq_start_times[NUM_SEQ_GROUPS];  // sequential start times
-	for(unsigned char i=0;i<NUM_SEQ_GROUPS;i++) {
-		seq_start_times[i] = con_start_time+stagger[i];
-		// if the sequential queue already has stations running
-		if (pd.last_seq_stop_times[i] > curr_time) {
-			seq_start_times[i] = pd.last_seq_stop_times[i] + station_delay;
+	ulong seq_adjustments[NUM_SEQ_GROUPS];  // adjustment amounts for insert-to-front
+	memset(seq_adjustments, 0, sizeof(seq_adjustments));
+	unsigned char re = os.iopts[IOPT_REMOTE_EXT_MODE];
+
+	// If qo>0, new zones will preempt existing, so calculate adjustment amounts first
+	if (qo>0) {
+		// First pass: calculate how much time new zones will need for each sequential group
+		for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
+			if(q->st) continue; // skip already scheduled zones
+			if(!q->dur) continue; // skip zones marked for reset
+
+			gid = os.get_station_gid(q->sid);
+
+			// Only calculate adjustments for sequential stations
+			if (os.is_sequential_station(q->sid) && !re) {
+				seq_adjustments[gid] += q->dur + station_delay;
+			}
+		}
+
+		// Second pass: adjust existing queued zones (those with st > 0)
+		for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
+			if(!q->st) continue; // skip new zones (will be scheduled later)
+			if(!q->dur) continue; // skip zones marked for reset
+
+			// Only adjust sequential stations
+			if (!os.is_sequential_station(q->sid) || re) continue;
+
+			gid = os.get_station_gid(q->sid);
+			ulong adjustment = seq_adjustments[gid] + stagger[gid];
+			if (adjustment == 0) continue; // no adjustment needed for this group
+
+			// Only adjust sequential stations in the same group
+			// If station is currently running
+			if (curr_time >= q->st && curr_time < q->st + q->dur) {
+				turn_off_station(q->sid, curr_time); // TODO: double check the logic
+				ulong remaining = q->dur - (curr_time - q->st);
+				q->st = curr_time + adjustment;
+				q->dur = remaining;
+				q->deque_time += adjustment;
+			}
+			// If station is waiting to run
+			else if (curr_time < q->st) {
+				q->st += adjustment;
+				q->deque_time += adjustment;
+			}
+			// Update last_seq_stop_times
+			if (q->st + q->dur > pd.last_seq_stop_times[gid]) {
+				pd.last_seq_stop_times[gid] = q->st + q->dur;
+			}
+		}
+
+		// Set sequential start times to current time (or after pause)
+		for(unsigned char i=0;i<NUM_SEQ_GROUPS;i++) {
+			seq_start_times[i] = con_start_time + stagger[i];
 		}
 	}
+	else {
+		// Original behavior: append new zones after existing ones
+		for(unsigned char i=0;i<NUM_SEQ_GROUPS;i++) {
+			seq_start_times[i] = con_start_time + stagger[i];
+			// if the sequential queue already has stations running
+			if (pd.last_seq_stop_times[i] > curr_time) {
+				seq_start_times[i] = pd.last_seq_stop_times[i] + station_delay;
+			}
+		}
+	}
+
 	con_start_time += (stagger[NUM_SEQ_GROUPS-1] + 1); // shift con_start_time to be 1 second after accumulated stagger time
 
-	unsigned char re = os.iopts[IOPT_REMOTE_EXT_MODE];
-	// go through runtime queue and calculate start time of each station
+	// Third pass (or second pass if qo==0): schedule new zones (those with st=0)
 	for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
 		if(q->st) continue; // if this queue element has already been scheduled, skip
 		if(!q->dur) continue; // if the element has been marked to reset, skip
@@ -1562,6 +1609,27 @@ void schedule_all_stations(time_os_t curr_time) {
 			}
 		}
 	}
+
+	// For debugging: print out queued elements
+#if defined(ENABLE_DEBUG)
+	DEBUG_PRINTLN("queue:");
+	for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
+		DEBUG_PRINT("[");
+		DEBUG_PRINT(q->sid);
+		DEBUG_PRINT(",");
+		DEBUG_PRINT(q->dur);
+		DEBUG_PRINT(",");
+		DEBUG_PRINT(q->st);
+		DEBUG_PRINT("(");
+		DEBUG_PRINT(hour(q->st));
+		DEBUG_PRINT(":");
+		DEBUG_PRINT(minute(q->st));
+		DEBUG_PRINT(":");
+		DEBUG_PRINT(second(q->st));
+		DEBUG_PRINTLN(")]");
+	}
+	DEBUG_PRINTLN("");
+#endif
 }
 
 /** Immediately reset all stations
@@ -1628,9 +1696,8 @@ void reset_all_stations(bool running_ones_only) {
  * If pid==255, this is a short test program (2 second per station)
  * If pid > 0. run program pid-1
  */
-void manual_start_program(unsigned char pid, unsigned char uwt) {
+void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo) {
 	boolean match_found = false;
-	reset_all_stations_immediate();
 	ProgramStruct prog;
 	ulong dur;
     double adjustment = 1.0;
@@ -1686,7 +1753,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt) {
 		}
 	}
 	if(match_found) {
-		schedule_all_stations(os.now_tz());
+		schedule_all_stations(os.now_tz(), qo);
 	}
 }
 
