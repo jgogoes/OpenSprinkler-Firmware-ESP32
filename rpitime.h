@@ -1,5 +1,5 @@
-#ifndef RPI_TIME_H
-#define RPI_TIME_H
+#pragma once
+#if !defined(ARDUINO)
 
 #include <time.h>
 

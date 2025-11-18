@@ -186,13 +186,6 @@ void GetWeather() {
 	// Parse protocol and extract host/port
 	char *host_start = host;
 
-#if defined(OS_AVR)
-	if (strncmp_P(host, PSTR("http://"), 7) == 0) {
-		host_start = host + 7;
-	} else if (strncmp_P(host, PSTR("https://"), 8) == 0) { // note that avr does not support https
-		host_start = host + 8;
-	}
-#else
 	bool use_ssl = true;  // default to https
 	int port = 443;       // default to https port
 
@@ -214,8 +207,6 @@ void GetWeather() {
 		port = atoi(colon + 1);
 	}
 
-#endif
-
 	strcat(ether_buffer, " HTTP/1.0\r\nHOST: ");
 	strcat(ether_buffer, host_start);
 	strcat(ether_buffer, "\r\nUser-Agent: ");
@@ -224,11 +215,7 @@ void GetWeather() {
 
 	wt_errCode = HTTP_RQT_NOT_RECEIVED;
 	DEBUG_PRINT(ether_buffer);
-#if defined(OS_AVR)
-	int ret = os.send_http_request(host_start, ether_buffer, getweather_callback_with_peel_header);
-#else
 	int ret = os.send_http_request(host_start, port, ether_buffer, getweather_callback_with_peel_header, use_ssl);
-#endif
 	if(ret!=HTTP_RQT_SUCCESS) {
 		if(wt_errCode < 0) wt_errCode = ret;
 		// if wt_errCode > 0, the call is successful but weather script may return error
@@ -270,7 +257,7 @@ void parse_wto(char* wto) {
 void apply_monthly_adjustment(time_os_t curr_time) {
 	// ====== Check monthly water percentage ======
 	if(os.iopts[IOPT_USE_WEATHER]==WEATHER_METHOD_MONTHLY) {
-#if defined(ARDUINO)
+#if defined(ESP8266)
 		unsigned char m = month(curr_time)-1;
 #else
 		time_os_t ct = curr_time;

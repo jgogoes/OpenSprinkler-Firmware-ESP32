@@ -130,8 +130,6 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 #define DEFAULT_EMAIL_PORT	465
 
 	// parse email variables
-	#if defined(SUPPORT_EMAIL)
-	// define email variables
 	ArduinoJson::JsonDocument doc; // make sure this has the same scope of email_x variables to prevent use after free
 	const char *email_host = NULL;
 	const char *email_username = NULL;
@@ -163,8 +161,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 			email_recipient= doc["recipient"];
 		}
 	}
-	#endif
-
+	
 	#if defined(ESP8266)
 		EMailSender::EMailMessage email_message;
 	#else
@@ -175,13 +172,11 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 	#endif
 
 	bool email_enabled = false;
-#if defined(SUPPORT_EMAIL)
 	if(!email_en){  // todo: this should be simplified
 		email_enabled = false;
 	}else{
 		email_enabled = true;
 	}
-#endif
 
 	// if none if enabled, return here
 	if ((!ifttt_enabled) && (!email_enabled) && (!os.mqtt.enabled()))
@@ -236,11 +231,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"duration\":%d"), (int)fval);
 					if (os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) {
 						float gpm = flow_last_gpm * flowrate100 / 100.f;
-						#if defined(OS_AVR)
-						snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"flow\":%d.%02d"), (int)gpm, (int)(gpm*100)%100);
-						#else
 						snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"flow\":%.2f"), gpm);
-						#endif
 					}
 				}
 				strcat_P(payload, PSTR("}"));
@@ -256,11 +247,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 
 				if(os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) {
 					float gpm = flow_last_gpm * flowrate100 / 100.f;
-					#if defined(OS_AVR)
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" Flow rate: %d.%02d"), (int)gpm, (int)(gpm*100)%100);
-					#else
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" Flow rate: %.2f"), gpm);
-					#endif
 				}
 				if(email_enabled) { email_message.subject += PSTR("station event"); }
 			}
@@ -313,12 +300,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					//Format mqtt message
 					snprintf_P(topic, PUSH_TOPIC_LEN, PSTR("station/%d/alert/flow"), lval);
 					float gpm = flow_last_gpm * flowrate100 / 100.f;
-					#if defined(OS_AVR)
-					snprintf_P(payload, PUSH_PAYLOAD_LEN, PSTR("{\"flow_rate\":%d.%02d,\"duration\":%d,\"alert_setpoint\":%d.%02d}"), (int)gpm, (int)(gpm*100)%100,
-					(int)fval, (int)flow_gpm_alert_setpoint, (int)(flow_gpm_alert_setpoint*100)%100);
-					#else
 					snprintf_P(payload, PUSH_PAYLOAD_LEN, PSTR("{\"flow_rate\":%.2f,\"duration\":%d,\"alert_setpoint\":%.4f}"), gpm, (int)fval, flow_gpm_alert_setpoint);
-					#endif
 				}
 
 
@@ -328,7 +310,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					// Get and format current local time as "YYYY-MM-DD hh:mm:ss AM/PM"
 					strcat_P(postval, PSTR("at "));
 					time_os_t curr_time = os.now_tz();
-					#if defined(ARDUINO)
+					#if defined(ESP8266)
 					tmElements_t tm;
 					breakTime(curr_time, tm);
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
@@ -351,13 +333,8 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 
 					strcat_P(postval, PSTR(" FLOW ALERT!"));
 					float gpm = flow_last_gpm * flowrate100 / 100.f;
-					#if defined(OS_AVR)
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" | Flow rate: %d.%02d > Flow alert setpoint: %d.%02d"),
-						(int)gpm, (int)(gpm*100)%100, (int)flow_gpm_alert_setpoint, (int)(flow_gpm_alert_setpoint*100)%100);
-					#else
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" | Flow rate: %.2f > Flow alert setpoint: %.4f"),
 						gpm, flow_gpm_alert_setpoint);
-					#endif
 
 					if(email_enabled) { email_message.subject += PSTR("- FLOW ALERT"); }
 
@@ -451,18 +428,10 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 				float vol = lval*flowrate100/100.f;
 				if (os.mqtt.enabled()) {
 					strcpy_P(topic, PSTR("sensor/flow"));
-					#if defined(OS_AVR)
-					snprintf_P(payload, PUSH_PAYLOAD_LEN, PSTR("{\"count\":%d,\"volume\":%d.%02d}"), (int)lval, (int)vol, (int)(vol*100)%100);
-					#else
 					snprintf_P(payload, PUSH_PAYLOAD_LEN, PSTR("{\"count\":%d,\"volume\":%.2f}"), (int)lval, vol);
-					#endif
 				}
 				if (ifttt_enabled || email_enabled) {
-					#if defined(OS_AVR)
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("Flow count: %d, volume: %d.%02d"), (int)lval, (int)vol, (int)(vol*100)%100);
-					#else
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("Flow count: %d, volume: %.2f"), (int)lval, vol);
-					#endif
 					if(email_enabled) { email_message.subject += PSTR("flow sensor event"); }
 				}
 			}
@@ -496,7 +465,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					// Get and format current local time as "YYYY-MM-DD hh:mm:ss AM/PM"
 					strcat_P(postval, PSTR("at "));
 					time_os_t curr_time = os.now_tz();
-					#if defined(ARDUINO)
+					#if defined(ESP8266)
 					tmElements_t tm;
 					breakTime(curr_time, tm);
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
@@ -565,9 +534,8 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 				snprintf_P(payload, PUSH_PAYLOAD_LEN, PSTR("{\"state\":\"started\",\"cause\":%d}"), (int)os.last_reboot_cause);
 			}
 			if (ifttt_enabled || email_enabled) {
-				#if defined(ARDUINO)
+				#if defined(ESP8266)
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("rebooted. Cause: %d. Device IP: "), os.last_reboot_cause);
-					#if defined(ESP8266)
 					{
 						IPAddress _ip;
 						if (useEth) {
@@ -579,9 +547,6 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 						unsigned char ip[4] = {_ip[0], _ip[1], _ip[2], _ip[3]};
 						ip2string(postval, TMP_BUFFER_SIZE, ip);
 					}
-					#else
-						ip2string(postval, TMP_BUFFER_SIZE, &(Ethernet.localIP()[0]));
-					#endif
 				#else
 					strcat_P(postval, PSTR("controller process restarted."));
 				#endif
@@ -610,15 +575,13 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 
 	if(email_enabled){
 		email_message.message = strchr(postval, 'O'); // ad-hoc: remove the value1 part from the ifttt message
-		#if defined(ARDUINO)
-			#if defined(ESP8266)
-				if(email_host && email_username && email_password && email_recipient) { // make sure all are valid
-					EMailSender emailSend(email_username, email_password);
-					emailSend.setSMTPServer(email_host);
-					emailSend.setSMTPPort(email_port);
-					EMailSender::Response resp = emailSend.send(email_recipient, email_message);
-				}
-			#endif
+		#if defined(ESP8266)
+			if(email_host && email_username && email_password && email_recipient) { // make sure all are valid
+				EMailSender emailSend(email_username, email_password);
+				emailSend.setSMTPServer(email_host);
+				emailSend.setSMTPPort(email_port);
+				EMailSender::Response resp = emailSend.send(email_recipient, email_message);
+			}
 		#else
 			struct smtp *smtp = NULL;
 			String email_port_str = to_string(email_port);

@@ -72,6 +72,6 @@ The firmware compilation instructions below are for OpenSprinkler **v3.x and v2.
 1.  In VS Code, click `File -> Open Folder` and select the `OpenSprinkler-Firmware` folder.
 2.  PlatformIO will recognize the `platformio.ini` file in that folder, which contains all the libraries and settings needed to compile the firmware.
 3.  Click the **PlatformIO: Build** button (with the checkmark icon ✓) in the blue status bar at the bottom of the screen to build the firmware.
-4.  The default build environment is for OpenSprinkler v3.x (`env:os3x_esp8266`). To build for OpenSprinkler v2.3, switch to `env:os23_atmega1284p`.
+4.  The default build environment is for OpenSprinkler v3.x (`env:os3x_esp8266`).
 
 <hr class="double">

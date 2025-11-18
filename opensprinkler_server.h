@@ -21,10 +21,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _OPENSPRINKLER_SERVER_H
-#define _OPENSPRINKLER_SERVER_H
+#pragma once
 
-#if !defined(ARDUINO)
+#if !defined(ESP8266)
 #include <stdarg.h>
 #include <unistd.h>
 #endif
@@ -100,5 +99,3 @@ public:
 	}
 };
 
-
-#endif // _OPENSPRINKLER_SERVER_H

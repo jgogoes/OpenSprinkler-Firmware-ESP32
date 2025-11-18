@@ -1,5 +1,4 @@
-#ifndef IMAGES_H
-#define IMAGES_H
+#pragma once
 
 enum {
 	ICON_ETHER_CONNECTED = 0,
@@ -13,7 +12,6 @@ enum {
 	NUM_CUSTOM_ICONS
 };
 
-#if defined(ESP8266) || defined(PIN_SENSOR2)
 enum {
 	LCD_CURSOR_REMOTEXT = 11,
 	LCD_CURSOR_RAINDELAY,// 12
@@ -21,22 +19,8 @@ enum {
 	LCD_CURSOR_SENSOR2,  // 14
 	LCD_CURSOR_NETWORK  // 15
 };
-#else
-enum {
-	LCD_CURSOR_SENSOR2 = 11,
-	LCD_CURSOR_REMOTEXT, // 12
-	LCD_CURSOR_RAINDELAY,// 13
-	LCD_CURSOR_SENSOR1,  // 14
-	LCD_CURSOR_NETWORK   // 15
-};
-#endif
 
-
-#if defined(USE_SSD1306)
-
-#if not defined(ARDUINO)
-#define PROGMEM
-#endif
+#if defined(USE_DISPLAY)
 
 #define WiFi_Logo_width 60
 #define WiFi_Logo_height 36
@@ -140,103 +124,5 @@ const unsigned char _iconimage_pswitch[] PROGMEM = {
 	};
 
 */
-
-#elif defined(USE_LCD)
-
-const char _iconimage_connected[] PROGMEM = {
-	B00000,
-	B00000,
-	B00000,
-	B00001,
-	B00001,
-	B00101,
-	B00101,
-	B10101
-};
-
-const char _iconimage_disconnected[] PROGMEM = {
-	B00000,
-	B10100,
-	B01000,
-	B10101,
-	B00001,
-	B00101,
-	B00101,
-	B10101
-};
-
-const char _iconimage_remotext[] PROGMEM = {
-	B00000,
-	B00000,
-	B00000,
-	B10001,
-	B01011,
-	B00101,
-	B01001,
-	B11110
-};
-
-const char _iconimage_raindelay[] PROGMEM = {
-	B00000,
-	B01110,
-	B10101,
-	B10101,
-	B10111,
-	B10001,
-	B10001,
-	B01110
-};
-
-const char _iconimage_rain[] PROGMEM = {
-	B00000,
-	B00000,
-	B00110,
-	B01001,
-	B11111,
-	B00000,
-	B10101,
-	B10101
-};
-
-const char _iconimage_soil[] PROGMEM = {
-	B00100,
-	B00100,
-	B01010,
-	B01010,
-	B10001,
-	B10001,
-	B10001,
-	B01110
-};
-
-/*
-const unsigned char _iconimage_flow[] PROGMEM = {
-	B00000,
-	B00000,
-	B00000,
-	B11010,
-	B10010,
-	B11010,
-	B10011,
-	B00000
-};
-
-const unsigned char _iconimage_pswitch[] PROGMEM = {
-	B00000,
-	B11000,
-	B10100,
-	B11000,
-	B10010,
-	B10110,
-	B00010,
-	B00111
-};
-
-// todo
-
-*/
-
-#endif
-
 
 #endif

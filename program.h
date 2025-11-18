@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-
-#ifndef _PROGRAM_H
-#define _PROGRAM_H
+#pragma once
 
 #define MAX_NUM_PROGRAMS    40  // maximum number of programs
 #define MAX_NUM_STARTTIMES  4
@@ -157,5 +155,3 @@ private:
 	static void load_count();
 	static void save_count();
 };
-
-#endif  // _PROGRAM_H

@@ -20,13 +20,11 @@
  * along with this program.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
-#ifndef _DEFINES_H
-#define _DEFINES_H
+#define ENABLE_DEBUG  // enable serial debug
 
-//#define ENABLE_DEBUG  // enable serial debug
-
-typedef unsigned long ulong;
+typedef unsigned long ulong; // TODO: remove and replace by uint32_t for cross-platform consistency
 
 #define TMP_BUFFER_SIZE      320   // scratch buffer size
 
@@ -35,7 +33,7 @@ typedef unsigned long ulong;
 														// if this number is different from the one stored in non-volatile memory
 														// a device reset will be automatically triggered
 
-#define OS_FW_MINOR      4  // Firmware minor version
+#define OS_FW_MINOR      5  // Firmware minor version
 
 /** Hardware version base numbers */
 #define OS_HW_VERSION_BASE   0x00 // OpenSprinkler
@@ -139,7 +137,7 @@ enum {
 #define LED_SLOW_BLINK 500
 
 /** Storage / zone expander defines */
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	#define MAX_EXT_BOARDS    8  // maximum number of 8-zone expanders (each 16-zone expander counts as 2)
 #else
 	#define MAX_EXT_BOARDS    24 // allow more zones for linux-based firmwares
@@ -171,14 +169,6 @@ enum {
 #define OVERCURRENT_DC_EXTRA      1200 // in mA, extra margin for DC controller
 #define DEFAULT_LATCH_BOOST_VOLTAGE  9 // default latch boost voltage in volt
 #define DEFAULT_TARGET_PD_VOLTAGE   75 // default target voltage (unit: 100mV, so 75 means 7500mV ot 7.5V)
-
-#if (defined(__AVR_ATmega1284P__) || defined(__AVR_ATmega1284__))
-	#define OS_AVR
-#else  // all non-AVR platforms support OTF, EMAIL and HTTPS
-	#define USE_OTF
-	#define SUPPORT_EMAIL
-	#define SUPPORT_HTTPS
-#endif
 
 /* Weather Adjustment Methods */
 enum {
@@ -317,56 +307,7 @@ enum {
 #undef OS_HW_VERSION
 
 /** Hardware defines */
-#if defined(OS_AVR) // for OS 2.3
-
-	#define OS_HW_VERSION   (OS_HW_VERSION_BASE+23)
-	#define PIN_FREE_LIST   {2,10,12,13,14,15,18,19}  // Free GPIO pins
-
-	// hardware pins
-	#define PIN_BUTTON_1      31    // button 1
-	#define PIN_BUTTON_2      30    // button 2
-	#define PIN_BUTTON_3      29    // button 3
-	#define PIN_RFTX          28    // RF data pin
-	#define PORT_RF        PORTA
-	#define PINX_RF        PINA3
-	#define PIN_SR_LATCH       3    // shift register latch pin
-	#define PIN_SR_DATA       21    // shift register data pin
-	#define PIN_SR_CLOCK      22    // shift register clock pin
-	#define PIN_SR_OE          1    // shift register output enable pin
-
-	// regular 16x2 LCD pin defines
-	#define PIN_LCD_RS        19    // LCD rs pin
-	#define PIN_LCD_EN        18    // LCD enable pin
-	#define PIN_LCD_D4        20    // LCD d4 pin
-	#define PIN_LCD_D5        21    // LCD d5 pin
-	#define PIN_LCD_D6        22    // LCD d6 pin
-	#define PIN_LCD_D7        23    // LCD d7 pin
-	#define PIN_LCD_BACKLIGHT 12    // LCD backlight pin
-	#define PIN_LCD_CONTRAST  13    // LCD contrast pin
-
-	// DC controller pin defines
-	#define PIN_BOOST         20    // booster pin
-	#define PIN_BOOST_EN      23    // boost voltage enable pin
-
-	#define PIN_ETHER_CS       4    // Ethernet controller chip select pin
-	#define PIN_SENSOR1       11    //
-	#define PIN_SD_CS          0    // SD card chip select pin
-	#define PIN_FLOWSENSOR_INT 1    // flow sensor interrupt pin (INT1)
-	#define PIN_EXP_SENSE      4    // expansion board sensing pin (A4)
-	#define PIN_CURR_SENSE     7    // current sensing pin (A7)
-	#define PIN_CURR_DIGITAL  24    // digital pin index for A7
-
-	#define ETHER_BUFFER_SIZE   2048
-
-	#define 	wdt_reset()   __asm__ __volatile__ ("wdr")  // watchdog timer reset
-
-	#define pinModeExt        pinMode
-	#define digitalReadExt    digitalRead
-	#define digitalWriteExt   digitalWrite
-
-	#define USE_DISPLAY
-	#define USE_LCD
-#elif defined(ESP8266) // for ESP8266
+#if defined(ESP8266) // for ESP8266
 
 	#define OS_HW_VERSION    (OS_HW_VERSION_BASE+30)
 	#define IOEXP_PIN        0x80 // base for pins on main IO expander
@@ -453,7 +394,6 @@ enum {
 	#define V2_PIN_BOOST_SEL     IOEXP_PIN+8
 
 	#define USE_DISPLAY
-	#define USE_SSD1306
 
 #elif defined(OSPI) // for OSPi
 
@@ -477,7 +417,6 @@ enum {
 	#define SCL 0
 
 	#define USE_DISPLAY
-	#define USE_SSD1306
 
 #else // for demo / simulation
 	// use fake hardware pins
@@ -500,7 +439,7 @@ enum {
 
 #if defined(ENABLE_DEBUG) /** Serial debug functions */
 
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 		#define DEBUG_BEGIN(x)   {Serial.begin(x);}
 		#define DEBUG_PRINT(x)   {Serial.print(x);}
 		#define DEBUG_PRINTLN(x) {Serial.println(x);}
@@ -516,7 +455,7 @@ enum {
 
 #else
 
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 	// work-around for PIN_SENSOR1 on OS3.2 and above
 	#define DEBUG_BEGIN(x)   {Serial.begin(115200); Serial.end();}
 	#else
@@ -528,8 +467,8 @@ enum {
 
 #endif
 
-/** Re-define avr-specific (e.g. PGM) types to use standard types */
-#if !defined(ARDUINO)
+/** Re-define arduino-specific (e.g. PGM) types to use standard types */
+#if !defined(ESP8266)
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <string.h>
@@ -579,5 +518,3 @@ enum {
 #define BUTTON_WAIT_HOLD       2  // wait until button hold time expires
 
 #define DISPLAY_MSG_MS      2000  // message display time (milliseconds)
-
-#endif  // _DEFINES_H

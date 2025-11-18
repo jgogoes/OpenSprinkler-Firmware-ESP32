@@ -21,13 +21,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	#include <Arduino.h>
-	#if defined(ESP8266)
-		#include <ESP8266WiFi.h>
-	#else
-		#include <Ethernet.h>
-	#endif
+	#include <ESP8266WiFi.h>
 	#define MQTT_SOCKET_TIMEOUT 5
 	#include <PubSubClient.h>
 
@@ -52,7 +48,7 @@
 // Debug routines to help identify any blocking of the event loop for an extended period
 
 #if defined(ENABLE_DEBUG)
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 		#include "TimeLib.h"
 		#define DEBUG_TIMESTAMP(msg, ...) {time_os_t t = os.now_tz(); Serial.printf("%02d-%02d-%02d %02d:%02d:%02d - ", year(t), month(t), day(t), hour(t), minute(t), second(t));}
 	#else
@@ -480,14 +476,9 @@ void OSMqtt::loop(void) {
 #endif
 }
 
-/**************************** ARDUINO ********************************************/
-#if defined(ARDUINO)
-
-	#if defined(ESP8266)
-		WiFiClient wifiClient;
-	#else
-		EthernetClient ethClient;
-	#endif
+/**************************** ESP8266 ********************************************/
+#if defined(ESP8266)
+WiFiClient wifiClient;
 
 int OSMqtt::_init(void) {
 	Client * client = NULL;

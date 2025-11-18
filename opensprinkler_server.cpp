@@ -30,33 +30,20 @@
 #include "main.h"
 
 // External variables defined in main ion file
-#if defined(USE_OTF)
-	extern OTF::OpenThingsFramework *otf;
-	#define OTF_PARAMS_DEF const OTF::Request &req,OTF::Response &res
-	#define OTF_PARAMS req,res
-	#define FKV_SOURCE req
-	#define handle_return(x) {if(x==HTML_OK) res.writeBodyData(ether_buffer, strlen(ether_buffer)); else otf_send_result(req,res,x); return;}
-#else
-	extern EthernetClient *m_client;
-	#define OTF_PARAMS_DEF
-	#define OTF_PARAMS
-	#define FKV_SOURCE p
-	#define handle_return(x) {return_code=x; return;}
-#endif
+extern OTF::OpenThingsFramework *otf;
+#define OTF_PARAMS_DEF const OTF::Request &req,OTF::Response &res
+#define OTF_PARAMS req,res
+#define FKV_SOURCE req
+#define handle_return(x) {if(x==HTML_OK) res.writeBodyData(ether_buffer, strlen(ether_buffer)); else otf_send_result(req,res,x); return;}
 
-#if defined(ARDUINO)
-	#if defined(ESP8266)
-		#include <FS.h>
-		#include <LittleFS.h>
-		#include "espconnect.h"
-		extern ESP8266WebServer *update_server;
-		extern ENC28J60lwIP enc28j60;
-		extern Wiznet5500lwIP w5500;
-		extern lwipEth eth;
-	#else
-		#include "SdFat.h"
-		extern SdFat sd;
-	#endif
+#if defined(ESP8266)
+	#include <FS.h>
+	#include <LittleFS.h>
+	#include "espconnect.h"
+	extern ESP8266WebServer *update_server;
+	extern ENC28J60lwIP enc28j60;
+	extern Wiznet5500lwIP w5500;
+	extern lwipEth eth;
 #else
 	#include <stdarg.h>
 	#include <stdlib.h>
@@ -68,11 +55,6 @@ extern char tmp_buffer[];
 extern OpenSprinkler os;
 extern ProgramData pd;
 extern ulong flow_count;
-
-#if !defined(USE_OTF)
-static unsigned char return_code;
-static char* get_buffer = NULL;
-#endif
 
 BufferFiller bfill;
 
@@ -95,30 +77,6 @@ int available_ether_buffer() {
 #define HTML_UPLOAD_FAILED    0x40
 #define HTML_REDIRECT_HOME    0xFF
 
-#if !defined(USE_OTF)
-static const char html200OK[] PROGMEM =
-	"HTTP/1.1 200 OK\r\n"
-;
-
-static const char htmlNoCache[] PROGMEM =
-	"Cache-Control: max-age=0, no-cache, no-store, must-revalidate\r\n"
-;
-
-static const char htmlContentJSON[] PROGMEM =
-	"Content-Type: application/json\r\n"
-	"Connection: close\r\n"
-;
-
-static const char htmlContentHTML[] PROGMEM =
-	"Content-Type: text/html\r\n"
-	"Connection: close\r\n"
-;
-
-static const char htmlAccessControl[] PROGMEM =
-	"Access-Control-Allow-Origin: *\r\n"
-;
-#endif
-
 static const char htmlMobileHeader[] PROGMEM =
 	"<meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0,minimum-scale=1.0,user-scalable=no\">"
 ;
@@ -127,9 +85,8 @@ static const char htmlReturnHome[] PROGMEM =
 	"<script>window.location=\"/\";</script>\n"
 ;
 
-#if defined(USE_OTF)
 unsigned char findKeyVal (const OTF::Request &req,char *strbuf, uint16_t maxlen,const char *key,bool key_in_pgm=false,uint8_t *keyfound=NULL) {
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	char* result = key_in_pgm ? req.getQueryParameter((const __FlashStringHelper *)key) : req.getQueryParameter(key);
 #else
 	char* result = req.getQueryParameter(key);
@@ -144,7 +101,7 @@ unsigned char findKeyVal (const OTF::Request &req,char *strbuf, uint16_t maxlen,
 	}
 	return 0;
 }
-#endif
+
 unsigned char findKeyVal (const char *str,char *strbuf, uint16_t maxlen,const char *key,bool key_in_pgm=false,uint8_t *keyfound=NULL) {
 	uint8_t found=0;
 	uint16_t i=0;
@@ -211,11 +168,7 @@ void rewind_ether_buffer() {
 }
 
 void send_packet(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	res.writeBodyData(ether_buffer, strlen(ether_buffer));
-#else
-	m_client->write((const uint8_t *)ether_buffer, strlen(ether_buffer));
-#endif
 	rewind_ether_buffer();
 }
 
@@ -224,7 +177,6 @@ char dec2hexchar(unsigned char dec) {
 	else return 'A'+(dec-10);
 }
 
-#if defined(USE_OTF)
 void print_header(OTF_PARAMS_DEF, bool isJson=true, int len=0) {
 	res.writeStatus(200, F("OK"));
 	res.writeHeader(F("Content-Type"), isJson?F("application/json"):F("text/html"));
@@ -244,14 +196,8 @@ void print_header_compressed_html(OTF_PARAMS_DEF, int len) {
 	res.writeHeader(F("Content-Encoding"), F("gzip"));
 	res.writeHeader(F("Connection"), F("close"));
 }
-#else
-void print_header(bool isJson=true)  {
-	bfill.emit_p(PSTR("$F$F$F$F\r\n"), html200OK, isJson?htmlContentJSON:htmlContentHTML, htmlAccessControl, htmlNoCache);
-}
-#endif
 
-#if defined(USE_OTF)
-#if !defined(ARDUINO)
+#if !defined(ESP8266)
 string two_digits(uint8_t x) {
 	return std::to_string(x);
 }
@@ -267,7 +213,7 @@ String toHMS(ulong t) {
 
 void otf_send_result(OTF_PARAMS_DEF, unsigned char code, const char *item = NULL) {
 	String json = F("{\"result\":");
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	json += code;
 #else
 	json += std::to_string(code);
@@ -377,32 +323,18 @@ void on_ap_try_connect(OTF_PARAMS_DEF) {
 	}
 }
 #endif
-#endif
 
 
 /** Check and verify password */
-#if defined(USE_OTF)
 boolean check_password(char *p) {
 	return true;
 }
-boolean process_password(OTF_PARAMS_DEF, boolean fwv_on_fail=false)
-#else
-boolean check_password(char *p)
-#endif
-{
+boolean process_password(OTF_PARAMS_DEF, boolean fwv_on_fail=false) {
 #if defined(DEMO)
 	return true;
 #endif
 	if (os.iopts[IOPT_IGNORE_PASSWORD])  return true;
 
-#if !defined(USE_OTF)
-	if (m_client && !p) {
-		p = get_buffer;
-	}
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("pw"), true)) {
-		if (os.password_verify(tmp_buffer)) return true;
-	}
-#else
 	/*if(req.isCloudRequest()){ // password is not required if this is coming from cloud connection
 		return true;
 	}*/
@@ -418,7 +350,6 @@ boolean check_password(char *p)
 	} else {
 		otf_send_result(OTF_PARAMS, HTML_UNAUTHORIZED);
 	}
-#endif
 	return false;
 }
 
@@ -473,13 +404,9 @@ void server_json_stations_main(OTF_PARAMS_DEF) {
 
 /** Output stations data */
 void server_json_stations(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 
 	bfill.emit_p(PSTR("{"));
 	server_json_stations_main(OTF_PARAMS);
@@ -488,13 +415,9 @@ void server_json_stations(OTF_PARAMS_DEF) {
 
 /** Output station special attribute */
 void server_json_station_special(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 
 	unsigned char sid;
 	unsigned char comma=0;
@@ -517,12 +440,7 @@ void server_json_station_special(OTF_PARAMS_DEF) {
 	handle_return(HTML_OK);
 }
 
-#if defined(USE_OTF)
-void server_change_board_attrib(const OTF::Request &req, char header, unsigned char *attrib)
-#else
-void server_change_board_attrib(char *p, char header, unsigned char *attrib)
-#endif
-{
+void server_change_board_attrib(const OTF::Request &req, char header, unsigned char *attrib) {
 	char tbuf2[6] = {0};
 	unsigned char bid;
 	tbuf2[0]=header;
@@ -534,12 +452,7 @@ void server_change_board_attrib(char *p, char header, unsigned char *attrib)
 	}
 }
 
-#if defined(USE_OTF)
-void server_change_stations_attrib(const OTF::Request &req, char header, unsigned char *attrib)
-#else
-void server_change_stations_attrib(char *p, char header, unsigned char *attrib)
-#endif
-{
+void server_change_stations_attrib(const OTF::Request &req, char header, unsigned char *attrib) {
 	char tbuf2[6] = {0};
 	unsigned char bid, s, sid;
 	tbuf2[0]=header;
@@ -568,11 +481,7 @@ void server_change_stations_attrib(char *p, char header, unsigned char *attrib)
  * g?: sequential group id
  */
 void server_change_stations(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char* p = get_buffer;
-#endif
 
 	unsigned char sid;
 	char tbuf2[5] = {'s', 0, 0, 0, 0};
@@ -580,9 +489,6 @@ void server_change_stations(OTF_PARAMS_DEF) {
 	for(sid=0;sid<os.nstations;sid++) {
 		snprintf(tbuf2+1, 4, "%d", sid);
 		if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, tbuf2)) {
-			#if !defined(USE_OTF)
-			urlDecode(tmp_buffer);
-			#endif
 			strReplaceQuoteBackslash(tmp_buffer);
 			os.set_station_name(sid, tmp_buffer);
 		}
@@ -619,9 +525,6 @@ void server_change_stations(OTF_PARAMS_DEF) {
 					handle_return(HTML_DATA_OUTOFBOUND);
 				}
 			} else if ((tmp_buffer[0] == STN_TYPE_HTTP) || (tmp_buffer[0] == STN_TYPE_HTTPS) || (tmp_buffer[0] == STN_TYPE_REMOTE_OTC)) {
-				#if !defined(USE_OTF)
-				urlDecode(tmp_buffer+1); // decode the string for OS_AVR
-				#endif
 				if (strlen(tmp_buffer+1) > sizeof(HTTPStationData)) {
 					handle_return(HTML_DATA_OUTOFBOUND);
 				}
@@ -670,11 +573,7 @@ void manual_start_program(unsigned char, unsigned char, unsigned char);
  * qo: queue option (0: append; 1: insert at front; 2: replace (default) )
  */
 void server_manual_program(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("pid"), true))
 		handle_return(HTML_DATA_MISSING);
@@ -715,27 +614,9 @@ void server_manual_program(OTF_PARAMS_DEF) {
  * anno?: annotation for station ordering (refer to program name annotation)
  */
 void server_change_runonce(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "t", false)) handle_return(HTML_DATA_MISSING);
 	char *pv = tmp_buffer+1;
-#else
-	char *p = get_buffer;
-
-	// decode url first
-	if(p) urlDecode(p);
-	// search for the start of t=[
-	char *pv;
-	boolean found=false;
-	for(pv=p;(*pv)!=0 && pv<p+100;pv++) {
-		if(strncmp(pv, "t=[", 3)==0) {
-			found=true;
-			break;
-		}
-	}
-	if(!found)	handle_return(HTML_DATA_MISSING);
-	pv+=3;
-#endif
 
 	ProgramStruct prog, annoprog;
 	unsigned char ns = os.nstations;
@@ -856,11 +737,7 @@ void server_change_runonce(OTF_PARAMS_DEF) {
  * pid:program index (-1 will delete all programs)
  */
 void server_delete_program(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("pid"), true))
 		handle_return(HTML_DATA_MISSING);
 
@@ -884,12 +761,7 @@ void server_delete_program(OTF_PARAMS_DEF) {
  * pid: program index (must be 1 or larger, because we can't move up program 0)
 */
 void server_moveup_program(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
-
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("pid"), true))
 		handle_return(HTML_DATA_MISSING);
 
@@ -918,11 +790,7 @@ void server_moveup_program(OTF_PARAMS_DEF) {
 */
 const char _str_program[] PROGMEM = "Program ";
 void server_change_program(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 	unsigned char i;
 
@@ -950,9 +818,6 @@ void server_change_program(OTF_PARAMS_DEF) {
 
 	// parse program name
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("name"), true)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		strReplaceQuoteBackslash(tmp_buffer);
 		strncpy(prog.name, tmp_buffer, PROGRAM_NAME_SIZE);
 	} else {
@@ -974,31 +839,8 @@ void server_change_program(OTF_PARAMS_DEF) {
 		}
 	}
 
-
-#if !defined(USE_OTF)
-	if(p) urlDecode(p);
-#endif
-
-
-#if defined(USE_OTF)
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "v",false)) handle_return(HTML_DATA_MISSING);
 	char *pv = tmp_buffer+1;
-#else
-	// parse ad-hoc v=[...
-	// search for the start of v=[
-	char *pv;
-	boolean found=false;
-
-	for(pv=p;(*pv)!=0 && pv<p+100;pv++) {
-		if(strncmp(pv, "v=[", 3)==0) {
-			found=true;
-			break;
-		}
-	}
-
-	if(!found)	handle_return(HTML_DATA_MISSING);
-	pv+=3;
-#endif
 
 	// parse headers
 	*(char*)(&prog) = parse_listdata(&pv);
@@ -1044,7 +886,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 void server_json_options_main() {
 	unsigned char oid;
 	for(oid=0;oid<NUM_IOPTS;oid++) {
-		#if !defined(ARDUINO) // do not send the following parameters for non-Arduino platforms
+		#if !defined(ESP8266) // do not send the following parameters for non-Arduino platforms
 		if (oid==IOPT_USE_NTP			|| oid==IOPT_USE_DHCP		 ||
 				(oid>=IOPT_STATIC_IP1	&& oid<=IOPT_STATIC_IP4) ||
 				(oid>=IOPT_GATEWAY_IP1 && oid<=IOPT_GATEWAY_IP4) ||
@@ -1054,12 +896,6 @@ void server_json_options_main() {
 				continue;
 		#endif
 
-		#if !(defined(ESP8266) || defined(PIN_SENSOR2))
-		// only OS 3.x or controllers that have PIN_SENSOR2 defined support sensor 2 options
-		if (oid==IOPT_SENSOR2_TYPE || oid==IOPT_SENSOR2_OPTION || oid==IOPT_SENSOR2_ON_DELAY || oid==IOPT_SENSOR2_OFF_DELAY)
-			continue;
-		#endif
-
 		int32_t v=os.iopts[oid];
 		if (oid==IOPT_MASTER_OFF_ADJ || oid==IOPT_MASTER_OFF_ADJ_2 ||
 				oid==IOPT_MASTER_ON_ADJ  || oid==IOPT_MASTER_ON_ADJ_2 ||
@@ -1067,7 +903,7 @@ void server_json_options_main() {
 			v=water_time_decode_signed(v);
 		}
 
-		#if defined(ARDUINO)
+		#if defined(ESP8266)
 		if (oid==IOPT_BOOST_TIME) {
 			if (os.hw_type==HW_TYPE_AC || os.hw_type==HW_TYPE_UNKNOWN) continue;
 			else v<<=2;
@@ -1095,22 +931,9 @@ void server_json_options_main() {
 		}
 		#endif
 
-		if (oid==IOPT_SEQUENTIAL_RETIRED || oid==IOPT_URS_RETIRED || oid==IOPT_RSO_RETIRED || oid==IOPT_RESERVE_7 || oid==IOPT_RESERVE_8) continue;
-
-#if defined(ARDUINO)
-		#if defined(ESP8266)
-		// for SSD1306, we can't adjust contrast or backlight
-		if(oid==IOPT_LCD_CONTRAST || oid==IOPT_LCD_BACKLIGHT) continue;
-		#else
-		if (os.lcd.type() == LCD_I2C) {
-			// for I2C type LCD, we can't adjust contrast or backlight
-			if(oid==IOPT_LCD_CONTRAST || oid==IOPT_LCD_BACKLIGHT) continue;
-		}
-		#endif
-#else
-		// for Linux-based platforms, we can't adjust contrast or backlight
-		if(oid==IOPT_LCD_CONTRAST || oid==IOPT_LCD_BACKLIGHT) continue;
-#endif
+		if (oid==IOPT_LCD_CONTRAST || oid==IOPT_LCD_BACKLIGHT || oid==IOPT_SEQUENTIAL_RETIRED || oid==IOPT_URS_RETIRED ||
+				oid==IOPT_RSO_RETIRED || oid==IOPT_RESERVE_7 || oid==IOPT_RESERVE_8)
+			continue;
 
 		// each json name takes 5 characters
 		strncpy_P0(tmp_buffer, iopt_json_names+oid*5, 5);
@@ -1134,13 +957,9 @@ void server_json_options_main() {
 
 /** Output Options */
 void server_json_options(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS,true)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 	bfill.emit_p(PSTR("{"));
 	server_json_options_main();
 	handle_return(HTML_OK);
@@ -1188,13 +1007,9 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 
 /** Output program data */
 void server_json_programs(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 	bfill.emit_p(PSTR("{"));
 	server_json_programs_main(OTF_PARAMS);
 	handle_return(HTML_OK);
@@ -1203,11 +1018,7 @@ void server_json_programs(OTF_PARAMS_DEF) {
 /** Output script url form */
 void server_view_scripturl(OTF_PARAMS_DEF) {
 	rewind_ether_buffer();
-#if defined(USE_OTF)
 	print_header(OTF_PARAMS,false,strlen(ether_buffer));
-#else
-	print_header(false);
-#endif
 	//bfill.emit_p(PSTR("<form name=of action=cu method=get><table cellspacing=12><tr><td><b>JavaScript</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=jsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Weather</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=wsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Password</b>:</td><td><input type=password size=32 name=pw> <input type=submit value=Submit></td></tr></table></form><script src=https://ui.opensprinkler.com/js/hasher.js></script>"),
 	bfill.emit_p(PSTR(R"(<form name=of action=cu method=get><table cellspacing=12>
 <tr><td><b>UI Source</b>:</td><td><input type=text size=40 maxlength=$D value='$O' id=jsp name=jsp></td></tr>
@@ -1257,12 +1068,10 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("\"apdv\":$D,"), os.actual_pd_voltage);
 #endif
 
-#if defined(USE_OTF)
 	bfill.emit_p(PSTR("\"otc\":{$O},\"otcs\":$D,"), SOPT_OTC_OPTS, otf->getCloudStatus());
-#endif
 
 	unsigned char mac[6] = {0};
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	os.load_hardware_mac(mac, useEth);
 #else
 	os.load_hardware_mac(mac, true);
@@ -1282,9 +1091,7 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 							 wt_restricted,
 							 SOPT_DEVICE_NAME);
 
-#if defined(SUPPORT_EMAIL)
 	bfill.emit_p(PSTR("\"email\":{$O},"), SOPT_EMAIL_OPTS);
-#endif
 
 	bfill.emit_p(PSTR("\"wls\":["));
 	if (md_N == 0) {
@@ -1295,7 +1102,7 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 		bfill.emit_p((idx == md_N-1) ? PSTR("],") : PSTR(","));
 	}
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	uint16_t current = os.read_current(true);
 	if((!os.status.program_busy) && (current<os.baseline_current)) current=0;
 	bfill.emit_p(PSTR("\"curr\":$D,"), current);
@@ -1345,13 +1152,9 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 
 /** Output controller variables in json */
 void server_json_controller(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 
 	bfill.emit_p(PSTR("{"));
 	server_json_controller_main(OTF_PARAMS);
@@ -1362,11 +1165,7 @@ void server_json_controller(OTF_PARAMS_DEF) {
 void server_home(OTF_PARAMS_DEF)
 {
 	rewind_ether_buffer();
-#if defined(USE_OTF)
 	print_header(OTF_PARAMS,false,strlen(ether_buffer));
-#else
-	print_header(false);
-#endif
 	bfill.emit_p(PSTR("<!DOCTYPE html><html><head>$F</head><body><script>"), htmlMobileHeader);
 	// send server variables and javascript packets
 	bfill.emit_p(PSTR("var ver=$D,ipas=$D;</script>"),
@@ -1394,12 +1193,8 @@ void server_home(OTF_PARAMS_DEF)
  */
 void server_change_values(OTF_PARAMS_DEF)
 {
-#if defined(USE_OTF)
 	extern uint32_t reboot_timer;
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rsn"), true) && atoi(tmp_buffer) > 0) {
 		reset_all_stations();
 	}
@@ -1412,24 +1207,16 @@ void server_change_values(OTF_PARAMS_DEF)
 		os.status.overcurrent_sid = 0; // clear overcurrent status
 	}
 
-	#if !defined(ARDUINO)
+	#if !defined(ESP8266)
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("update"), true) && atoi(tmp_buffer) > 0) {
 		os.update_dev();
 	}
 #endif
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rbt"), true) && atoi(tmp_buffer) > 0) {
-		#if defined(USE_OTF)
-			os.status.safe_reboot = 0;
-			reboot_timer = os.now_tz() + 1;
-			handle_return(HTML_SUCCESS);
-		#else
-			print_header(false);
-			//bfill.emit_p(PSTR("Rebooting..."));
-			send_packet();
-			m_client->stop();
-			os.reboot_dev(REBOOT_CAUSE_WEB);
-		#endif
+		os.status.safe_reboot = 0;
+		reboot_timer = os.now_tz() + 1;
+		handle_return(HTML_SUCCESS);
 	}
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("en"), true)) {
@@ -1485,40 +1272,26 @@ void string_remove_space(char *src) {
  * jsp: Javascript path
  */
 void server_change_scripturl(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 #if defined(DEMO)
 	handle_return(HTML_REDIRECT_HOME);
 #endif
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("jsp"), true)) {
 		tmp_buffer[TMP_BUFFER_SIZE-1]=0;	// make sure we don't exceed the maximum size
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		// trim unwanted space characters
 		string_remove_space(tmp_buffer);
 		os.sopt_save(SOPT_JAVASCRIPTURL, tmp_buffer);
 	}
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("wsp"), true)) {
 		tmp_buffer[TMP_BUFFER_SIZE-1]=0;
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		string_remove_space(tmp_buffer);
 		os.sopt_save(SOPT_WEATHERURL, tmp_buffer);
 	}
-#if defined(USE_OTF)
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS,false,strlen(ether_buffer));
 	bfill.emit_p(PSTR("$F"), htmlReturnHome);
 	handle_return(HTML_OK);
-#else
-	handle_return(HTML_REDIRECT_HOME);
-#endif
 }
 
 /**
@@ -1532,12 +1305,7 @@ void server_change_scripturl(OTF_PARAMS_DEF) {
  */
 void server_change_options(OTF_PARAMS_DEF)
 {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
-
 	// temporarily save some old options values
 	bool time_change = false;
 	bool weather_change = false;
@@ -1598,9 +1366,6 @@ void server_change_options(OTF_PARAMS_DEF)
 	}
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("loc"), true)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		strReplaceQuoteBackslash(tmp_buffer);
 		if (os.sopt_save(SOPT_LOCATION, tmp_buffer)) { // if location string has changed
 			weather_change = true;
@@ -1608,9 +1373,6 @@ void server_change_options(OTF_PARAMS_DEF)
 	}
 	uint8_t keyfound = 0;
 	if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("wto"), true)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		if (os.sopt_save(SOPT_WEATHER_OPTS, tmp_buffer)) {
 			os.sopt_load(SOPT_WEATHER_OPTS, tmp_buffer+1); // make room for the leading '{'
 			parse_wto(tmp_buffer); // parse wto
@@ -1621,9 +1383,6 @@ void server_change_options(OTF_PARAMS_DEF)
 
 	keyfound = 0;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("ifkey"), true, &keyfound)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		os.sopt_save(SOPT_IFTTT_KEY, tmp_buffer);
 	} else if (keyfound) {
 		tmp_buffer[0]=0;
@@ -1632,9 +1391,6 @@ void server_change_options(OTF_PARAMS_DEF)
 
 	keyfound = 0;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("otc"), true, &keyfound)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		os.sopt_save(SOPT_OTC_OPTS, tmp_buffer);
 	} else if (keyfound) {
 		tmp_buffer[0]=0;
@@ -1643,9 +1399,6 @@ void server_change_options(OTF_PARAMS_DEF)
 
 	keyfound = 0;
 	if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("mqtt"), true, &keyfound)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		os.sopt_save(SOPT_MQTT_OPTS, tmp_buffer);
 		os.status.req_mqtt_restart = true;
 	} else if (keyfound) {
@@ -1656,9 +1409,6 @@ void server_change_options(OTF_PARAMS_DEF)
 
 	keyfound = 0;
 	if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("email"), true, &keyfound)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		os.sopt_save(SOPT_EMAIL_OPTS, tmp_buffer);
 	} else if (keyfound) {
 		tmp_buffer[0]=0;
@@ -1666,22 +1416,19 @@ void server_change_options(OTF_PARAMS_DEF)
 	}
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("dname"), true)) {
-		#if !defined(USE_OTF)
-		urlDecode(tmp_buffer);
-		#endif
 		strReplaceQuoteBackslash(tmp_buffer);
 		os.sopt_save(SOPT_DEVICE_NAME, tmp_buffer);
 	}
 
 	// if not using NTP and manually setting time
 	if (!os.iopts[IOPT_USE_NTP] && findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("ttt"), true)) {
-#if defined(ARDUINO)
+#if defined(ESP8266)
 		unsigned long t;
 		t = strtoul(tmp_buffer, NULL, 0);
 #endif
 		// before chaging time, reset all stations to avoid messing up with timing
 		reset_all_stations_immediate();
-#if defined(ARDUINO)
+#if defined(ESP8266)
 		setTime(t);
 		RTC.set(t);
 #endif
@@ -1731,11 +1478,7 @@ void server_change_password(OTF_PARAMS_DEF) {
 	return;
 #endif
 
-#if defined(USE_OTF)
-	if(!process_password(OTF_PARAMS)) return;
-#else
 	char* p = get_buffer;
-#endif
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("npw"), true)) {
 		const int pwBufferSize = TMP_BUFFER_SIZE/2;
 		char *tbuf2 = tmp_buffer + pwBufferSize;	// use the second half of tmp_buffer
@@ -1763,13 +1506,9 @@ void server_json_status_main() {
 /** Output station status */
 void server_json_status(OTF_PARAMS_DEF)
 {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 
 	bfill.emit_p(PSTR("{"));
 	server_json_status_main();
@@ -1788,11 +1527,7 @@ void server_json_status(OTF_PARAMS_DEF)
  * qo: queuing option (0: append after others; 1: run now and pause others)
  */
 void server_change_manual(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 	int sid=-1;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
@@ -1896,12 +1631,7 @@ int file_fgets(File file, char* buf, int maxsize) {
  *        if unspecified, output all records
  */
 void server_json_log(OTF_PARAMS_DEF) {
-
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 	unsigned int start, end;
 
@@ -1932,14 +1662,10 @@ void server_json_log(OTF_PARAMS_DEF) {
 	if (findKeyVal(FKV_SOURCE, type, 4, PSTR("type"), true))
 		type_specified = true;
 
-#if defined(USE_OTF)
 	// as the log data can be large, we will use ESP8266's sendContent function to
 	// send multiple packets of data, instead of the standard way of using send().
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
 
 	bfill.emit_p(PSTR("["));
 
@@ -1951,10 +1677,6 @@ void server_json_log(OTF_PARAMS_DEF) {
 #if defined(ESP8266)
 		File file = LittleFS.open(tmp_buffer, "r");
 		if(!file) continue;
-#elif defined(ARDUINO)
-		if (!sd.exists(tmp_buffer)) continue;
-		SdFile file;
-		file.open(tmp_buffer, O_READ);
 #else // prepare to open log file for Linux
 		FILE *file = fopen(get_filename_fullpath(tmp_buffer), "rb");
 		if(!file) continue;
@@ -1969,12 +1691,6 @@ void server_json_log(OTF_PARAMS_DEF) {
 				break;
 			}
 			tmp_buffer[result]=0;
-		#elif defined(ARDUINO)
-			result = file.fgets(tmp_buffer, TMP_BUFFER_SIZE);
-			if (result <= 0) {
-				file.close();
-				break;
-			}
 		#else
 			if(fgets(tmp_buffer, TMP_BUFFER_SIZE, file)) {
 				result = strlen(tmp_buffer);
@@ -2028,12 +1744,7 @@ void server_json_log(OTF_PARAMS_DEF) {
  * if day=all: delete all log files)
  */
 void server_delete_log(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
-
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("day"), true))
 		handle_return(HTML_DATA_MISSING);
 
@@ -2048,11 +1759,7 @@ void server_delete_log(OTF_PARAMS_DEF) {
  * repl: replace (in units of seconds) (New UI allows for replace, extend, and pause using this)
  */
 void server_pause_queue(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS)) return;
-#else
-	char *p = get_buffer;
-#endif
 
 	ulong duration = 0;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("repl"), true)) {
@@ -2079,13 +1786,10 @@ void server_pause_queue(OTF_PARAMS_DEF) {
 
 /** Output all JSON data, including jc, jp, jo, js, jn */
 void server_json_all(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	if(!process_password(OTF_PARAMS,true)) return;
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
+
 	bfill.emit_p(PSTR("{\"settings\":{"));
 	server_json_controller_main(OTF_PARAMS);
 	send_packet(OTF_PARAMS);
@@ -2104,15 +1808,8 @@ void server_json_all(OTF_PARAMS_DEF) {
 	handle_return(HTML_OK);
 }
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 
-#if defined(OS_AVR)
-static int freeHeap () {
-	extern int __heap_start, *__brkval;
-	int v;
-	return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-}
-#endif
 #else
 #include <sys/sysinfo.h>
 static unsigned long freeHeap() {
@@ -2127,12 +1824,9 @@ static unsigned long freeHeap() {
 #endif
 
 void server_json_debug(OTF_PARAMS_DEF) {
-#if defined(USE_OTF)
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
-#else
-	print_header();
-#endif
+
 	bfill.emit_p(PSTR("{\"date\":\"$S\",\"time\":\"$S\",\"heap\":$L"), __DATE__, __TIME__,
 #if defined(ESP8266)
 	ESP.getFreeHeap());
@@ -2222,7 +1916,7 @@ const char _url_keys[] PROGMEM =
 	"ja"
 	"pq"
 	"db"
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	//"ff"
 #endif
 	;
@@ -2252,7 +1946,7 @@ URLHandler urls[] = {
 	server_json_all,        // ja
 	server_pause_queue,     // pq
 	server_json_debug,      // db
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	//server_fill_files,
 #endif
 };
@@ -2387,7 +2081,7 @@ void start_server_ap() {
 
 #endif
 
-#if defined(USE_OTF) && !defined(ARDUINO)
+#if !defined(ESP8266)
 void initialize_otf() {
 	if(!otf) return;
 	static bool callback_initialized = false;
@@ -2410,95 +2104,9 @@ void initialize_otf() {
 }
 #endif
 
-#if !defined(USE_OTF)
-// This funtion is only used for non-OTF platforms
-void handle_web_request(char *p) {
-	rewind_ether_buffer();
-
-	// assume this is a GET request
-	// GET /xx?xxxx
-	char *com = p+5;
-	char *dat = com+3;
-
-	if(com[0]==' ') {
-		server_home();  // home page handler
-		send_packet();
-		m_client->stop();
-	} else {
-		// server funtion handlers
-		unsigned char i;
-		for(i=0;i<sizeof(urls)/sizeof(URLHandler);i++) {
-			if(pgm_read_byte(_url_keys+2*i)==com[0]
-			 &&pgm_read_byte(_url_keys+2*i+1)==com[1]) {
-
-				// check password
-				int ret = HTML_UNAUTHORIZED;
-
-				if (com[0]=='s' && com[1]=='u') { // for /su do not require password
-					get_buffer = dat;
-					(urls[i])();
-					ret = return_code;
-				} else if ((com[0]=='j' && com[1]=='o') ||
-									 (com[0]=='j' && com[1]=='a'))  { // for /jo and /ja we output fwv if password fails
-					if(check_password(dat)==false) {
-						print_header();
-						bfill.emit_p(PSTR("{\"$F\":$D}"),
-									 iopt_json_names+0, os.iopts[0]);
-						ret = HTML_OK;
-					} else {
-						get_buffer = dat;
-						(urls[i])();
-						ret = return_code;
-					}
-				} else if (com[0]=='d' && com[1]=='b') {
-					get_buffer = dat;
-					(urls[i])();
-					ret = return_code;
-				} else {
-					// first check password
-					if(check_password(dat)==false) {
-						ret = HTML_UNAUTHORIZED;
-					} else {
-						get_buffer = dat;
-						(urls[i])();
-						ret = return_code;
-					}
-				}
-				if (ret == -1) {
-					if (m_client)
-						m_client->stop();
-					return;
-				}
-				switch(ret) {
-				case HTML_OK:
-					break;
-				case HTML_REDIRECT_HOME:
-					print_header(false);
-					bfill.emit_p(PSTR("$F"), htmlReturnHome);
-					break;
-				default:
-					print_header();
-					bfill.emit_p(PSTR("{\"result\":$D}"), ret);
-				}
-				break;
-			}
-		}
-
-		if(i==sizeof(urls)/sizeof(URLHandler)) {
-			// no server funtion found
-			print_header();
-			bfill.emit_p(PSTR("{\"result\":$D}"), HTML_PAGE_NOT_FOUND);
-		}
-		send_packet();
-		m_client->stop();
-	}
-}
-#endif
-
-#if defined(ARDUINO)
+#if defined(ESP8266)
 #define NTP_NTRIES 10
 /** NTP sync request */
-#if defined(ESP8266)
 // due to lwip not supporting UDP, we have to use configTime and time() functions
 // othewise, using UDP is much faster for NTP sync
 ulong getNtpTime() {
@@ -2533,104 +2141,4 @@ ulong getNtpTime() {
 	}
 	return gt;
 }
-#else	// AVR
-ulong getNtpTime() {
-
-	// only proceed if we are connected
-	if(!os.network_connected()) return 0;
-
-	uint16_t port = (uint16_t)(os.iopts[IOPT_HTTPPORT_1]<<8) + (uint16_t)os.iopts[IOPT_HTTPPORT_0];
-	port = (port==8000) ? 8888:8000; // use a different port than http port
-	EthernetUDP udp;
-
-	#define NTP_PACKET_SIZE 48
-	#define NTP_PORT 123
-	#define N_PUBLIC_SERVERS 5
-
-	static const char* public_ntp_servers[] = {
-		"time.google.com",
-		"time.nist.gov",
-		"time.windows.com",
-		"time.cloudflare.com",
-		"pool.ntp.org" };
-	static uint8_t sidx = 0;
-
-	static unsigned char packetBuffer[NTP_PACKET_SIZE];
-	unsigned char ntpip[4] = {
-		os.iopts[IOPT_NTP_IP1],
-		os.iopts[IOPT_NTP_IP2],
-		os.iopts[IOPT_NTP_IP3],
-		os.iopts[IOPT_NTP_IP4]};
-	unsigned char tries=0;
-	ulong startt = millis();
-	while(tries<NTP_NTRIES) {
-		// sendNtpPacket
-		udp.begin(port);
-
-		memset(packetBuffer, 0, NTP_PACKET_SIZE);
-		packetBuffer[0] = 0b11100011;  // LI, Version, Mode
-		packetBuffer[1] = 0;  // Stratum, or type of clock
-		packetBuffer[2] = 6;  // Polling Interval
-		packetBuffer[3] = 0xEC;  // Peer Clock Precision
-		// 8 bytes of zero for Root Delay & Root Dispersion
-		packetBuffer[12] = 49;
-		packetBuffer[13] = 0x4E;
-		packetBuffer[14] = 49;
-		packetBuffer[15] = 52;
-
-		// use one of the public NTP servers if ntp ip is unset
-
-		DEBUG_PRINT(F("ntp: "));
-		int ret;
-		if (!os.iopts[IOPT_NTP_IP1] || os.iopts[IOPT_NTP_IP1] == '0') {
-			DEBUG_PRINT(public_ntp_servers[sidx]);
-			ret = udp.beginPacket(public_ntp_servers[sidx], NTP_PORT);
-		} else {
-			DEBUG_PRINTLN(IPAddress(ntpip[0],ntpip[1],ntpip[2],ntpip[3]));
-			ret = udp.beginPacket(ntpip, NTP_PORT);
-		}
-		if(ret!=1) {
-			DEBUG_PRINT(F(" not available (ret: "));
-			DEBUG_PRINT(ret);
-			DEBUG_PRINTLN(")");
-			udp.stop();
-			tries++;
-			sidx=(sidx+1)%N_PUBLIC_SERVERS;
-			continue;
-		} else {
-			DEBUG_PRINTLN(F(" connected"));
-		}
-		udp.write(packetBuffer, NTP_PACKET_SIZE);
-		udp.endPacket();
-		// end of sendNtpPacket
-
-		// process response
-		ulong timeout = millis()+2000;
-		while((long)(millis()-timeout)<0) {
-			if(udp.parsePacket()) {
-				udp.read(packetBuffer, NTP_PACKET_SIZE);
-				ulong highWord = word(packetBuffer[40], packetBuffer[41]);
-				ulong lowWord = word(packetBuffer[42], packetBuffer[43]);
-				ulong secsSince1900 = highWord << 16 | lowWord;
-				ulong seventyYears = 2208988800UL;
-				ulong gt = secsSince1900 - seventyYears;
-				// check validity: has to be larger than 1/1/2020 12:00:00
-				if(gt>1577836800UL) {
-					udp.stop();
-					DEBUG_PRINT(F("took "));
-					DEBUG_PRINT(millis()-startt);
-					DEBUG_PRINTLN(F("ms"));
-					return gt;
-				}
-			}
-		}
-		tries++;
-		udp.stop();
-		sidx=(sidx+1)%N_PUBLIC_SERVERS;
-	}
-	if(tries==NTP_NTRIES) {DEBUG_PRINTLN(F("NTP failed!!"));}
-	udp.stop();
-	return 0;
-}
-#endif
 #endif

@@ -21,12 +21,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GPIO_H
-#define GPIO_H
+#pragma once
 
 #if defined(ARDUINO)
-
-#if defined(ESP8266)
 
 #include "Arduino.h"
 
@@ -113,8 +110,6 @@ void pinModeExt(unsigned char pin, unsigned char mode);
 void digitalWriteExt(unsigned char pin, unsigned char value);
 unsigned char digitalReadExt(unsigned char pin);
 
-#endif	// ESP8266
-
 #else
 
 #include <sys/stat.h>
@@ -145,4 +140,3 @@ void attachInterrupt(int pin, const char* mode, void (*isr)(void));
 
 #endif
 
-#endif // GPIO_H
