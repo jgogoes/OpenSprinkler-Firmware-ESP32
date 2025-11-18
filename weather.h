@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>
  */
 
-
-#ifndef _WEATHER_H
-#define _WEATHER_H
+#pragma once
 
 #define WEATHER_UPDATE_SUNRISE  0x01
 #define WEATHER_UPDATE_SUNSET   0x02
@@ -45,4 +43,3 @@ extern unsigned char wt_monthly[];
 extern unsigned char wt_restricted;
 void parse_wto(char* wto);
 void apply_monthly_adjustment(time_os_t curr_time);
-#endif  // _WEATHER_H

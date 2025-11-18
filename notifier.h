@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-
-#ifndef _NOTIFIER_H
-#define _NOTIFIER_H
+#pragma once
 
 #define NOTIF_QUEUE_MAXSIZE 32
 
@@ -55,5 +53,3 @@ protected:
 	static NotifNodeStruct* tail;
 	static unsigned char nqueue;
 };
-
-#endif  // _NOTIFIER_H

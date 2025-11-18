@@ -26,16 +26,9 @@
 #include "OpenSprinkler.h"
 extern OpenSprinkler os;
 
-#if defined(ARDUINO)  // Arduino
-
-	#if defined(ESP8266)
-		#include <FS.h>
-		#include <LittleFS.h>
-	#else
-		#include <avr/eeprom.h>
-		#include "SdFat.h"
-		extern SdFat sd;
-	#endif
+#if defined(ESP8266)  // Arduino
+	#include <FS.h>
+	#include <LittleFS.h>
 
 #else // RPI/LINUX
 
@@ -296,12 +289,6 @@ void remove_file(const char *fn) {
 	if(!LittleFS.exists(fn)) return;
 	LittleFS.remove(fn);
 
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	if (!sd.exists(fn))  return;
-	sd.remove(fn);
-
 #else
 
 	remove(get_filename_fullpath(fn));
@@ -313,11 +300,6 @@ bool file_exists(const char *fn) {
 #if defined(ESP8266)
 
 	return LittleFS.exists(fn);
-
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	return sd.exists(fn);
 
 #else
 
@@ -439,16 +421,6 @@ void file_read_block(const char *fn, void *dst, ulong pos, ulong len) {
 		f.close();
 	}
 
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	SdFile file;
-	if(file.open(fn, O_READ)) {
-		file.seekSet(pos);
-		file.read(dst, len);
-		file.close();
-	}
-
 #else
 
 	FILE *fp = fopen(get_filename_fullpath(fn), "rb");
@@ -471,16 +443,6 @@ void file_write_block(const char *fn, const void *src, ulong pos, ulong len) {
 		f.write((unsigned char*)src, len);
 		f.close();
 	}
-
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	SdFile file;
-	int ret = file.open(fn, O_CREAT | O_RDWR);
-	if(!ret) return;
-	file.seekSet(pos);
-	file.write(src, len);
-	file.close();
 
 #else
 
@@ -512,18 +474,6 @@ void file_copy_block(const char *fn, ulong from, ulong to, ulong len, void *tmp)
 	f.write((unsigned char*)tmp, len);
 	f.close();
 
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	SdFile file;
-	int ret = file.open(fn, O_RDWR);
-	if(!ret) return;
-	file.seekSet(from);
-	file.read(tmp, len);
-	file.seekSet(to);
-	file.write(tmp, len);
-	file.close();
-
 #else
 
 	FILE *fp = fopen(get_filename_fullpath(fn), "rb+");
@@ -551,21 +501,6 @@ unsigned char file_cmp_block(const char *fn, const char *buf, ulong pos) {
 			c=f.read();
 		}
 		f.close();
-		return (*buf==c)?0:1;
-	}
-
-#elif defined(ARDUINO)
-
-	sd.chdir("/");
-	SdFile file;
-	if(file.open(fn, O_READ)) {
-		file.seekSet(pos);
-		char c = file.read();
-		while(*buf && (c==*buf)) {
-			buf++;
-			c=file.read();
-		}
-		file.close();
 		return (*buf==c)?0:1;
 	}
 

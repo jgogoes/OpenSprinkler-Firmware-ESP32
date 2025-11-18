@@ -21,10 +21,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _UTILS_H
-#define _UTILS_H
+ #pragma once
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	#include <Arduino.h>
     #include <FS.h>
     #include <LittleFS.h>
@@ -106,7 +105,7 @@ bool isValidMAC(const char *_mac);
 void str2mac(const char *_str, unsigned char mac[]);
 #endif
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 
 #else // Arduino compatible functions for RPI/LINUX
 	const char* get_data_dir();
@@ -144,7 +143,3 @@ void str2mac(const char *_str, unsigned char mac[]);
 
 	BoardType get_board_type();
 #endif
-
-char dec2hexchar(unsigned char dec);
-
-#endif // _UTILS_H

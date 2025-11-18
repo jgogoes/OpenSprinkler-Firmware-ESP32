@@ -21,8 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _MQTT_H
-#define _MQTT_H
+#pragma once
 
 class OSMqtt {
 private:
@@ -57,4 +56,3 @@ private:
     static char* get_sub_topic() { return _sub_topic; }
 };
 
-#endif	// _MQTT_H

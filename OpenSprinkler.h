@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-
-#ifndef _OPENSPRINKLER_H
-#define _OPENSPRINKLER_H
+#pragma once
 
 #include "types.h"
 #include "defines.h"
@@ -34,29 +32,23 @@
 #include "RCSwitch.h"
 #include <cmath>
 
-#if defined(ARDUINO) // headers for Arduino
+#if defined(ESP8266) // headers for Arduino
 	#include <Arduino.h>
 	#include <Wire.h>
 	#include <SPI.h>
 	#include <RCSwitch.h>
 	#include "I2CRTC.h"
 
-	#if defined(ESP8266) // for ESP8266
-		#include <FS.h>
-		#include <LittleFS.h>
-		#include <ENC28J60lwIP.h>
-		#include <W5500lwIP.h>
-		#include <OpenThingsFramework.h>
-		#include <DNSServer.h>
-		#include <Ticker.h>
-		#include "espconnect.h"
-		#include "EMailSender.h"
-		#include "ch224.h"
-	#else // for AVR
-		#include <SdFat.h>
-		#include <Ethernet.h>
-		#include "LiquidCrystal.h"
-	#endif
+	#include <FS.h>
+	#include <LittleFS.h>
+	#include <ENC28J60lwIP.h>
+	#include <W5500lwIP.h>
+	#include <OpenThingsFramework.h>
+	#include <DNSServer.h>
+	#include <Ticker.h>
+	#include "espconnect.h"
+	#include "EMailSender.h"
+	#include "ch224.h"
 
 #else // headers for RPI/LINUX
 	#include <time.h>
@@ -70,11 +62,7 @@
 	#include "smtp.h"
 #endif // end of headers
 
-#if defined(USE_LCD)
-	#include "LiquidCrystal.h"
-#endif
-
-#if defined(USE_SSD1306)
+#if defined(USE_DISPLAY)
 	#include "SSD1306Display.h"
 #endif
 
@@ -86,8 +74,7 @@
 	#include "ads1115.h"
 #endif
 
-#if defined(ARDUINO)
-	#if defined(ESP8266)
+#if defined(ESP8266)
 	extern ESP8266WebServer *update_server;
 	extern ENC28J60lwIP enc28j60;
 	extern Wiznet5500lwIP w5500;
@@ -119,20 +106,12 @@
 		}
 	};
 	extern lwipEth eth;
-	#else
-		// AVR specific
-	#endif
 	extern bool useEth;
 #else
 	// OSPI/Linux specific
 #endif
 
-#if defined(USE_OTF)
-	extern OTF::OpenThingsFramework *otf;
-#else
-	extern EthernetServer *m_server;
-	extern bool useEth;
-#endif
+extern OTF::OpenThingsFramework *otf;
 
 /** Non-volatile data structure */
 struct NVConData {
@@ -250,10 +229,8 @@ class OpenSprinkler {
 public:
 
 	// data members
-#if defined(USE_SSD1306)
+#if defined(USE_DISPLAY)
 	static SSD1306Display lcd;  // 128x64 OLED display
-#elif defined(USE_LCD)
-	static LiquidCrystal lcd;   // 16x2 character LCD
 #endif
 
 #if defined(USE_ADS1115)
@@ -390,9 +367,7 @@ public:
 	static int8_t send_http_request(const char* server, uint16_t port, char* p, void(*callback)(char*)=NULL, bool usessl=false, uint16_t timeout=5000);
 	static int8_t send_http_request(char* server_with_port, char* p, void(*callback)(char*)=NULL, bool usessl=false, uint16_t timeout=5000);
 
-	#if defined(USE_OTF)
 	static OTCConfig otc;
-	#endif
 
     // -- Sensor functions
     #if defined(USE_SENSORS)
@@ -418,12 +393,9 @@ public:
 	static void lcd_print_version(unsigned char v);  // print version number
 	static void lcd_set_brightness(unsigned char value=1);
 	static void lcd_set_contrast();
-
-	#if defined(USE_SSD1306)
 	static void flash_screen();
 	static void toggle_screen_led();
 	static void set_screen_led(unsigned char status);
-	#endif
 
 	static String time2str(uint32_t t) {
 		uint16_t h = hour(t);
@@ -450,16 +422,10 @@ public:
 	static void ui_set_options(int oid);		// ui for setting options (oid-> starting option index)
 #endif
 
-#if defined(ARDUINO) // LCD functions for Arduino
-	#if defined(ESP8266)
+#if defined(ESP8266) // LCD functions for Arduino
 	static void lcd_print_pgm(PGM_P str); // ESP8266 does not allow PGM_P followed by PROGMEM
 	static void lcd_print_line_clear_pgm(PGM_P str, unsigned char line);
-	#else
-	static void lcd_print_pgm(PGM_P PROGMEM str);  // print a program memory string
-	static void lcd_print_line_clear_pgm(PGM_P PROGMEM str, unsigned char line);
-	#endif
 
-	#if defined(ESP8266)
 	static IOEXP *mainio, *drio;
 	static IOEXP *expanders[];
 	static CH224 usbpd;
@@ -475,11 +441,10 @@ public:
 	static void reset_to_ap();
 	static unsigned char state;
 	static void setup_pd_voltage();
-	#endif
 
 #else
-static void lcd_print_pgm(const char *str);
-static void lcd_print_line_clear_pgm(const char *str, unsigned char line);
+	static void lcd_print_pgm(const char *str);
+	static void lcd_print_line_clear_pgm(const char *str, unsigned char line);
 #endif // LCD functions for Arduino
 
 private:
@@ -504,9 +469,6 @@ private:
 	static unsigned char engage_booster;
 	static RCSwitch rfswitch;
 
-	#if defined(USE_OTF)
 	static void parse_otc_config();
-	#endif
 };
 
-#endif  // _OPENSPRINKLER_H

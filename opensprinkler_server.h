@@ -21,8 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _OPENSPRINKLER_SERVER_H
-#define _OPENSPRINKLER_SERVER_H
+#pragma once
 
 #include "types.h"
 #include <limits>
@@ -32,5 +31,3 @@
 #include <stdarg.h>
 #include <unistd.h>
 #endif
-
-#endif // _OPENSPRINKLER_SERVER_H
