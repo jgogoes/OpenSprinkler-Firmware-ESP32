@@ -1140,9 +1140,11 @@ void check_weather() {
 		}
 	} else if (!os.checkwt_lasttime || (ntz > os.checkwt_lasttime + CHECK_WEATHER_TIMEOUT)) {
 		os.checkwt_lasttime = ntz;
+		#if defined(USE_DISPLAY)
 		if (!ui_state) {
 			os.lcd_print_line_clear_pgm(PSTR("Check Weather..."),1);
 		}
+		#endif
 		GetWeather();
 	}
 }

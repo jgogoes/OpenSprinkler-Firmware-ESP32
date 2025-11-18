@@ -1,6 +1,6 @@
 #pragma once
 
-#if !defined(ARDUINO)
+#if defined(OSPI)
 
 #include <fcntl.h>
 #include <sys/ioctl.h>

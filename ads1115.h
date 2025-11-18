@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(USE_SENSORS)
+
 #include <stdint.h>
 #include "sensor.h"
 
@@ -73,3 +75,5 @@ class ADS1115Sensor : public Sensor {
 	
 	ADS1115 **sensors;
 };
+
+#endif

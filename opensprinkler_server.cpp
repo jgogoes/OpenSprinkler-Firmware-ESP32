@@ -842,6 +842,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 		}
 	}
 
+	#if defined(USE_SENSORS)
     char *end;
 
     SensorAdjustment *adj = nullptr;
@@ -901,6 +902,7 @@ void server_change_program(OTF_PARAMS_DEF) {
     adj = new SensorAdjustment(flags, sid, point_count, points);
     os.write_sensor_adjust(adj, pid);
     delete adj;
+	#endif
 
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "v",false)) handle_return(HTML_DATA_MISSING);
 	char *pv = tmp_buffer+1;
@@ -1066,6 +1068,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		}
 	}
 
+	#if defined(USE_SENSORS)
     bfill.emit_p(PSTR("],\"adj\":["));
     uint8_t adj_count = 0;
 
@@ -1098,7 +1101,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
         DEBUG_PRINT("Failed to open file: ");
         DEBUG_PRINTLN(SENADJ_FILENAME);
     }
-
+	#endif
 	bfill.emit_p(PSTR("]}"));
 }
 

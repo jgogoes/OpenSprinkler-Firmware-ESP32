@@ -1,5 +1,7 @@
 #include "ads1115.h"
 
+#if defined(USE_SENSORS)
+
 #if defined(ESP8266)
 ADS1115::ADS1115(uint8_t address, TwoWire& wire) : _address(address), _wire(&wire) {}
 ADS1115::ADS1115(uint8_t address) : ADS1115(address, Wire) {}
@@ -120,3 +122,5 @@ ADS1115Sensor::ADS1115Sensor(ADS1115 **sensors, char *buf) {
 	this->pin = static_cast<uint8_t>(buf[i++]);
 	this->sensors = sensors;
 }
+
+#endif

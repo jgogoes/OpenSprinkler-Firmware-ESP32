@@ -83,10 +83,12 @@ extern ProgramData pd;
 extern const char* user_agent_string;
 extern unsigned char curr_alert_sid;
 
+#if defined(USE_DISPLAY)
 SSD1306Display OpenSprinkler::lcd(0x3c, SDA, SCL);
+#endif
 
 #if defined(USE_ADS1115)
-    ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
+	ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
 #endif
 
 #if defined(ESP8266)
@@ -692,7 +694,7 @@ bool OpenSprinkler::network_connected(void) {
 
 #if defined(OSPI)
 bool detect_i2c(int addr) {
-    Bus.detect(addr);
+	Bus.detect(addr);
 }
 #endif
 
@@ -746,12 +748,14 @@ void OpenSprinkler::update_dev() {
 #endif // end network init functions
 
 /** Initialize LCD */
+#if defined(USE_DISPLAY)
 void OpenSprinkler::lcd_start() {
 	// initialize SSD1306
 	lcd.init();
 	lcd.begin();
 	flash_screen();
 }
+#endif
 
 //extern void flow_isr();
 
