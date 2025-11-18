@@ -174,11 +174,6 @@ void send_packet(OTF_PARAMS_DEF) {
 	rewind_ether_buffer();
 }
 
-char dec2hexchar(unsigned char dec) {
-	if(dec<10) return '0'+dec;
-	else return 'A'+(dec-10);
-}
-
 void print_header(OTF_PARAMS_DEF, bool isJson=true, int len=0) {
 	res.writeStatus(200, F("OK"));
 	res.writeHeader(F("Content-Type"), isJson?F("application/json"):F("text/html"));

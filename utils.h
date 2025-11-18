@@ -143,3 +143,5 @@ void str2mac(const char *_str, unsigned char mac[]);
 
 	BoardType get_board_type();
 #endif
+
+char dec2hexchar(unsigned char dec);
