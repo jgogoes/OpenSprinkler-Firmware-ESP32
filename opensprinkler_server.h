@@ -27,7 +27,7 @@
 #include <limits>
 #include "bfiller.h"
 
-#if !defined(ARDUINO)
+#if !defined(ESP8266)
 #include <stdarg.h>
 #include <unistd.h>
 #endif

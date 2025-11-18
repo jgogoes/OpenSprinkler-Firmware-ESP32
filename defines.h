@@ -403,7 +403,8 @@ enum {
 	#define V2_PIN_BOOST_SEL     IOEXP_PIN+8
 
 	#define USE_DISPLAY
-
+	#define USE_ADS1115
+	#define USE_SENSORS
 #elif defined(OSPI) // for OSPi
 
 	#define OS_HW_VERSION    OSPI_HW_VERSION_BASE
@@ -426,9 +427,8 @@ enum {
 	#define SCL 0
 
 	#define USE_DISPLAY
-
-    #define USE_ADS1115
-    #define USE_SENSORS
+	#define USE_ADS1115
+	#define USE_SENSORS
 
 #else // for demo / simulation
 	// use fake hardware pins

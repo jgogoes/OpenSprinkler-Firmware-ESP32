@@ -39,7 +39,7 @@
 #include "defines.h"
 
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 typedef File os_file_type;
 #else
 typedef FILE* os_file_type;

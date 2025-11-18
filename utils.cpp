@@ -312,7 +312,7 @@ bool file_exists(const char *fn) {
 }
 
 os_file_type file_open(const char *fn, FileOpenMode mode) {
-    #if defined(ARDUINO)
+    #if defined(ESP8266)
     switch (mode) {
         default:
         case FileOpenMode::Read:
@@ -358,7 +358,7 @@ os_file_type file_open(const char *fn, FileOpenMode mode) {
 }
 
 void file_close(os_file_type f) {
-    #if defined(ARDUINO)
+    #if defined(ESP8266)
     f.close();
     #else
     fclose(f);
@@ -366,7 +366,7 @@ void file_close(os_file_type f) {
 }
 
 bool file_seek(os_file_type f, uint32_t position, FileSeekMode mode) {
-    #if defined(ARDUINO)
+    #if defined(ESP8266)
     switch (mode) {
         case FileSeekMode::Set:
             return f.seek(position, fs::SeekMode::SeekSet);
@@ -394,7 +394,7 @@ bool file_seek(os_file_type f, uint32_t position) {
 }
 
 int file_read(os_file_type f, void *target, uint32_t len) {
-    #if defined(ARDUINO)
+    #if defined(ESP8266)
     return f.read((uint8_t*)target, len);
     #else
     return fread(target, 1, len, f);
@@ -402,7 +402,7 @@ int file_read(os_file_type f, void *target, uint32_t len) {
 }
 
 int file_write(os_file_type f, const void *source, uint32_t len) {
-    #if defined(ARDUINO)
+    #if defined(ESP8266)
     return f.write((const uint8_t*)source, len);
     #else
     return fwrite(source, 1, len, f);
