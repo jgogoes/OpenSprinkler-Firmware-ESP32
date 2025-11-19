@@ -234,12 +234,12 @@ public:
 #endif
 
 #if defined(USE_ADS1115)
-    static ADS1115 *ads1115_devices[4];
+	static ADS1115 *ads1115_devices[4];
 #endif
 
 #if defined(USE_SENSORS)
-    static sensor_memory_t sensors[MAX_SENSORS];
-    static uint16_t sensor_file_no;
+	static sensor_memory_t sensors[MAX_SENSORS];
+	static uint16_t sensor_file_no;
 #endif
 
 #if defined(OSPI)

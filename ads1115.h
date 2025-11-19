@@ -1,5 +1,7 @@
 #pragma once
 
+#include "defines.h"
+
 #if defined(USE_SENSORS)
 
 #include <stdint.h>
@@ -21,7 +23,7 @@ public:
 #else
 	ADS1115(uint8_t address, I2CBus& bus);
 #endif
-ADS1115(uint8_t address);
+	ADS1115(uint8_t address);
 	int16_t get_pin_value(uint8_t pin);
 	bool begin();
 
@@ -32,7 +34,7 @@ ADS1115(uint8_t address);
 	void request_pin(uint8_t pin);
 
 	bool is_busy() {
-	return (this->_read_register(0x01) & 0x8000) == 0;
+		return (this->_read_register(0x01) & 0x8000) == 0;
 	}
 
 	private:
@@ -42,7 +44,7 @@ ADS1115(uint8_t address);
 #else
 	I2CDevice _i2c;
 	uint16_t swap_reg(uint16_t val) {
-	return (val << 8) | (val >> 8);
+		return (val << 8) | (val >> 8);
 	}
 #endif
 
@@ -59,7 +61,6 @@ class ADS1115Sensor : public Sensor {
 	void emit_extra_json(BufferFiller *bfill);
 	static void emit_description_json(BufferFiller *bfill);
 	
-	
 	SensorType get_sensor_type() {
 		return SensorType::ADS1115;
 	}
@@ -67,7 +68,7 @@ class ADS1115Sensor : public Sensor {
 	uint8_t sensor_index;
 	uint8_t pin;
 
-	double get_inital_value();
+	double get_initial_value();
 
 	private:
 	double _get_raw_value();

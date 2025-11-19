@@ -26,7 +26,7 @@ void ADS1115::_write_register(uint8_t reg, uint16_t value) {
 uint16_t ADS1115::_read_register(uint8_t reg) {
 	this->_wire->beginTransmission(this->_address);
 	this->_wire->write(reg);
-	if (!this->_wire->endTransmission()) {
+	if (!this->_wire->endTransmission(false)) {
 		if (this->_wire->requestFrom((int)_address, (int)2) == 2) {
 			uint16_t val = ((uint16_t)this->_wire->read()) << 8;
 			val += (uint16_t)this->_wire->read();
@@ -71,6 +71,8 @@ int16_t ADS1115::get_pin_value(uint8_t pin) {
 
 #if defined(ESP8266)
 		yield();
+#else
+		delay(1);
 #endif
 	}
 
@@ -96,7 +98,7 @@ void ADS1115Sensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR("{\"name\":\"ADS1115 Sensor\",\"args\":[{\"name\":\"Pin Number\",\"arg\":\"pin\",\"type\":\"int::[1,16]\",\"default\":\"1\",\"extra\":[]}]}"));
 }
 
-double ADS1115Sensor::get_inital_value() {
+double ADS1115Sensor::get_initial_value() {
 	return 0.0;
 }
 

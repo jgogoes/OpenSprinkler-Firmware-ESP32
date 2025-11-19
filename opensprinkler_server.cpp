@@ -2143,7 +2143,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
     os.sensors[sid].interval = interval;
     os.sensors[sid].flags = flags;
     os.sensors[sid].next_update = 0;
-    os.sensors[sid].value = result_sensor->get_inital_value();
+    os.sensors[sid].value = result_sensor->get_initial_value();
     os.write_sensor(result_sensor, sid);
 
     delete result_sensor;

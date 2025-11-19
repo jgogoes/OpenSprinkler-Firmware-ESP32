@@ -104,7 +104,7 @@ public:
 	uint32_t flags = 0;
 
 	SensorType virtual get_sensor_type() = 0;
-	double virtual get_inital_value() = 0;
+	double virtual get_initial_value() = 0;
 
 	private:
 	double virtual _get_raw_value() = 0;
@@ -149,7 +149,7 @@ class EnsembleSensor : public Sensor {
 	ensemble_children_t children[ENSEMBLE_SENSOR_CHILDREN_COUNT];
 	EnsembleAction action;
 
-	double get_inital_value();
+	double get_initial_value();
 
 	private:
 	double _get_raw_value();
@@ -178,7 +178,7 @@ class WeatherSensor : public Sensor {
 
 	WeatherAction action;
 
-	double get_inital_value();
+	double get_initial_value();
 
 	private:
 	double _get_raw_value();

@@ -993,12 +993,12 @@ void OpenSprinkler::begin() {
 #endif
 
 #if defined(USE_ADS1115)
-    for (size_t i = 0; i < 4; i++) {
-        uint8_t address = 0x48 + i;
-        if (detect_i2c(address)) {
-            ads1115_devices[i] = new ADS1115(address);
-        }
-    }
+	for (size_t i = 0; i < 4; i++) {
+		uint8_t address = 0x48 + i;
+		if (detect_i2c(address)) {
+			ads1115_devices[i] = new ADS1115(address);
+		}
+	}
 #endif
 
 #if defined(USE_SENSORS)
@@ -2559,7 +2559,7 @@ void OpenSprinkler::load_sensors() {
                 sensors[i].interval = sensor->interval;
                 sensors[i].flags = sensor->flags;
                 sensors[i].next_update = 0;
-                sensors[i].value = sensor->get_inital_value();
+                sensors[i].value = sensor->get_initial_value();
                 delete sensor;
             }
         }

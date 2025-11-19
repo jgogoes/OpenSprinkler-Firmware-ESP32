@@ -1,5 +1,4 @@
-#ifndef _BFILLER_H
-#define _BFILLER_H
+#pragma once
 
 #include "utils.h"
 
@@ -82,5 +81,3 @@ public:
 		va_end(ap);
 	}
 };
-
-#endif //_BFILLER_H

@@ -435,7 +435,7 @@ void EnsembleSensor::emit_description_json(BufferFiller* bfill) {
     bfill->emit_p(PSTR("{\"name\":\"Ensemble Sensor\",\"args\":[{\"name\":\"Argument Sensors\",\"arg\":\"children\",\"type\":\"array::4\",\"extra\":[{\"name\":\"Sensor ID\",\"arg\":\"sid\",\"type\":\"sensor\",\"default\":\"\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Scale\",\"arg\":\"scale\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Offset\",\"arg\":\"offset\",\"type\":\"double\",\"default\":\"\",\"extra\":[]}]},{\"name\":\"Ensemble Action\",\"arg\":\"action\",\"type\":\"enum::EnsembleAction\",\"default\":\"0\",\"extra\":[]}]}"));
 }
 
-double EnsembleSensor::get_inital_value() {
+double EnsembleSensor::get_initial_value() {
     switch (this->action) {
     case EnsembleAction::Min:
         return this->max;
@@ -457,7 +457,7 @@ double EnsembleSensor::get_inital_value() {
 }
 
 double EnsembleSensor::_get_raw_value() {
-    double inital = this->get_inital_value();
+    double inital = this->get_initial_value();
     uint8_t count = 0;
 
     for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
@@ -545,7 +545,7 @@ void WeatherSensor::emit_description_json(BufferFiller* bfill) {
     bfill->emit_p(PSTR("{\"name\":\"Weather Sensor\",\"args\":[{\"name\":\"Weather Information\",\"arg\":\"action\",\"type\":\"enum::WeatherAction\",\"default\":\"0\",\"extra\":[]}]}"));
 }
 
-double WeatherSensor::get_inital_value() {
+double WeatherSensor::get_initial_value() {
     return 0.0;
 }
 
