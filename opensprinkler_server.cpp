@@ -2404,7 +2404,7 @@ void server_clear_sensor_log(OTF_PARAMS_DEF) {
 
 template <typename T>
 void bfill_enum_values(const char *name) {
-    static_assert(std::is_enum_v<T>, "T must be an enum type");
+    static_assert(std::is_enum<T>::value, "T must be an enum type");
 
     bool needs_comma = false;
 

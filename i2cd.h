@@ -15,11 +15,11 @@ extern "C" {
 class I2CBus {
 public:
 	I2CBus() {}
-	~I2CBus() {
+	/*~I2CBus() {
 		if (_file >= 0) {
 			close(_file);
 		}
-	}
+	}*/
 	int begin(const char *bus) {
 		_file = open(bus, O_RDWR);
 		if (_file < 0) {
