@@ -694,7 +694,7 @@ bool OpenSprinkler::network_connected(void) {
 
 #if defined(OSPI)
 bool detect_i2c(int addr) {
-	Bus.detect(addr);
+	return Bus.detect(addr);
 }
 #endif
 

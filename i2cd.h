@@ -15,7 +15,11 @@ extern "C" {
 class I2CBus {
 public:
 	I2CBus() {}
-
+	~I2CBus() {
+		if (_file >= 0) {
+			close(_file);
+		}
+	}
 	int begin(const char *bus) {
 		_file = open(bus, O_RDWR);
 		if (_file < 0) {
@@ -28,12 +32,14 @@ public:
 	int begin() { return begin(getDefaultBus()); }
 
 	int send(unsigned char addr, unsigned char reg, unsigned char data) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		return i2c_smbus_write_byte_data(_file, reg, data);
 	}
 
 	int send_transaction(unsigned char addr, unsigned char transaction_id, unsigned char transaction_buffer_length, unsigned char *transaction_buffer) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		return i2c_smbus_write_i2c_block_data(
@@ -41,24 +47,28 @@ public:
 	}
 
 	int read(unsigned char addr, unsigned char reg, unsigned char length, unsigned char *values) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		return i2c_smbus_read_i2c_block_data(_file, reg, length, values);
 	}
 
 	int send_word(unsigned char addr, unsigned char reg, unsigned short data) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		return i2c_smbus_write_word_data(_file, reg, data);
 	}
 
 	int read_word(unsigned char addr, unsigned char reg) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		return i2c_smbus_read_word_data(_file, reg);
 	}
 
 	int detect(unsigned char addr) {
+		if (_file < 0) return -1;
 		int res = ioctl(_file, I2C_SLAVE, addr);
 		if (res < 0) return -1;
 		
@@ -94,7 +104,7 @@ public:
 	I2CDevice(I2CBus &bus, unsigned char addr) : _addr(addr), _bus(&bus) {}
 
 	bool detect() {
-		return _bus->detect(_addr);
+		return _bus->detect(_addr)==0;
 	}
 
 	int begin_transaction(unsigned char id) {
@@ -158,21 +168,6 @@ private:
 	unsigned char transaction_id = 0;
 	unsigned char transaction_buffer[32];
 	unsigned char transaction_buffer_length = 0;
-
-	const char *getDefaultBus() { 
-		switch (get_board_type()) {
-			case BoardType::RaspberryPi_bcm2712:
-			case BoardType::RaspberryPi_bcm2711:
-			case BoardType::RaspberryPi_bcm2837:
-			case BoardType::RaspberryPi_bcm2836:
-			case BoardType::RaspberryPi_bcm2835:
-				return "/dev/i2c-1";
-			case BoardType::Unknown: 
-			case BoardType::RaspberryPi_Unknown: 
-			default:
-				return "/dev/i2c-0";
-		}
-	 }
 
 	int send_transaction() {
 		return _bus->send_transaction(_addr, transaction_id, transaction_buffer_length, transaction_buffer);

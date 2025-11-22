@@ -123,9 +123,10 @@ First confirm the expander is detected (see the question above). Note that detec
 **The expander is recognized, but zones on the expander don't work.**
 
 1. **Confirm detection:** Follow the questions above to verify the expander is detected.
-2. **Check the COM (common) wire:** All zones including expanded must have a common wire that goes to the COM terminal on the main controller. A missing/broken COM wire will cause zones to stop working.
-3. **Perform a [solenoid resistance test](#wiring-and-solenoids)** to rule out solenoid and wiring issues.
-4. **Check zones on the main controller:** If the first eight zones exhibit the same issue, this is likely due to a broken fuse/COM wire; otherwise, it's more likely an expander-specific issue.
+2. **Reboot the controller** to allow it to re-detect expanders. Any expander change (connecting, disconnecting, changing DIP) should be done **while the main controller is powered off**.
+3. **Check the COM (common) wire:** All zones including expanded must have a common wire that goes to the COM terminal on the main controller. A missing/broken COM wire will cause zones to stop working.
+4. **Perform a [solenoid resistance test](#wiring-and-solenoids)** to rule out solenoid and wiring issues.
+5. **Check zones on the main controller:** If the first eight zones exhibit the same issue, this is likely due to a broken fuse/COM wire; otherwise, it's more likely an expander-specific issue.
 
 ---
 
