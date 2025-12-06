@@ -64,7 +64,7 @@ enum class SensorUnit : uint8_t {
 	DielectricConstant,
 	PartsPerMillion,
 	Ohm,
-	Miliohm,
+	Milliohm,
 	Kiloohm,
 	Bar,
 	Kilopascal,
