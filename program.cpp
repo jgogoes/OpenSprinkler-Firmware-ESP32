@@ -101,13 +101,13 @@ void ProgramData::eraseall() {
 void ProgramData::read(unsigned char pid, ProgramStruct *buf) {
 	if (pid >= nprograms) return;
 	// first unsigned char is program counter, so 1+
-	file_read_block(PROG_FILENAME, buf, 1+(ulong)pid*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
+	file_read_block(PROG_FILENAME, buf, 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
 }
 
 /** Add a program */
 unsigned char ProgramData::add(ProgramStruct *buf) {
 	if (nprograms >= MAX_NUM_PROGRAMS)	return 0;
-	file_write_block(PROG_FILENAME, buf, 1+(ulong)nprograms*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
+	file_write_block(PROG_FILENAME, buf, 1+(uint32_t)nprograms*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
 	nprograms ++;
 	save_count();
 	return 1;
@@ -117,8 +117,8 @@ unsigned char ProgramData::add(ProgramStruct *buf) {
 void ProgramData::moveup(unsigned char pid) {
 	if(pid >= nprograms || pid == 0) return;
 	// swap program pid-1 and pid
-	ulong pos = 1+(ulong)(pid-1)*PROGRAMSTRUCT_SIZE;
-	ulong next = pos+PROGRAMSTRUCT_SIZE;
+	uint32_t pos = 1+(uint32_t)(pid-1)*PROGRAMSTRUCT_SIZE;
+	uint32_t next = pos+PROGRAMSTRUCT_SIZE;
 	char buf2[PROGRAMSTRUCT_SIZE];
 	file_read_block(PROG_FILENAME, tmp_buffer, pos, PROGRAMSTRUCT_SIZE);
 	file_read_block(PROG_FILENAME, buf2, next, PROGRAMSTRUCT_SIZE);
@@ -126,7 +126,7 @@ void ProgramData::moveup(unsigned char pid) {
 	file_write_block(PROG_FILENAME, buf2, pos, PROGRAMSTRUCT_SIZE);
 }
 
-void ProgramData::toggle_pause(ulong delay) {
+void ProgramData::toggle_pause(uint32_t delay) {
 	if (os.status.pause_state) { // was paused
 		resume_stations();
 	} else {
@@ -180,7 +180,7 @@ void ProgramData::clear_pause() {
 /** Modify a program */
 unsigned char ProgramData::modify(unsigned char pid, ProgramStruct *buf) {
 	if (pid >= nprograms)  return 0;
-	ulong pos = 1+(ulong)pid*PROGRAMSTRUCT_SIZE;
+	uint32_t pos = 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE;
 	file_write_block(PROG_FILENAME, buf, pos, PROGRAMSTRUCT_SIZE);
 	return 1;
 }
@@ -189,9 +189,9 @@ unsigned char ProgramData::modify(unsigned char pid, ProgramStruct *buf) {
 unsigned char ProgramData::del(unsigned char pid) {
 	if (pid >= nprograms)  return 0;
 	if (nprograms == 0) return 0;
-	ulong pos = 1+(ulong)(pid+1)*PROGRAMSTRUCT_SIZE;
+	uint32_t pos = 1+(uint32_t)(pid+1)*PROGRAMSTRUCT_SIZE;
 	// erase by copying backward
-	for (; pos < 1+(ulong)nprograms*PROGRAMSTRUCT_SIZE; pos+=PROGRAMSTRUCT_SIZE) {
+	for (; pos < 1+(uint32_t)nprograms*PROGRAMSTRUCT_SIZE; pos+=PROGRAMSTRUCT_SIZE) {
 		file_copy_block(PROG_FILENAME, pos, pos-PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE, tmp_buffer);
 	}
 	nprograms --;
@@ -202,10 +202,10 @@ unsigned char ProgramData::del(unsigned char pid) {
 // set the enable bit
 unsigned char ProgramData::set_flagbit(unsigned char pid, unsigned char bid, unsigned char value) {
 	if (pid >= nprograms)  return 0;
-	unsigned char flag = file_read_byte(PROG_FILENAME, 1+(ulong)pid*PROGRAMSTRUCT_SIZE);
+	unsigned char flag = file_read_byte(PROG_FILENAME, 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE);
 	if(value) flag|=(1<<bid);
 	else flag&=(~(1<<bid));
-	file_write_byte(PROG_FILENAME, 1+(ulong)pid*PROGRAMSTRUCT_SIZE, flag);
+	file_write_byte(PROG_FILENAME, 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE, flag);
 	return 1;
 }
 
@@ -233,8 +233,8 @@ unsigned char ProgramStruct::check_day_match(time_os_t t) {
 	unsigned char month_t = month(t);
 	unsigned char year_t = year(t);
 #else // get current time from RPI/LINUX
-	time_os_t ct = t;
-	struct tm *ti = gmtime(&ct);
+	time_t _ct = t;
+	struct tm *ti = gmtime(&_ct);
 	unsigned char weekday_t = (ti->tm_wday+1)%7;  // tm_wday ranges from [0,6] with Sunday being 0
 	unsigned char day_t = ti->tm_mday;
 	unsigned char month_t = ti->tm_mon+1;  // tm_mon ranges from [0,11]
@@ -490,14 +490,12 @@ void ProgramStruct::gen_station_runorder(uint16_t runcount, unsigned char *order
 void ProgramData::drem_to_relative(unsigned char days[2]) {
 	unsigned char rem_abs=days[0];
 	unsigned char inv=days[1];
-	// todo future: use now_tz()?
-	days[0] = (unsigned char)((rem_abs + inv - (os.now_tz()/SECS_PER_DAY) % inv) % inv);
+days[0] = (unsigned char)((rem_abs + inv - (os.now_tz()/SECS_PER_DAY) % inv) % inv);
 }
 
 // relative remainder -> absolute remainder
 void ProgramData::drem_to_absolute(unsigned char days[2]) {
 	unsigned char rem_rel=days[0];
 	unsigned char inv=days[1];
-	// todo future: use now_tz()?
 	days[0] = (unsigned char)(((os.now_tz()/SECS_PER_DAY) + rem_rel) % inv);
 }

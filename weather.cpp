@@ -127,7 +127,7 @@ static void getweather_callback(char* buffer) {
 	if (findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rd"), true)) {
 		v = atoi(tmp_buffer);
 		if (v>0) {
-			os.nvdata.rd_stop_time = tnow + (unsigned long) v * 3600;
+			os.nvdata.rd_stop_time = tnow + (uint32_t) v * 3600;
 			os.raindelay_start();
 		} else if (v==0) {
 			os.raindelay_stop();
@@ -260,8 +260,8 @@ void apply_monthly_adjustment(time_os_t curr_time) {
 #if defined(ESP8266)
 		unsigned char m = month(curr_time)-1;
 #else
-		time_os_t ct = curr_time;
-		struct tm *ti = gmtime(&ct);
+		time_t _ct = curr_time;
+		struct tm *ti = gmtime(&_ct);
 		unsigned char m = ti->tm_mon;  // tm_mon ranges from [0,11]
 #endif
 		if(os.iopts[IOPT_WATER_PERCENTAGE]!=wt_monthly[m]) {

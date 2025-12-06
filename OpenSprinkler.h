@@ -279,9 +279,9 @@ public:
 	static time_os_t sensor2_off_timer; // time when sensor2 is detected off last time
 	static time_os_t sensor2_active_lasttime; // most recent time sensor1 is activated
 	static time_os_t raindelay_on_lasttime;  // time when the most recent rain delay started
-	static ulong pause_timer; // count down timer in paused state
-	static ulong flowcount_rt;     // flow count (for computing real-time flow rate)
-	static ulong flowcount_log_start; // starting flow count (for logging)
+	static uint32_t pause_timer; // count down timer in paused state
+	static uint32_t flowcount_rt;     // flow count (for computing real-time flow rate)
+	static uint32_t flowcount_log_start; // starting flow count (for logging)
 
 	static unsigned char  button_timeout;    // button timeout
 	static time_os_t checkwt_lasttime;  // time when weather was checked
@@ -369,20 +369,20 @@ public:
 
 	static OTCConfig otc;
 
-    // -- Sensor functions
-    #if defined(USE_SENSORS)
-    static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
-    static void load_sensors();
-    static Sensor *parse_sensor(os_file_type file);
-    static Sensor *get_sensor(uint8_t index);
-    static void write_sensor(Sensor *sensor, uint8_t index);
-    void log_sensor(uint8_t sid, float value);
-    static void poll_sensors();
-    static SensorAdjustment *get_sensor_adjust(uint8_t index);
-    static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);
+	// -- Sensor functions
+#if defined(USE_SENSORS)
+	static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
+	static void load_sensors();
+	static Sensor *parse_sensor(os_file_type file);
+	static Sensor *get_sensor(uint8_t index);
+	static void write_sensor(Sensor *sensor, uint8_t index);
+	void log_sensor(uint8_t sid, float value);
+	static void poll_sensors();
+	static SensorAdjustment *get_sensor_adjust(uint8_t index);
+	static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);
 
-    static double get_sensor_weather_data(WeatherAction action);
-    #endif
+	static double get_sensor_weather_data(WeatherAction action);
+#endif
 
 	// -- LCD functions
 #if defined(USE_DISPLAY)

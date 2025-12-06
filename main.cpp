@@ -40,7 +40,7 @@
 	Wiznet5500lwIP w5500(PIN_ETHER_CS); // W5500 lwip for wired Ether
 	lwipEth eth;
 	bool useEth = false; // tracks whether we are using WiFi or wired Ether connection
-	unsigned long getNtpTime();
+	uint32_t getNtpTime();
 #else // header and defs for RPI/Linux
 	bool useEth = false;
 #endif
@@ -88,8 +88,8 @@ NotifQueue notif; // NotifQueue object
  * flow_stop - time when valve turns off (last rising edge pulse detected before off)
  * flow_gallons - total # of gallons+1 from flow_start to flow_stop
  * flow_last_gpm - last flow rate measured (averaged over flow_gallons) from last valve stopped (used to write to log file). */
-ulong flow_begin, flow_start, flow_stop, flow_gallons, flow_rt_reset, last_flow_rt;
-ulong flow_count = 0;
+uint32_t flow_begin, flow_start, flow_stop, flow_gallons, flow_rt_reset, last_flow_rt;
+uint32_t flow_count = 0;
 unsigned char prev_flow_state = HIGH;
 float flow_last_gpm = 0;
 int32_t flow_rt_period = -1;
@@ -97,7 +97,7 @@ uint32_t reboot_timer = 0;
 unsigned char curr_alert_sid = 0;
 
 void flow_poll() {
-	ulong curr = millis();
+	uint32_t curr = millis();
 
 	// Resets counter if timeout occurs
 	if (flow_rt_reset && curr > flow_rt_reset) {
@@ -142,7 +142,7 @@ void flow_poll() {
 	}
 
 	// Use exponential moving average (alpha=0.2) if flow has been previosuly calculated, otherwise just set the value
-	ulong curr_period = curr - last_flow_rt;
+	uint32_t curr_period = curr - last_flow_rt;
 	if (flow_rt_period > 0) {
 		flow_rt_period = (curr_period  / 5 + flow_rt_period * 4 / 5);
 	} else {
@@ -151,7 +151,7 @@ void flow_poll() {
 
 	// calculates the flow rate scaled by the window size to simulated a fixed point number
 	if (flow_rt_period > 0) {
-		os.flowcount_rt = (ulong) (FLOWCOUNT_RT_WINDOW * 1000L / flow_rt_period);
+		os.flowcount_rt = (uint32_t) (FLOWCOUNT_RT_WINDOW * 1000L / flow_rt_period);
 		// Sets the timeout to be 10x the last period
 		flow_rt_reset = curr + (curr - last_flow_rt) * 10;
 	} else {
@@ -182,7 +182,7 @@ bool ui_confirm(PGM_P str) {
 	os.lcd_print_line_clear_pgm(str, 0);
 	os.lcd_print_line_clear_pgm(PSTR("(B1:No, B3:Yes)"), 1);
 	unsigned char button;
-	ulong start = millis();
+	uint32_t start = millis();
 	do {
 		button = os.button_read(BUTTON_WAIT_NONE);
 		if((button&BUTTON_MASK)==BUTTON_3 && (button&BUTTON_FLAG_DOWN)) return true;
@@ -200,9 +200,9 @@ void ui_state_machine() {
 	last_usm = millis();
 
 	// process screen led
-	static ulong led_toggle_prev = 0;
+	static uint32_t led_toggle_prev = 0;
 	if(led_blink_ms) {
-		ulong tm = millis();
+		uint32_t tm = millis();
 		if(tm - led_toggle_prev > led_blink_ms) { // overflow proof timeout
 			os.toggle_screen_led();
 			led_toggle_prev = tm;
@@ -459,7 +459,7 @@ void do_setup() {
 
 #endif
 
-void turn_on_station(unsigned char sid, ulong duration);
+void turn_on_station(unsigned char sid, uint32_t duration);
 static void check_network();
 void check_weather();
 static bool process_special_program_command(const char*, uint32_t curr_time);
@@ -482,7 +482,7 @@ void reboot_in(uint32_t ms) {
 void handle_web_request(char *p);
 #endif
 
-ulong currpoll_timeout = 0;
+uint32_t currpoll_timeout = 0;
 void overcurrent_monitor() {
 #if defined(ESP8266)
 	// If a zone is turning on, do immediate overcurrent monitoring here for ~50ms
@@ -513,11 +513,11 @@ void overcurrent_monitor() {
 /** Main Loop */
 void do_loop()
 {
-	static ulong flowpoll_timeout = 0;
+	static uint32_t flowpoll_timeout = 0;
 	if(os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) {
 	// handle flow sensor using polling. Maximum freq is 1/(2*FLOWPOLL_INTERVAL)
 	// e.g. if FLOWPOLL_INTERVAL is 3ms, maximum freq is 166Hz
-		ulong tm = millis();
+		uint32_t tm = millis();
 		if((long)(tm-flowpoll_timeout) > 0) { // overflow proof timeout
 			flowpoll_timeout = tm+FLOWPOLL_INTERVAL;
 			flow_poll();
@@ -530,7 +530,7 @@ void do_loop()
 
 #if defined(ESP8266)
 	{
-		ulong tn = millis();
+		uint32_t tn = millis();
 		if((long)(tn-currpoll_timeout) > 0) { // overflow proof timeout
 			int16_t curr = (int16_t)os.read_current();
 			int16_t imax = os.get_imax();
@@ -547,7 +547,7 @@ void do_loop()
 #endif
 
 	static time_os_t last_time = 0;
-	static ulong last_minute = 0;
+	static uint32_t last_minute = 0;
 
 	unsigned char bid, sid, s, pid, qid, gid, bitvalue;
 	ProgramStruct prog;
@@ -558,7 +558,7 @@ void do_loop()
 
 	// ====== Process Ethernet packets ======
 #if defined(ESP8266)	// Process Ethernet packets for Arduino
-	static ulong connecting_timeout;
+	static uint32_t connecting_timeout;
 	switch(os.state) {
 	case OS_STATE_INITIAL:
 		if(useEth) {
@@ -756,7 +756,7 @@ void do_loop()
 		}
 
 		// ====== Schedule program data ======
-		ulong curr_minute = curr_time / 60;
+		uint32_t curr_minute = curr_time / 60;
 		boolean match_found = false;
 		RuntimeQueueStruct *q;
 		// since the granularity of start time is minute
@@ -769,17 +769,14 @@ void do_loop()
 			// check through all programs
 			for(pid=0; pid<pd.nprograms; pid++) {
 				pd.read(pid, &prog);	// todo future: reduce load time
-                #if defined(USE_SENSORS)
-                double adjustment = 1.0;
-
-                SensorAdjustment *adj = os.get_sensor_adjust(pid);
-                if (adj) {
-                    adj->get_adjustment_factor(os.sensors);
-                    delete adj;
-                }
-                #else
-                double adjustment = 1.0;
-                #endif
+				double sensor_adj = 1.0;
+				#if defined(USE_SENSORS)
+				SensorAdjustment *adj = os.get_sensor_adjust(pid);
+				if (adj) {
+					sensor_adj = adj->get_adjustment_factor(os.sensors);
+					delete adj;
+				}
+				#endif
 				bool will_delete = false;
 				unsigned char runcount = prog.check_match(curr_time, &will_delete);
 				if(runcount>0) {
@@ -818,13 +815,14 @@ void do_loop()
 						if ((os.status.mas==sid+1) || (os.status.mas2==sid+1))
 							continue;
 
-                        ulong dur = (ulong)((double)prog.durations[sid] * adjustment);
+						// TODO: compare with old code
+						uint32_t dur = (uint32_t)((double)prog.durations[sid] * sensor_adj);
 						// if station has non-zero water time and the station is not disabled
 						if (dur && !(os.attrib_dis[bid]&(1<<s))) {
 							// water time is scaled by watering percentage
-							ulong water_time = water_time_resolve(prog.durations[sid]);
+							uint32_t water_time = water_time_resolve(prog.durations[sid]);
 
-							water_time = water_time * wl / 100;
+							water_time = water_time * wl / 100 * sensor_adj;
 							if (wl < 20 && water_time < 10) { // if water_percentage is less than 20% and water_time is less than 10 seconds, skip watering
 								water_time = 0;
 							}
@@ -925,7 +923,7 @@ void do_loop()
 			os.apply_all_station_bits(overcurrent_monitor);
 
 			// check through runtime queue, calculate the last stop time of sequential stations
-			memset(pd.last_seq_stop_times, 0, sizeof(ulong)*NUM_SEQ_GROUPS);
+			memset(pd.last_seq_stop_times, 0, sizeof(uint32_t)*NUM_SEQ_GROUPS);
 			time_os_t sst;
 			unsigned char re=os.iopts[IOPT_REMOTE_EXT_MODE];
 			q = pd.queue;
@@ -1033,7 +1031,7 @@ void do_loop()
 
 #if defined(USE_DISPLAY)
 		// process LCD display
-		if (!ui_state) { os.lcd_print_screen(ui_anim_chars[(unsigned long)curr_time%3]); }
+		if (!ui_state) { os.lcd_print_screen(ui_anim_chars[(uint32_t)curr_time%3]); }
 #endif
 
 		// handle reboot request
@@ -1152,7 +1150,7 @@ void check_weather() {
 /** Turn on a station
  * This function turns on a scheduled station
  */
-void turn_on_station(unsigned char sid, ulong duration) {
+void turn_on_station(unsigned char sid, uint32_t duration) {
 	// RAH implementation of flow sensor
 	flow_start=0;
 	//Added flow_gallons reset to station turn on.
@@ -1167,7 +1165,7 @@ void turn_on_station(unsigned char sid, ulong duration) {
 void handle_shift_remaining_stations(RuntimeQueueStruct* q, unsigned char gid, time_os_t curr_time) {
 	RuntimeQueueStruct *s = pd.queue;
 	time_os_t q_end_time = q->st + q->dur;
-	ulong remainder = 0;
+	uint32_t remainder = 0;
 
 	if (q_end_time > curr_time) { // remainder is non-zero
 		remainder = (q->st < curr_time) ? q_end_time - curr_time : q->dur;
@@ -1347,7 +1345,7 @@ void process_dynamic_events(time_os_t curr_time) {
  * this function determines the appropriate start and dequeue times
  * of stations bound to master stations with on and off adjustments
  */
-void handle_master_adjustments(time_os_t curr_time, RuntimeQueueStruct *q, unsigned char gid, ulong *seq_start_times) {
+void handle_master_adjustments(time_os_t curr_time, RuntimeQueueStruct *q, unsigned char gid, uint32_t *seq_start_times) {
 
 	int16_t start_adj = 0;
 	int16_t dequeue_adj = 0;
@@ -1383,7 +1381,7 @@ void handle_master_adjustments(time_os_t curr_time, RuntimeQueueStruct *q, unsig
  * preemptively, before existing queued stations
  */
 void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
-	ulong con_start_time = curr_time;   // concurrent start time
+	uint32_t con_start_time = curr_time;   // concurrent start time
 	// if the queue is paused, make sure the start time is after the scheduled pause ends
 	if (os.status.pause_state) {
 		con_start_time += os.pause_timer;
@@ -1404,8 +1402,8 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 		stagger[i] += stagger[i-1]; // accumulate stagger time
 	}
 
-	ulong seq_start_times[NUM_SEQ_GROUPS];  // sequential start times
-	ulong seq_adjustments[NUM_SEQ_GROUPS];  // adjustment amounts for insert-to-front
+	uint32_t seq_start_times[NUM_SEQ_GROUPS];  // sequential start times
+	uint32_t seq_adjustments[NUM_SEQ_GROUPS];  // adjustment amounts for insert-to-front
 	memset(seq_adjustments, 0, sizeof(seq_adjustments));
 	unsigned char re = os.iopts[IOPT_REMOTE_EXT_MODE];
 
@@ -1433,14 +1431,14 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 			if (!os.is_sequential_station(q->sid) || re) continue;
 
 			gid = os.get_station_gid(q->sid);
-			ulong adjustment = seq_adjustments[gid] + stagger[gid];
+			uint32_t adjustment = seq_adjustments[gid] + stagger[gid];
 			if (adjustment == 0) continue; // no adjustment needed for this group
 
 			// Only adjust sequential stations in the same group
 			// If station is currently running
 			if (curr_time >= q->st && curr_time < q->st + q->dur) {
 				turn_off_station(q->sid, curr_time); // TODO: double check the logic
-				ulong remaining = q->dur - (curr_time - q->st);
+				uint32_t remaining = q->dur - (curr_time - q->st);
 				q->st = curr_time + adjustment;
 				q->dur = remaining;
 				q->deque_time += adjustment;
@@ -1594,8 +1592,8 @@ void reset_all_stations(bool running_ones_only) {
 void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo) {
 	boolean match_found = false;
 	ProgramStruct prog;
-	ulong dur;
-    double adjustment = 1.0;
+	uint32_t dur;
+	double sensor_adj = 1.0;
 	unsigned char sid, bid, s;
 	unsigned char ns = os.nstations;
 	unsigned char order[ns];
@@ -1607,13 +1605,13 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 	unsigned char wl = 100;
 	if ((pid>0)&&(pid<255)) {
 		pd.read(pid-1, &prog);
-        #if defined(USE_SENSORS)
-        SensorAdjustment *adj = os.get_sensor_adjust(pid-1);
-        if (adj) {
-            adjustment = adj->get_adjustment_factor(os.sensors);
-            delete adj;
-        }
-        #endif
+		#if defined(USE_SENSORS)
+		SensorAdjustment *adj = os.get_sensor_adjust(pid-1);
+		if (adj) {
+			sensor_adj = adj->get_adjustment_factor(os.sensors);
+			delete adj;
+		}
+		#endif
 		if(uwt) wl = os.iopts[IOPT_WATER_PERCENTAGE];
 		notif.add(NOTIFY_PROGRAM_SCHED, pid-1, wl, 1);
 		// get station ordering from program name
@@ -1629,11 +1627,11 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 			continue;
 		dur = 60;
 		if(pid==255) {
-            dur=2;
-        } else if (pid>0) {
+			dur=2;
+		} else if (pid>0) {
 			dur = water_time_resolve(prog.durations[sid]);
-            dur = (ulong)((double)dur * adjustment);
-        }
+			dur = (uint32_t)((double)dur * sensor_adj);
+		}
 
 		dur = dur * wl / 100;
 		if(dur>0 && !(os.attrib_dis[bid]&(1<<s))) {
@@ -1692,7 +1690,7 @@ void write_log(unsigned char type, time_os_t curr_time) {
 	if (!os.iopts[IOPT_ENABLE_LOGGING]) return;
 
 	// file name will be logs/xxxxx.tx where xxxxx is the day in epoch time
-	snprintf (tmp_buffer, TMP_BUFFER_SIZE, "%lu", curr_time / 86400);
+	snprintf (tmp_buffer, TMP_BUFFER_SIZE, "%" PRIu32, (uint32_t)curr_time / 86400);
 	make_logfile_name(tmp_buffer);
 
 	// Step 1: open file if exists, or create new otherwise,
@@ -1739,16 +1737,16 @@ void write_log(unsigned char type, time_os_t curr_time) {
 		strcat_P(tmp_buffer, PSTR(","));
 		// duration is unsigned integer
 		size = strlen(tmp_buffer);
-		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%lu", (ulong)pd.lastrun.duration);
+		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%" PRIu32, (uint32_t)pd.lastrun.duration);
 
 	} else {
-		ulong lvalue=0;
+		uint32_t lvalue=0;
 		if(type==LOGDATA_FLOWSENSE) {
 			lvalue = (flow_count>os.flowcount_log_start)?(flow_count-os.flowcount_log_start):0;
 		}
 
 		size_t size = strlen(tmp_buffer);
-		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%lu", lvalue);
+		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%" PRIu32, lvalue);
 		strcat_P(tmp_buffer, PSTR(",\""));
 		strcat_P(tmp_buffer, log_type_names+type*3);
 		strcat_P(tmp_buffer, PSTR("\","));
@@ -1771,11 +1769,11 @@ void write_log(unsigned char type, time_os_t curr_time) {
 				break;
 		}
 		size = strlen(tmp_buffer);
-		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%lu", lvalue);
+		snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%" PRIu32, lvalue);
 	}
 	strcat_P(tmp_buffer, PSTR(","));
 	size_t size = strlen(tmp_buffer);
-	snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%lu", curr_time);
+	snprintf(tmp_buffer + size, TMP_BUFFER_SIZE - size , "%" PRIu32, (uint32_t)curr_time);
 	if((os.iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_FLOW) && (type==LOGDATA_STATION)) {
 		// RAH implementation of flow sensor
 		strcat_P(tmp_buffer, PSTR(","));
@@ -1873,8 +1871,8 @@ static void perform_ntp_sync() {
 			os.lcd_print_line_clear_pgm(PSTR("NTP Syncing..."),1);
 		}
 		DEBUG_PRINTLN(F("NTP Syncing..."));
-		static ulong last_ntp_result = 0;
-		ulong t = getNtpTime();
+		static uint32_t last_ntp_result = 0;
+		uint32_t t = getNtpTime();
 		if(last_ntp_result>3 && t>last_ntp_result-3 && t<last_ntp_result+3) {
 			DEBUG_PRINTLN(F("error: result too close to last"));
 			t = 0;	// invalidate the result

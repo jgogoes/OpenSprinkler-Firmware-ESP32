@@ -53,12 +53,12 @@
 		#define DEBUG_TIMESTAMP(msg, ...) {time_os_t t = os.now_tz(); Serial.printf("%02d-%02d-%02d %02d:%02d:%02d - ", year(t), month(t), day(t), hour(t), minute(t), second(t));}
 	#else
 		#include <sys/time.h>
-		#define DEBUG_TIMESTAMP()         {char tstr[21]; time_os_t t = time(NULL); struct tm *tm = localtime(&t); strftime(tstr, 21, "%y-%m-%d %H:%M:%S - ", tm);printf("%s", tstr);}
+		#define DEBUG_TIMESTAMP()         {char tstr[21]; time_t t = time(NULL); struct tm *tm = localtime(&t); strftime(tstr, 21, "%y-%m-%d %H:%M:%S - ", tm);printf("%s", tstr);}
 	#endif
 	#define DEBUG_LOGF(msg, ...)        {DEBUG_TIMESTAMP(); DEBUG_PRINTF(msg, ##__VA_ARGS__);}
 
-	static unsigned long _lastMillis = 0; // Holds the timestamp associated with the last call to DEBUG_DURATION()
-	inline unsigned long DEBUG_DURATION() {unsigned long dur = millis() - _lastMillis; _lastMillis = millis(); return dur;}
+	static uint32_t _lastMillis = 0; // Holds the timestamp associated with the last call to DEBUG_DURATION()
+	inline uint32_t DEBUG_DURATION() {uint32_t dur = millis() - _lastMillis; _lastMillis = millis(); return dur;}
 #else
 	#define DEBUG_LOGF(msg, ...)    {}
 	#define DEBUG_DURATION()        {}
@@ -146,7 +146,7 @@ void changeValues(char *message){
 	if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rd"), true)){
 		int rd = atoi(tmp_buffer);
 		if(rd>0){
-			os.nvdata.rd_stop_time = os.now_tz() + (unsigned long) rd * 3600;
+			os.nvdata.rd_stop_time = os.now_tz() + (uint32_t) rd * 3600;
 			os.raindelay_start();
 		}else if (rd==0){
 			os.raindelay_stop();
@@ -177,7 +177,7 @@ void manualRun(char *message){
 	}
 
 	uint16_t timer = 0;
-	unsigned long curr_time = os.now_tz();
+	uint32_t curr_time = os.now_tz();
 	if(en){
 		if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)){
 			timer = (uint16_t)atol(tmp_buffer);
@@ -438,7 +438,7 @@ void OSMqtt::subscribe(void){
 
 // Regularly call the loop function to ensure "keep alive" messages are sent to the broker and to reconnect if needed.
 void OSMqtt::loop(void) {
-	static unsigned long last_reconnect_attempt = 0;
+	static uint32_t last_reconnect_attempt = 0;
 
 	if (mqtt_client == NULL || !_enabled || os.status.network_fails > 0) return;
 

@@ -1,5 +1,4 @@
-#ifndef SENSOR_H
-#define SENSOR_H
+#pragma once
 
 #include <stdint.h>
 #if defined(ARDUINO)
@@ -14,21 +13,21 @@
 #define SENSOR_CUSTOM_UNIT_LEN 9
 
 typedef struct {
-	ulong interval;
+	uint32_t interval;
 	uint32_t flags;
-	ulong next_update;
+	uint32_t next_update;
 	double value;
 } sensor_memory_t;
 
-enum class SensorType {
-	Ensemble,
+enum class SensorType : uint8_t {
+	Ensemble = 0,
 	ADS1115,
 	Weather,
 	MAX_VALUE,
 };
 
-enum class SensorUnitGroup {
-	None,
+enum class SensorUnitGroup : uint8_t {
+	None = 0,
 	Temperature,
 	Length,
 	Volume,
@@ -40,13 +39,13 @@ enum class SensorUnitGroup {
 	MAX_VALUE,
 };
 
-enum class SensorUnit {
-	None,
+enum class SensorUnit : uint8_t {
+	None = 0,
 	Celsius,
 	Fahrenheit,
 	Kelvin,
-	Milimeter,
-	Centieter,
+	Millimeter,
+	Centimeter,
 	Meter,
 	Kilometer,
 	Inch,
@@ -54,15 +53,15 @@ enum class SensorUnit {
 	Mile,
 	Lux,
 	Lumen,
-	Milivolt,
+	Millivolt,
 	Volt,
-	Miliampere,
+	Milliampere,
 	Ampere,
 	Percent,
 	MilesPerHour,
 	KilometersPerHour,
 	MetersPerSecond,
-	DialetricConstant,
+	DielectricConstant,
 	PartsPerMillion,
 	Ohm,
 	Miliohm,
@@ -84,7 +83,7 @@ typedef enum {
 
 class Sensor {
 public:
-	Sensor(unsigned long interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags);
+	Sensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags);
 	Sensor();
 	virtual ~Sensor() {}
 
@@ -93,7 +92,7 @@ public:
 
 	void virtual emit_extra_json(BufferFiller *bfill) = 0;
 
-	unsigned long interval = 1;
+	uint32_t interval = 1;
 	double min = 0.0;
 	double max = 0.0;
 	double scale = 0.0;
@@ -113,8 +112,8 @@ public:
 	uint32_t virtual _serialize_internal(char *buf) = 0;
 };
 
-enum class EnsembleAction {
-	Min,
+enum class EnsembleAction : uint8_t {
+	Min = 0,
 	Max,
 	Average,
 	Sum,
@@ -136,7 +135,7 @@ typedef struct {
 
 class EnsembleSensor : public Sensor {
 	public:
-	EnsembleSensor(unsigned long interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
+	EnsembleSensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
 	EnsembleSensor(sensor_memory_t *sensors, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -166,7 +165,7 @@ typedef double (*WeatherGetter)(WeatherAction);
 
 class WeatherSensor : public Sensor {
 	public:
-	WeatherSensor(unsigned long interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action);
+	WeatherSensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action);
 	WeatherSensor(WeatherGetter weather_getter, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -221,6 +220,4 @@ const char *enum_string(WeatherAction action);
 const char* get_sensor_unit_name(SensorUnit unit);
 const char* get_sensor_unit_short(SensorUnit unit);
 const SensorUnitGroup get_sensor_unit_group(SensorUnit unit);
-const ulong get_sensor_unit_index(SensorUnit unit);
-
-#endif //SENSOR_H
+const uint32_t get_sensor_unit_index(SensorUnit unit);

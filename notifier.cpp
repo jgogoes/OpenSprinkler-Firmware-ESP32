@@ -172,7 +172,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 	#endif
 
 	bool email_enabled = false;
-	if(!email_en){  // todo: this should be simplified
+	if(!email_en){
 		email_enabled = false;
 	}else{
 		email_enabled = true;
@@ -316,7 +316,8 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
 						1970+tm.Year, tm.Month, tm.Day, tm.Hour, tm.Minute, tm.Second);
 					#else
-					struct tm *ti = gmtime(&curr_time);
+					time_t _ct = curr_time;
+					struct tm *ti = gmtime(&_ct);
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
 						ti->tm_year+1900, ti->tm_mon+1, ti->tm_mday, ti->tm_hour, ti->tm_min, ti->tm_sec);
 					#endif
@@ -471,7 +472,8 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
 						1970+tm.Year, tm.Month, tm.Day, tm.Hour, tm.Minute, tm.Second);
 					#else
-					struct tm *ti = gmtime(&curr_time);
+					time_t _ct = curr_time;
+					struct tm *ti = gmtime(&_ct);
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
 						ti->tm_year+1900, ti->tm_mon+1, ti->tm_mday, ti->tm_hour, ti->tm_min, ti->tm_sec);
 					#endif

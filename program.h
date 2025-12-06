@@ -132,7 +132,7 @@ public:
 	static LogStruct lastrun;
 	static time_os_t last_seq_stop_times[]; // the last stop time of a sequential station (for each sequential group respectively)
 
-	static void toggle_pause(ulong delay);
+	static void toggle_pause(uint32_t delay);
 	static void set_pause();
 	static void resume_stations();
 	static void clear_pause();

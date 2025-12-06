@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 #endif
 
 class BufferFiller {
@@ -43,12 +44,13 @@ public:
 				// itoa(va_arg(ap, int), (char*) ptr, 10);  // ray
 				snprintf((char*) ptr, len - position(),  "%d", va_arg(ap, int));
 				break;
-            case 'E': //Double
+			case 'E': //Double
 				sprintf((char*) ptr, "%10.6lf", va_arg(ap, double));
 				break;		
 			case 'L':
 				// ultoa(va_arg(ap, uint32_t), (char*) ptr, 10);
-				snprintf((char*) ptr, len - position(), "%lu", (unsigned long) va_arg(ap, uint32_t));
+				// TODO: check if there is a way to print uint32_t
+				snprintf((char*) ptr, len - position(), "%" PRIu32, va_arg(ap, uint32_t));
 				break;
 			case 'S':
 				strcpy((char*) ptr, va_arg(ap, const char*));

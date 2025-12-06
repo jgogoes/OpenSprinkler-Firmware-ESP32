@@ -62,7 +62,7 @@ uint16_t ADS1115::_read_register(uint8_t reg) {
 
 int16_t ADS1115::get_pin_value(uint8_t pin) {
 	this->request_pin(pin);
-	ulong start = millis();
+	uint32_t start = millis();
 	while (this->is_busy()) {
 		// if ((millis() - start) > 11) {
 		if ((millis() - start) > 18) {
@@ -84,7 +84,7 @@ void ADS1115::request_pin(uint8_t pin) {
 	this->_write_register(0x01, config);
 }
 
-ADS1115Sensor::ADS1115Sensor(unsigned long interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags, ADS1115** sensors, uint8_t sensor_index, uint8_t pin) : 
+ADS1115Sensor::ADS1115Sensor(uint32_t interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags, ADS1115** sensors, uint8_t sensor_index, uint8_t pin) : 
 Sensor(interval, min, max, scale, offset, name, unit, flags), 
 sensor_index(sensor_index), 
 pin(pin),

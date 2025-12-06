@@ -82,7 +82,7 @@ char* get_filename_fullpath(const char *filename) {
 	return fullpath;
 }
 
-void delay(ulong howLong)
+void delay(uint32_t howLong)
 {
 	struct timespec sleeper, dummy ;
 
@@ -92,7 +92,7 @@ void delay(ulong howLong)
 	nanosleep (&sleeper, &dummy) ;
 }
 
-void delayMicroseconds (ulong howLong)
+void delayMicroseconds (uint32_t howLong)
 {
 	struct timespec sleeper ;
 	unsigned int uSecs = howLong % 1000000 ;
@@ -110,7 +110,7 @@ void delayMicroseconds (ulong howLong)
 	}
 }
 
-void delayMicrosecondsHard (ulong howLong)
+void delayMicrosecondsHard (uint32_t howLong)
 {
 	struct timeval tNow, tLong, tEnd ;
 
@@ -134,7 +134,7 @@ void initialiseEpoch()
 	epochMicro = (uint64_t)tv.tv_sec * (uint64_t)1000000 + (uint64_t)(tv.tv_usec) ;
 }
 
-// ulong millis (void)
+// uint32_t millis (void)
 // {
 // 	struct timeval tv ;
 // 	uint64_t now ;
@@ -142,10 +142,10 @@ void initialiseEpoch()
 // 	gettimeofday (&tv, NULL) ;
 // 	now  = (uint64_t)tv.tv_sec * (uint64_t)1000 + (uint64_t)(tv.tv_usec / 1000) ;
 
-// 	return (ulong)(now - epochMilli) ;
+// 	return (uint32_t)(now - epochMilli) ;
 // }
 
-ulong micros (void)
+unsigned long micros (void)
 {
 	struct timeval tv ;
 	uint64_t now ;
@@ -153,7 +153,7 @@ ulong micros (void)
 	gettimeofday (&tv, NULL) ;
 	now  = (uint64_t)tv.tv_sec * (uint64_t)1000000 + (uint64_t)tv.tv_usec ;
 
-	return (ulong)(now - epochMicro) ;
+	return (unsigned long)(now - epochMicro) ;
 }
 
 #if defined(OSPI)
@@ -232,52 +232,52 @@ in_addr_t get_ip_address(char *iface) {
 #endif
 
 bool prefix(const char *pre, const char *str) {
-    return strncmp(pre, str, strlen(pre)) == 0;
+	return strncmp(pre, str, strlen(pre)) == 0;
 }
 
 BoardType get_board_type() {
-    FILE *file = fopen("/proc/device-tree/compatible", "rb");
-    if (file == NULL) {
-        return BoardType::Unknown;
-    }
+	FILE *file = fopen("/proc/device-tree/compatible", "rb");
+	if (file == NULL) {
+		return BoardType::Unknown;
+	}
 
-    char buffer[100];
+	char buffer[100];
 
-    BoardType res = BoardType::Unknown;
+	BoardType res = BoardType::Unknown;
 
-    int total = fread(buffer, 1, sizeof(buffer), file);
+	int total = fread(buffer, 1, sizeof(buffer), file);
 
-    if (prefix("raspberrypi", buffer)) {
-        res = BoardType::RaspberryPi_Unknown;
-        const char *cpu_buf = buffer;
-        size_t index = 0;
+	if (prefix("raspberrypi", buffer)) {
+		res = BoardType::RaspberryPi_Unknown;
+		const char *cpu_buf = buffer;
+		size_t index = 0;
 
-        // model and cpu is seperated by a null byte
-        while (index < (total - 1) && cpu_buf[index]) {
-            index += 1;
-        }
+		// model and cpu is seperated by a null byte
+		while (index < (total - 1) && cpu_buf[index]) {
+			index += 1;
+		}
 
-        cpu_buf += index + 1;  
-        
-        if (!strcmp("brcm,bcm2712", cpu_buf)) {
-            // Pi 5
-            res = BoardType::RaspberryPi_bcm2712;
-        } else if (!strcmp("brcm,bcm2711", cpu_buf)) {
-            // Pi 4
-            res = BoardType::RaspberryPi_bcm2711;
-        } else if (!strcmp("brcm,bcm2837", cpu_buf)) {
-            // Pi 3 / Pi Zero 2
-            res = BoardType::RaspberryPi_bcm2837;
-        } else if (!strcmp("brcm,bcm2836", cpu_buf)) {
-            // Pi 2
-            res = BoardType::RaspberryPi_bcm2836;
-        } else if (!strcmp("brcm,bcm2835", cpu_buf)) {
-            // Pi / Pi Zero
-            res = BoardType::RaspberryPi_bcm2835;
-        }
-    }
+		cpu_buf += index + 1;  
+		
+		if (!strcmp("brcm,bcm2712", cpu_buf)) {
+			// Pi 5
+			res = BoardType::RaspberryPi_bcm2712;
+		} else if (!strcmp("brcm,bcm2711", cpu_buf)) {
+			// Pi 4
+			res = BoardType::RaspberryPi_bcm2711;
+		} else if (!strcmp("brcm,bcm2837", cpu_buf)) {
+			// Pi 3 / Pi Zero 2
+			res = BoardType::RaspberryPi_bcm2837;
+		} else if (!strcmp("brcm,bcm2836", cpu_buf)) {
+			// Pi 2
+			res = BoardType::RaspberryPi_bcm2836;
+		} else if (!strcmp("brcm,bcm2835", cpu_buf)) {
+			// Pi / Pi Zero
+			res = BoardType::RaspberryPi_bcm2835;
+		}
+	}
 
-    return res;
+	return res;
 }
 
 #endif
@@ -312,105 +312,105 @@ bool file_exists(const char *fn) {
 }
 
 os_file_type file_open(const char *fn, FileOpenMode mode) {
-    #if defined(ESP8266)
-    switch (mode) {
-        default:
-        case FileOpenMode::Read:
-            return LittleFS.open(fn, "r");
-        case FileOpenMode::ReadWrite:
-            if (!LittleFS.exists(fn)) {
-                File f = LittleFS.open(fn, "w");
-                if (!f) return f;
-                f.close();
-            }
-            return LittleFS.open(fn, "r+");
-        case FileOpenMode::WriteTruncate:
-            return LittleFS.open(fn, "w");
-        case FileOpenMode::ReadWriteTruncate:
-            return LittleFS.open(fn, "w+");
-        case FileOpenMode::Append:
-            return LittleFS.open(fn, "a");
-        case FileOpenMode::ReadAppend:
-            return LittleFS.open(fn, "a+");
-    }
-    #else
-    char *full_file = get_filename_fullpath(fn);
-    switch (mode) {
-        default:
-        case FileOpenMode::Read:
-            return fopen(full_file, "rb");
-        case FileOpenMode::ReadWrite: {
-            int fd = open(full_file, O_RDWR | O_CREAT, 0644);
-            if (fd == -1) return nullptr;
-            return fdopen(fd, "rb+");
-        }
-        case FileOpenMode::WriteTruncate:
-            return fopen(full_file, "wb");
-        case FileOpenMode::ReadWriteTruncate:
-            return fopen(full_file, "wb+");
-        case FileOpenMode::Append:
-            return fopen(full_file, "ab");
-        case FileOpenMode::ReadAppend:
-            return fopen(full_file, "ab+");
-    }
-    
-    #endif
+	#if defined(ESP8266)
+	switch (mode) {
+		default:
+		case FileOpenMode::Read:
+			return LittleFS.open(fn, "r");
+		case FileOpenMode::ReadWrite:
+			if (!LittleFS.exists(fn)) {
+				File f = LittleFS.open(fn, "w");
+				if (!f) return f;
+				f.close();
+			}
+			return LittleFS.open(fn, "r+");
+		case FileOpenMode::WriteTruncate:
+			return LittleFS.open(fn, "w");
+		case FileOpenMode::ReadWriteTruncate:
+			return LittleFS.open(fn, "w+");
+		case FileOpenMode::Append:
+			return LittleFS.open(fn, "a");
+		case FileOpenMode::ReadAppend:
+			return LittleFS.open(fn, "a+");
+	}
+	#else
+	char *full_file = get_filename_fullpath(fn);
+	switch (mode) {
+		default:
+		case FileOpenMode::Read:
+			return fopen(full_file, "rb");
+		case FileOpenMode::ReadWrite: {
+			int fd = open(full_file, O_RDWR | O_CREAT, 0644);
+			if (fd == -1) return nullptr;
+			return fdopen(fd, "rb+");
+		}
+		case FileOpenMode::WriteTruncate:
+			return fopen(full_file, "wb");
+		case FileOpenMode::ReadWriteTruncate:
+			return fopen(full_file, "wb+");
+		case FileOpenMode::Append:
+			return fopen(full_file, "ab");
+		case FileOpenMode::ReadAppend:
+			return fopen(full_file, "ab+");
+	}
+	
+	#endif
 }
 
 void file_close(os_file_type f) {
-    #if defined(ESP8266)
-    f.close();
-    #else
-    fclose(f);
-    #endif
+	#if defined(ESP8266)
+	f.close();
+	#else
+	fclose(f);
+	#endif
 }
 
 bool file_seek(os_file_type f, uint32_t position, FileSeekMode mode) {
-    #if defined(ESP8266)
-    switch (mode) {
-        case FileSeekMode::Set:
-            return f.seek(position, fs::SeekMode::SeekSet);
-        case FileSeekMode::Current:
-            return f.seek(position, fs::SeekMode::SeekCur);
-        case FileSeekMode::End:
-            return f.seek(position, fs::SeekMode::SeekEnd);
-    }
-    #else
-    switch (mode) {
-        case FileSeekMode::Set:
-            return fseek(f, position, SEEK_SET);
-        case FileSeekMode::Current:
-            return fseek(f, position, SEEK_CUR);
-        case FileSeekMode::End:
-            return fseek(f, position, SEEK_END);
-    }
-    #endif
+	#if defined(ESP8266)
+	switch (mode) {
+		case FileSeekMode::Set:
+			return f.seek(position, fs::SeekMode::SeekSet);
+		case FileSeekMode::Current:
+			return f.seek(position, fs::SeekMode::SeekCur);
+		case FileSeekMode::End:
+			return f.seek(position, fs::SeekMode::SeekEnd);
+	}
+	#else
+	switch (mode) {
+		case FileSeekMode::Set:
+			return fseek(f, position, SEEK_SET);
+		case FileSeekMode::Current:
+			return fseek(f, position, SEEK_CUR);
+		case FileSeekMode::End:
+			return fseek(f, position, SEEK_END);
+	}
+	#endif
 
-    return false;
+	return false;
 }
 
 bool file_seek(os_file_type f, uint32_t position) {
-    return file_seek(f, position, FileSeekMode::Set);
+	return file_seek(f, position, FileSeekMode::Set);
 }
 
 int file_read(os_file_type f, void *target, uint32_t len) {
-    #if defined(ESP8266)
-    return f.read((uint8_t*)target, len);
-    #else
-    return fread(target, 1, len, f);
-    #endif
+	#if defined(ESP8266)
+	return f.read((uint8_t*)target, len);
+	#else
+	return fread(target, 1, len, f);
+	#endif
 }
 
 int file_write(os_file_type f, const void *source, uint32_t len) {
-    #if defined(ESP8266)
-    return f.write((const uint8_t*)source, len);
-    #else
-    return fwrite(source, 1, len, f);
-    #endif
+	#if defined(ESP8266)
+	return f.write((const uint8_t*)source, len);
+	#else
+	return fwrite(source, 1, len, f);
+	#endif
 }
 
 // file functions
-void file_read_block(const char *fn, void *dst, ulong pos, ulong len) {
+void file_read_block(const char *fn, void *dst, uint32_t pos, uint32_t len) {
 #if defined(ESP8266)
 
 	// do not use File.read_byte or read_byteUntil because it's very slow
@@ -433,7 +433,7 @@ void file_read_block(const char *fn, void *dst, ulong pos, ulong len) {
 #endif
 }
 
-void file_write_block(const char *fn, const void *src, ulong pos, ulong len) {
+void file_write_block(const char *fn, const void *src, uint32_t pos, uint32_t len) {
 #if defined(ESP8266)
 
 	File f = LittleFS.open(fn, "r+");
@@ -460,7 +460,7 @@ void file_write_block(const char *fn, const void *src, ulong pos, ulong len) {
 
 }
 
-void file_copy_block(const char *fn, ulong from, ulong to, ulong len, void *tmp) {
+void file_copy_block(const char *fn, uint32_t from, uint32_t to, uint32_t len, void *tmp) {
 	// assume tmp buffer is provided and is larger than len
 	// todo future: if tmp buffer is not provided, do unsigned char-to-unsigned char copy
 	if(tmp==NULL) { return; }
@@ -489,7 +489,7 @@ void file_copy_block(const char *fn, ulong from, ulong to, ulong len, void *tmp)
 }
 
 // compare a block of content
-unsigned char file_cmp_block(const char *fn, const char *buf, ulong pos) {
+unsigned char file_cmp_block(const char *fn, const char *buf, uint32_t pos) {
 #if defined(ESP8266)
 
 	File f = LittleFS.open(fn, "r");
@@ -522,13 +522,13 @@ unsigned char file_cmp_block(const char *fn, const char *buf, ulong pos) {
 	return 1;
 }
 
-unsigned char file_read_byte(const char *fn, ulong pos) {
+unsigned char file_read_byte(const char *fn, uint32_t pos) {
 	unsigned char v = 0;
 	file_read_block(fn, &v, pos, 1);
 	return v;
 }
 
-void file_write_byte(const char *fn, ulong pos, unsigned char v) {
+void file_write_byte(const char *fn, uint32_t pos, unsigned char v) {
 	file_write_block(fn, &v, pos, 1);
 }
 
@@ -547,7 +547,7 @@ void strncpy_P0(char* dest, const char* src, int n) {
  * 65534: sunrise to sunset duration
  * 65535: sunset to sunrise duration
  */
-ulong water_time_resolve(uint16_t v) {
+uint32_t water_time_resolve(uint16_t v) {
 	if(v==65534) {
 		return (os.nvdata.sunset_time-os.nvdata.sunrise_time) * 60L;
 	} else if(v==65535) {

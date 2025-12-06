@@ -24,8 +24,6 @@
 
 #define ENABLE_DEBUG  // enable serial debug
 
-typedef unsigned long ulong; // TODO: remove and replace by uint32_t for cross-platform consistency
-
 #define TMP_BUFFER_SIZE      320   // scratch buffer size
 
 /** Firmware version, hardware version, and maximal values */

@@ -57,7 +57,7 @@ public:
 		}
 		cx += fontWidth;
 		if (auto_display)
-			display(); // todo: not very efficient
+			display();
 		return 1;
 	}
 	size_t write(const char *s) {
@@ -68,7 +68,7 @@ public:
 		drawString(cx, cy, String(s));
 		cx += fontWidth * nc;
 		if (auto_display)
-			display(); // todo: not very efficient
+			display();
 		return nc;
 	}
 	void createChar(unsigned char idx, PGM_P ptr) {
@@ -493,7 +493,7 @@ public:
 		}
 		cx += fontWidth;
 		if (auto_display)
-			display(); // todo: not very efficient
+			display();
 		return 1;
 	}
 
@@ -508,7 +508,7 @@ public:
 		auto_display = temp_auto_display;
 		cx += fontWidth * nc;
 		if (auto_display)
-			display(); // todo: not very efficient
+			display();
 		return nc;
 	}
 
