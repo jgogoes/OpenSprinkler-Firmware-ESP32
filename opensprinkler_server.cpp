@@ -893,10 +893,8 @@ void server_change_program(OTF_PARAMS_DEF) {
 		point_count = i;
 	}
 
-	// TODO: convert to stack space allocation
-	adj = new SensorAdjustment(flags, sid, point_count, points);
-	os.write_sensor_adjust(adj, pid);
-	delete adj;
+	SensorAdjustment snadj(flags, sid, point_count, points);
+	os.write_sensor_adjust(&snadj, pid);
 
 	#endif
 
