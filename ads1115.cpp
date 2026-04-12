@@ -84,7 +84,7 @@ void ADS1115::request_pin(uint8_t pin) {
 	this->_write_register(0x01, config);
 }
 
-ADS1115Sensor::ADS1115Sensor(uint32_t interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags, ADS1115** sensors, uint8_t sensor_index, uint8_t pin) : 
+ADS1115Sensor::ADS1115Sensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags, ADS1115** sensors, uint8_t sensor_index, uint8_t pin) : 
 Sensor(interval, min, max, scale, offset, name, unit, flags), 
 sensor_index(sensor_index), 
 pin(pin),
@@ -98,16 +98,16 @@ void ADS1115Sensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR("{\"name\":\"ADS1115 Sensor\",\"args\":[{\"name\":\"Pin Number\",\"arg\":\"pin\",\"type\":\"int::[1,16]\",\"default\":\"1\",\"extra\":[]}]}"));
 }
 
-double ADS1115Sensor::get_initial_value() {
+float ADS1115Sensor::get_initial_value() {
 	return 0.0;
 }
 
-double ADS1115Sensor::_get_raw_value() {
+float ADS1115Sensor::_get_raw_value() {
 	if (this->sensors[sensor_index] == nullptr) {
 		return 0.0;
 	}
 	else {
-		return ((double)this->sensors[sensor_index]->get_pin_value(this->pin)) * ADS1115_SCALE_FACTOR;
+		return ((float)this->sensors[sensor_index]->get_pin_value(this->pin)) * ADS1115_SCALE_FACTOR;
 	}
 }
 

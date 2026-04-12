@@ -859,7 +859,6 @@ void server_change_program(OTF_PARAMS_DEF) {
 		for (size_t i = 0; i <= point_count; i++) { // TODO: <=?
 			points[i] = adj->points[i];
 		}
-		delete adj;
 	}
 	
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flags"), true)) {
@@ -875,14 +874,14 @@ void server_change_program(OTF_PARAMS_DEF) {
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_points"), true)) {
 		uint32_t i = 0;
-		double x, y;
+		float x, y;
 		const char *ptr = tmp_buffer;
 		int result;
-		double last_x = -std::numeric_limits<double>::infinity();;
+		float last_x = -std::numeric_limits<float>::infinity();;
 
 		while (*ptr != '\0') {
 			if (i >= SENSOR_ADJUSTMENT_POINTS) handle_return(HTML_DATA_FORMATERROR);
-			result = sscanf(ptr, "%lf,%lf;", &x, &y);
+			result = sscanf(ptr, "%f,%f;", &x, &y);
 			if (result != 2 || x <= last_x) {
 				handle_return(HTML_DATA_FORMATERROR);
 			}
@@ -1079,7 +1078,6 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 				}
 				bfill.emit_p(PSTR("]}"));
 				adj_count += 1;
-				delete adj;
 				// push out a packet if available
 				// buffer size is getting small
 				if (available_ether_buffer() <= 0) {
@@ -1942,11 +1940,11 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	SensorType sensor_type = static_cast<SensorType>(type_raw);
 
 	Sensor *sensor = nullptr;
-	double min = 0;
-	double max = 100;
-	double scale = 1;
-	double offset = 0;
-	uint32_t interval = 1000;
+	float min = 0;
+	float max = 5000; // default: 5000mV or 5V
+	float scale = 1;
+	float offset = 0;
+	uint32_t interval = 5; // default: 5 minutes
 	SensorUnit unit = SensorUnit::None;
 	uint32_t flags = 0;
 
@@ -2040,14 +2038,14 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("children"), true)) {
 				unsigned int i = 0;
 				int d;
-				double d1, d2, d3, d4;
+				float d1, d2, d3, d4;
 				const char *ptr = tmp_buffer;
 				int result;
 
 				while (*ptr != '\0') {
 					if (i >= ENSEMBLE_SENSOR_CHILDREN_COUNT) handle_return(HTML_DATA_FORMATERROR);
 
-					result = sscanf(ptr, "%d,%lf,%lf,%lf,%lf;", &d, &d1, &d2, &d3, &d4);
+					result = sscanf(ptr, "%d,%f,%f,%f,%f;", &d, &d1, &d2, &d3, &d4);
 
 					if (result != 5) {
 						handle_return(HTML_DATA_FORMATERROR);
@@ -2223,6 +2221,9 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 	} else {
 		next += 1;
 	}
+
+	DEBUG_PRINTLN(file_no);
+	DEBUG_PRINTLN(next);
 
 	uint32_t cursor = (file_no * SENSOR_LOG_PER_FILE) + next;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("cursor"), true)) {
@@ -2458,7 +2459,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 		send_packet(OTF_PARAMS);
 	}
 
-	bfill.emit_p(PSTR(",\"base\":[{\"name\":\"Sensor Information\",\"args\":[{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"\",\"extra\":[]},{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"5\",\"extra\":[]},{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"extra\":[]}]},{\"name\":\"Sensor Scaling\",\"args\":[{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"double\",\"default\":\"1\",\"extra\":[]},{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"double\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"double\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"double\",\"default\":\"100\",\"extra\":[]}]},{\"name\":\"Sensor Type\",\"args\":[{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"0\",\"extra\":[]}]}]"));
+	bfill.emit_p(PSTR(",\"base\":[{\"name\":\"Sensor Information\",\"args\":[{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"\",\"extra\":[]},{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"5\",\"extra\":[]},{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"extra\":[]}]},{\"name\":\"Sensor Scaling\",\"args\":[{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"1\",\"extra\":[]},{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"5000\",\"extra\":[]}]},{\"name\":\"Sensor Type\",\"args\":[{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"0\",\"extra\":[]}]}]"));
 
 	if (available_ether_buffer() <= 0) {
 		send_packet(OTF_PARAMS);
@@ -2509,8 +2510,8 @@ void server_json_all(OTF_PARAMS_DEF) {
 #if defined(USE_SENSORS)
 	bfill.emit_p(PSTR(",\"sensors\":{"));
 	server_json_sensors_main(OTF_PARAMS);
-	bfill.emit_p(PSTR(",\"sensor_desc\":{"));
-	server_json_sensor_description_main(OTF_PARAMS);
+	//bfill.emit_p(PSTR(",\"sensor_desc\":{"));
+	//server_json_sensor_description_main(OTF_PARAMS);
 #endif
 	bfill.emit_p(PSTR("}"));
 	handle_return(HTML_OK);

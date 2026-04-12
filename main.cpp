@@ -396,6 +396,10 @@ void do_setup() {
 	os.setup_pd_voltage();
 #endif
 
+#if defined(USE_SENSORS)
+	os.load_sensors();
+#endif
+
 	pd.init();           // ProgramData init
 
 	// set time using RTC if it exists
@@ -769,12 +773,11 @@ void do_loop()
 			// check through all programs
 			for(pid=0; pid<pd.nprograms; pid++) {
 				pd.read(pid, &prog);	// todo future: reduce load time
-				double sensor_adj = 1.0;
+				float sensor_adj = 1.f;
 				#if defined(USE_SENSORS)
 				SensorAdjustment *adj = os.get_sensor_adjust(pid);
 				if (adj) {
 					sensor_adj = adj->get_adjustment_factor(os.sensors);
-					delete adj;
 				}
 				#endif
 				bool will_delete = false;
@@ -816,7 +819,7 @@ void do_loop()
 							continue;
 
 						// TODO: compare with old code
-						uint32_t dur = (uint32_t)((double)prog.durations[sid] * sensor_adj);
+						uint32_t dur = (uint32_t)((float)prog.durations[sid] * sensor_adj);
 						// if station has non-zero water time and the station is not disabled
 						if (dur && !(os.attrib_dis[bid]&(1<<s))) {
 							// water time is scaled by watering percentage
@@ -1437,7 +1440,7 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 			// Only adjust sequential stations in the same group
 			// If station is currently running
 			if (curr_time >= q->st && curr_time < q->st + q->dur) {
-				turn_off_station(q->sid, curr_time); // TODO: double check the logic
+				turn_off_station(q->sid, curr_time); // TODO: re-check the logic
 				uint32_t remaining = q->dur - (curr_time - q->st);
 				q->st = curr_time + adjustment;
 				q->dur = remaining;
@@ -1593,7 +1596,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 	boolean match_found = false;
 	ProgramStruct prog;
 	uint32_t dur;
-	double sensor_adj = 1.0;
+	float sensor_adj = 1.f;
 	unsigned char sid, bid, s;
 	unsigned char ns = os.nstations;
 	unsigned char order[ns];
@@ -1609,7 +1612,6 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 		SensorAdjustment *adj = os.get_sensor_adjust(pid-1);
 		if (adj) {
 			sensor_adj = adj->get_adjustment_factor(os.sensors);
-			delete adj;
 		}
 		#endif
 		if(uwt) wl = os.iopts[IOPT_WATER_PERCENTAGE];
@@ -1630,7 +1632,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 			dur=2;
 		} else if (pid>0) {
 			dur = water_time_resolve(prog.durations[sid]);
-			dur = (uint32_t)((double)dur * sensor_adj);
+			dur = (uint32_t)((float)dur * sensor_adj);
 		}
 
 		dur = dur * wl / 100;

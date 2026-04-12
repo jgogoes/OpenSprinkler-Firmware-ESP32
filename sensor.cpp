@@ -272,7 +272,7 @@ const uint32_t get_sensor_unit_index(SensorUnit unit) {
 	return static_cast<uint32_t>(unit);
 }
 
-Sensor::Sensor(uint32_t interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags) :
+Sensor::Sensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags) :
 	interval(interval), min(min), max(max), scale(scale), offset(offset), unit(unit), flags(flags) {
 	strncpy(this->name, name, SENSOR_NAME_LEN);
 	this->name[SENSOR_NAME_LEN - 1] = 0;
@@ -280,8 +280,8 @@ Sensor::Sensor(uint32_t interval, double min, double max, double scale, double o
 
 Sensor::Sensor() {}
 
-double Sensor::get_new_value() {
-	double value = this->_get_raw_value();
+float Sensor::get_new_value() {
+	float value = this->_get_raw_value();
 	value = (value * this->scale) + this->offset;
 	if (value < this->min) value = this->min;
 	if (value > this->max) value = this->max;
@@ -313,10 +313,10 @@ uint32_t Sensor::serialize(char* buf) {
 	buf[i++] = static_cast<uint8_t>(this->unit);
 	i += write_buf<uint32_t>(buf + i, this->interval);
 	i += write_buf<uint32_t>(buf + i, this->flags);
-	i += write_buf<double>(buf + i, this->scale);
-	i += write_buf<double>(buf + i, this->offset);
-	i += write_buf<double>(buf + i, this->min);
-	i += write_buf<double>(buf + i, this->max);
+	i += write_buf<float>(buf + i, this->scale);
+	i += write_buf<float>(buf + i, this->offset);
+	i += write_buf<float>(buf + i, this->min);
+	i += write_buf<float>(buf + i, this->max);
 
 	i += this->_serialize_internal(buf + i);
 	return i;
@@ -330,15 +330,15 @@ uint32_t Sensor::_deserialize(char* buf) {
 	this->unit = static_cast<SensorUnit>(buf[i++]);
 	this->interval = read_buf<uint32_t>(buf, &i);
 	this->flags = read_buf<uint32_t>(buf, &i);
-	this->scale = read_buf<double>(buf, &i);
-	this->offset = read_buf<double>(buf, &i);
-	this->min = read_buf<double>(buf, &i);
-	this->max = read_buf<double>(buf, &i);
+	this->scale = read_buf<float>(buf, &i);
+	this->offset = read_buf<float>(buf, &i);
+	this->min = read_buf<float>(buf, &i);
+	this->max = read_buf<float>(buf, &i);
 
 	return i;
 }
 
-EnsembleSensor::EnsembleSensor(uint32_t interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags, sensor_memory_t* sensors, ensemble_children_t* children, uint8_t children_count, EnsembleAction action) :
+EnsembleSensor::EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags, sensor_memory_t* sensors, ensemble_children_t* children, uint8_t children_count, EnsembleAction action) :
 	Sensor(interval, min, max, scale, offset, name, unit, flags),
 	action(action),
 	sensors(sensors) {
@@ -347,7 +347,7 @@ EnsembleSensor::EnsembleSensor(uint32_t interval, double min, double max, double
 			this->children[i] = children[i];
 		}
 		else {
-			this->children[i] = ensemble_children_t{ sensor_id: 255, min : 0.0, max : 0.0, scale : 0.0, offset : 0.0 };
+			this->children[i] = ensemble_children_t{ sensor_id: 255, min : 0.f, max : 0.f, scale : 0.f, offset : 0.f };
 		}
 	}
 }
@@ -363,10 +363,10 @@ void EnsembleSensor::emit_extra_json(BufferFiller* bfill) {
 }
 
 void EnsembleSensor::emit_description_json(BufferFiller* bfill) {
-	bfill->emit_p(PSTR("{\"name\":\"Ensemble Sensor\",\"args\":[{\"name\":\"Argument Sensors\",\"arg\":\"children\",\"type\":\"array::4\",\"extra\":[{\"name\":\"Sensor ID\",\"arg\":\"sid\",\"type\":\"sensor\",\"default\":\"\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Scale\",\"arg\":\"scale\",\"type\":\"double\",\"default\":\"\",\"extra\":[]},{\"name\":\"Offset\",\"arg\":\"offset\",\"type\":\"double\",\"default\":\"\",\"extra\":[]}]},{\"name\":\"Ensemble Action\",\"arg\":\"action\",\"type\":\"enum::EnsembleAction\",\"default\":\"0\",\"extra\":[]}]}"));
+	bfill->emit_p(PSTR("{\"name\":\"Ensemble Sensor\",\"args\":[{\"name\":\"Argument Sensors\",\"arg\":\"children\",\"type\":\"array::4\",\"extra\":[{\"name\":\"Sensor ID\",\"arg\":\"sid\",\"type\":\"sensor\",\"default\":\"\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"\",\"extra\":[]},{\"name\":\"Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"\",\"extra\":[]},{\"name\":\"Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"\",\"extra\":[]}]},{\"name\":\"Ensemble Action\",\"arg\":\"action\",\"type\":\"enum::EnsembleAction\",\"default\":\"0\",\"extra\":[]}]}"));
 }
 
-double EnsembleSensor::get_initial_value() {
+float EnsembleSensor::get_initial_value() {
 	switch (this->action) {
 	case EnsembleAction::Min:
 		return this->max;
@@ -383,18 +383,18 @@ double EnsembleSensor::get_initial_value() {
 		break;
 	default:
 		// Unreachable
-		return 0.0;
+		return 0.f;
 	}
 }
 
-double EnsembleSensor::_get_raw_value() {
-	double inital = this->get_initial_value();
+float EnsembleSensor::_get_raw_value() {
+	float inital = this->get_initial_value();
 	uint8_t count = 0;
 
 	for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
 		uint8_t sensor = this->children[i].sensor_id;
 		if (sensor < MAX_SENSORS && sensors[sensor].interval) {
-			double value = sensors[sensor].value;
+			float value = sensors[sensor].value;
 			value = (value * this->children[i].scale) + this->children[i].offset;
 			if (value < this->children[i].min) value = this->children[i].min;
 			if (value > this->children[i].max) value = this->children[i].max;
@@ -415,7 +415,7 @@ double EnsembleSensor::_get_raw_value() {
 				break;
 			default:
 				// Unreachable
-				return 0.0;
+				return 0.f;
 			}
 
 			count += 1;
@@ -423,10 +423,10 @@ double EnsembleSensor::_get_raw_value() {
 	}
 
 	if (count == 0) {
-		return 0.0;
+		return 0.f;
 	}
 	else if (this->action == EnsembleAction::Average) {
-		return inital / (double)count;
+		return inital / (float)count;
 	}
 	else {
 		return inital;
@@ -437,10 +437,10 @@ uint32_t EnsembleSensor::_serialize_internal(char* buf) {
 	uint32_t i = 0;
 	for (size_t j = 0; j < ENSEMBLE_SENSOR_CHILDREN_COUNT; j++) {
 		i += write_buf<uint8_t>(buf + i, this->children[j].sensor_id);
-		i += write_buf<double>(buf + i, this->children[j].min);
-		i += write_buf<double>(buf + i, this->children[j].max);
-		i += write_buf<double>(buf + i, this->children[j].scale);
-		i += write_buf<double>(buf + i, this->children[j].offset);
+		i += write_buf<float>(buf + i, this->children[j].min);
+		i += write_buf<float>(buf + i, this->children[j].max);
+		i += write_buf<float>(buf + i, this->children[j].scale);
+		i += write_buf<float>(buf + i, this->children[j].offset);
 	}
 
 	buf[i++] = static_cast<uint8_t>(this->action);
@@ -451,10 +451,10 @@ EnsembleSensor::EnsembleSensor(sensor_memory_t* sensors, char* buf) {
 	uint32_t i = Sensor::_deserialize(buf);
 	for (size_t j = 0; j < ENSEMBLE_SENSOR_CHILDREN_COUNT; j++) {
 		this->children[j].sensor_id = read_buf<uint8_t>(buf, &i);
-		this->children[j].min = read_buf<double>(buf, &i);
-		this->children[j].max = read_buf<double>(buf, &i);
-		this->children[j].scale = read_buf<double>(buf, &i);
-		this->children[j].offset = read_buf<double>(buf, &i);
+		this->children[j].min = read_buf<float>(buf, &i);
+		this->children[j].max = read_buf<float>(buf, &i);
+		this->children[j].scale = read_buf<float>(buf, &i);
+		this->children[j].offset = read_buf<float>(buf, &i);
 	}
 
 	this->action = static_cast<EnsembleAction>(buf[i++]);
@@ -462,7 +462,7 @@ EnsembleSensor::EnsembleSensor(sensor_memory_t* sensors, char* buf) {
 }
 
 
-WeatherSensor::WeatherSensor(uint32_t interval, double min, double max, double scale, double offset, const char* name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action) :
+WeatherSensor::WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action) :
 	Sensor(interval, min, max, scale, offset, name, unit, flags),
 	action(action),
 	weather_getter(weather_getter) {
@@ -476,11 +476,11 @@ void WeatherSensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR("{\"name\":\"Weather Sensor\",\"args\":[{\"name\":\"Weather Information\",\"arg\":\"action\",\"type\":\"enum::WeatherAction\",\"default\":\"0\",\"extra\":[]}]}"));
 }
 
-double WeatherSensor::get_initial_value() {
-	return 0.0;
+float WeatherSensor::get_initial_value() {
+	return 0.f;
 }
 
-double WeatherSensor::_get_raw_value() {
+float WeatherSensor::_get_raw_value() {
 	return this->weather_getter(this->action);
 }
 
@@ -503,7 +503,6 @@ SensorAdjustment::SensorAdjustment(uint8_t flags, uint8_t sid, uint8_t point_cou
 	for (size_t i = 0; i < point_count; i++) {
 		this->points[i] = points[i];
 	}
-
 }
 
 SensorAdjustment::SensorAdjustment(char* buf) {
@@ -513,14 +512,14 @@ SensorAdjustment::SensorAdjustment(char* buf) {
 	this->point_count = buf[i++];
 
 	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
-		this->points[j].x = read_buf<double>(buf, &i);
-		this->points[j].y = read_buf<double>(buf, &i);
+		this->points[j].x = read_buf<float>(buf, &i);
+		this->points[j].y = read_buf<float>(buf, &i);
 	}
 }
 
-double SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
+float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->sid < MAX_SENSORS && sensors[this->sid].interval) {
-		double value = sensors[this->sid].value;
+		float value = sensors[this->sid].value;
 		if (value <= this->points[0].x) return this->points[0].y;
 		if (value >= this->points[this->point_count - 1].x) return this->points[this->point_count - 1].y;
 
@@ -542,7 +541,7 @@ double SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 		return value;
 	}
 	else {
-		return 1.0;
+		return 1.f;
 	}
 }
 
@@ -553,8 +552,8 @@ uint32_t SensorAdjustment::serialize(char* buf) {
 	buf[i++] = this->point_count;
 
 	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
-		i += write_buf<double>(buf + i, this->points[j].x);
-		i += write_buf<double>(buf + i, this->points[j].y);
+		i += write_buf<float>(buf + i, this->points[j].x);
+		i += write_buf<float>(buf + i, this->points[j].y);
 	}
 
 	return i;

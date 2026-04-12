@@ -16,7 +16,7 @@ typedef struct {
 	uint32_t interval;
 	uint32_t flags;
 	uint32_t next_update;
-	double value;
+	float value;
 } sensor_memory_t;
 
 enum class SensorType : uint8_t {
@@ -83,30 +83,30 @@ typedef enum {
 
 class Sensor {
 public:
-	Sensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags);
+	Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags);
 	Sensor();
 	virtual ~Sensor() {}
 
-	double get_new_value();
+	float get_new_value();
 	uint32_t serialize(char *buf);
 
 	void virtual emit_extra_json(BufferFiller *bfill) = 0;
 
 	uint32_t interval = 1;
-	double min = 0.0;
-	double max = 0.0;
-	double scale = 0.0;
-	double offset = 0.0;
+	float min = 0.f;
+	float max = 0.f;
+	float scale = 0.f;
+	float offset = 0.f;
 	char name[SENSOR_NAME_LEN] = {0};
 	SensorUnit unit = SensorUnit::None;
 
 	uint32_t flags = 0;
 
 	SensorType virtual get_sensor_type() = 0;
-	double virtual get_initial_value() = 0;
+	float virtual get_initial_value() = 0;
 
 	private:
-	double virtual _get_raw_value() = 0;
+	float virtual _get_raw_value() = 0;
 	protected:
 	uint32_t _deserialize(char *buf);
 	uint32_t virtual _serialize_internal(char *buf) = 0;
@@ -125,17 +125,17 @@ typedef Sensor* (*SensorGetter)(uint8_t);
 
 typedef struct {
 	uint8_t sensor_id;
-	double min;
-	double max;
-	double scale;
-	double offset;
+	float min;
+	float max;
+	float scale;
+	float offset;
 } ensemble_children_t;
 
 #define ENSEMBLE_SENSOR_CHILDREN_COUNT 4
 
 class EnsembleSensor : public Sensor {
 	public:
-	EnsembleSensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
+	EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
 	EnsembleSensor(sensor_memory_t *sensors, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -148,10 +148,10 @@ class EnsembleSensor : public Sensor {
 	ensemble_children_t children[ENSEMBLE_SENSOR_CHILDREN_COUNT];
 	EnsembleAction action;
 
-	double get_initial_value();
+	float get_initial_value();
 
 	private:
-	double _get_raw_value();
+	float _get_raw_value();
 	uint32_t _serialize_internal(char *buf);
 	
 	sensor_memory_t *sensors;
@@ -161,11 +161,11 @@ enum class WeatherAction {
 	MAX_VALUE,
 };
 
-typedef double (*WeatherGetter)(WeatherAction);
+typedef float (*WeatherGetter)(WeatherAction);
 
 class WeatherSensor : public Sensor {
 	public:
-	WeatherSensor(uint32_t interval, double min, double max, double scale, double offset, const char *name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action);
+	WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action);
 	WeatherSensor(WeatherGetter weather_getter, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -177,18 +177,18 @@ class WeatherSensor : public Sensor {
 
 	WeatherAction action;
 
-	double get_initial_value();
+	float get_initial_value();
 
 	private:
-	double _get_raw_value();
+	float _get_raw_value();
 	uint32_t _serialize_internal(char *buf);
 	
 	WeatherGetter weather_getter;
 };
 
 typedef struct {
-	double x;
-	double y;
+	float x;
+	float y;
 } sensor_adjustment_point_t;
 
 #define SENSOR_ADJUSTMENT_POINTS 8
@@ -202,7 +202,7 @@ public:
 	SensorAdjustment(uint8_t flags, uint8_t sid, uint8_t point_count, sensor_adjustment_point_t *points);
 	SensorAdjustment(char *buf);
 
-	double get_adjustment_factor(sensor_memory_t *sensors);
+	float get_adjustment_factor(sensor_memory_t *sensors);
 	uint32_t serialize(char *buf);
 
 	uint8_t flags;

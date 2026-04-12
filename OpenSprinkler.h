@@ -372,6 +372,7 @@ public:
 	// -- Sensor functions
 #if defined(USE_SENSORS)
 	static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
+	static void remove_sensor_log(uint16_t file_no);
 	static void load_sensors();
 	static Sensor *parse_sensor(os_file_type file);
 	static Sensor *get_sensor(uint8_t index);
@@ -381,7 +382,7 @@ public:
 	static SensorAdjustment *get_sensor_adjust(uint8_t index);
 	static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);
 
-	static double get_sensor_weather_data(WeatherAction action);
+	static float get_sensor_weather_data(WeatherAction action);
 #endif
 
 	// -- LCD functions

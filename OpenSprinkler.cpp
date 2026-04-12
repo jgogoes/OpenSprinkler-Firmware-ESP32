@@ -1000,32 +1000,6 @@ void OpenSprinkler::begin() {
 		}
 	}
 #endif
-
-#if defined(USE_SENSORS)
-	lcd.clear();
-	lcd.setCursor(0,0);
-	lcd.print(F("Init sensors"));
-
-	os_file_type file;
-	uint16_t next = 0;
-	size_t f;
-	for (f = 0; f < SENSOR_LOG_FILE_COUNT; f++) {
-		file = open_sensor_log(f, FileOpenMode::Read);
-		if (file) {
-			file_read(file, &next, sizeof(next));
-			file_close(file);
-
-			if (next < SENSOR_LOG_PER_FILE) break;
-		} else {
-			DEBUG_PRINT("Failed to open sensor log file: ");
-			DEBUG_PRINTLN(f);
-		}
-	}
-	if (f == SENSOR_LOG_FILE_COUNT) f -= 1;
-	sensor_file_no = f;
-	
-	os.load_sensors();
-#endif
 }
 
 #if defined(ESP8266)
@@ -2143,61 +2117,12 @@ void OpenSprinkler::factory_reset() {
 	file_write_byte(PROG_FILENAME, 0, 0);
 
 #if defined(USE_SENSORS)
-	// Initialize the senor file
-	memset(tmp_buffer, 0, TMP_BUFFER_SIZE);
-
+	// remove all sensor files, so they will be re-created in load_sensors()
 	remove_file(SENSORS_FILENAME);
-	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::WriteTruncate);
-	if (file) {
-		for (size_t i = 0; i < MAX_SENSORS; i++) {
-			file_write(file, tmp_buffer, sizeof(uint32_t));
-			file_write(file, tmp_buffer, TMP_BUFFER_SIZE);
-		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENSORS_FILENAME);
-	}
-	
-	uint16_t next = SENSOR_LOG_PER_FILE;
 	for (uint16_t f = 0; f < SENSOR_LOG_FILE_COUNT; f++) {
-		{
-			char sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 3];
-			sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 2] = 0;
-			memcpy(sensor_log_name_buf, SENSORS_LOG_FILENAME, sizeof(SENSORS_LOG_FILENAME));
-			snprintf(sensor_log_name_buf + sizeof(SENSORS_LOG_FILENAME) - 1, 4, "%03u", f);
-			remove_file(sensor_log_name_buf);
-		}
-		file = open_sensor_log(f, FileOpenMode::WriteTruncate);
-		if (file) {
-			file_write(file, &next, sizeof(next));
-			for (size_t i = 0; i < SENSOR_LOG_PER_FILE; i++) {
-				file_write(file, tmp_buffer, SENSOR_LOG_ITEM_SIZE);
-			}
-			file_close(file);
-		} else {
-			DEBUG_PRINT("Failed to open sensor log file: ");
-			DEBUG_PRINTLN(f);
-		}
+		remove_sensor_log(f);
 	}
-
 	remove_file(SENADJ_FILENAME);
-	file = file_open(SENADJ_FILENAME, FileOpenMode::WriteTruncate);
-	if (file) {
-		sensor_adjustment_point_t point = sensor_adjustment_point_t {0.0, 0.0};
-		SensorAdjustment adj = SensorAdjustment(0, 0, 0, &point);
-
-		uint32_t size = adj.serialize(tmp_buffer);
-		for (size_t i = 0; i < MAX_NUM_PROGRAMS; i++) {
-				file_write(file, tmp_buffer, size);
-		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENADJ_FILENAME);
-	}
 #endif
 
 	// 5. write 'done' file
@@ -2540,16 +2465,80 @@ Sensor *OpenSprinkler::get_sensor(uint8_t index) {
 	}
 }
 
+void OpenSprinkler::remove_sensor_log(uint16_t file_no) {
+	char sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 3];
+	sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 2] = 0;
+	memcpy(sensor_log_name_buf, SENSORS_LOG_FILENAME, sizeof(SENSORS_LOG_FILENAME));
+	snprintf(sensor_log_name_buf + sizeof(SENSORS_LOG_FILENAME) - 1, 4, "%03u", (uint16_t)(file_no % 1000));
+	remove_file(sensor_log_name_buf);
+}
+
 os_file_type OpenSprinkler::open_sensor_log(uint16_t file_no, FileOpenMode mode) {
 	char sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 3];
 	sensor_log_name_buf[sizeof(SENSORS_LOG_FILENAME) + 2] = 0;
 	memcpy(sensor_log_name_buf, SENSORS_LOG_FILENAME, sizeof(SENSORS_LOG_FILENAME));
-	snprintf(sensor_log_name_buf + sizeof(SENSORS_LOG_FILENAME) - 1, 4, "%03u", file_no);
+	snprintf(sensor_log_name_buf + sizeof(SENSORS_LOG_FILENAME) - 1, 4, "%03u", (uint16_t)(file_no % 1000));
 
 	return file_open(sensor_log_name_buf, mode);
 }
 
 void OpenSprinkler::load_sensors() {
+	lcd.clear();
+	lcd.setCursor(0,0);
+	lcd.print(F("Init sensors..."));
+
+	// 1. Check if the configuration file exists.
+	// If not, we need to initialize all sensor-related files.
+	if (!file_exists(SENSORS_FILENAME)) {
+		DEBUG_PRINTLN(F("Sensor files missing. Initializing..."));
+
+		// Initialize the sensors configuration file (SENSORS_FILENAME)
+		memset(tmp_buffer, 0, TMP_BUFFER_SIZE);
+		os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::WriteTruncate);
+		if (file) {
+			for (size_t i = 0; i < MAX_SENSORS; i++) {
+				file_write(file, tmp_buffer, sizeof(uint32_t)); // length 0
+				file_write(file, tmp_buffer, TMP_BUFFER_SIZE); // empty block
+			}
+			file_close(file);
+		} else {
+			DEBUG_PRINT("Failed to open file: ");
+			DEBUG_PRINTLN(SENSORS_FILENAME);
+		}
+
+		// Initialize the sensor log files (SENSORS_LOG_FILENAME_xxx)
+		uint16_t next = SENSOR_LOG_PER_FILE;
+		for (uint16_t f = 0; f < SENSOR_LOG_FILE_COUNT; f++) {
+			file = open_sensor_log(f, FileOpenMode::WriteTruncate);
+			if (file) {
+				file_write(file, &next, sizeof(next));
+				for (size_t i = 0; i < SENSOR_LOG_PER_FILE; i++) {
+					file_write(file, tmp_buffer, SENSOR_LOG_ITEM_SIZE);
+				}
+				file_close(file);
+			} else {
+				DEBUG_PRINT("Failed to open sensor log file: ");
+				DEBUG_PRINTLN(f);
+			}
+		}
+
+		// Initialize the program adjustment file (SENADJ_FILENAME)
+		file = file_open(SENADJ_FILENAME, FileOpenMode::WriteTruncate);
+		if (file) {
+			sensor_adjustment_point_t point = sensor_adjustment_point_t {0.0, 0.0};
+			SensorAdjustment adj = SensorAdjustment(0, 0, 0, &point);
+			uint32_t size = adj.serialize(tmp_buffer);
+			for (size_t i = 0; i < MAX_NUM_PROGRAMS; i++) {
+				file_write(file, tmp_buffer, size);
+			}
+			file_close(file);
+		} else {
+			DEBUG_PRINT("Failed to open file: ");
+			DEBUG_PRINTLN(SENADJ_FILENAME);
+		}
+	}
+
+	// 2. Proceed with existing load logic
 	Sensor *sensor;
 	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
 	if (file) {
@@ -2568,6 +2557,24 @@ void OpenSprinkler::load_sensors() {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENSORS_FILENAME);
 	}
+
+	// 3. `next` pointer recovery
+	uint16_t next = 0;
+	size_t f;
+	for (f = 0; f < SENSOR_LOG_FILE_COUNT; f++) {
+		file = open_sensor_log(f, FileOpenMode::Read);
+		if (file) {
+			file_read(file, &next, sizeof(next));
+			file_close(file);
+
+			if (next < SENSOR_LOG_PER_FILE) break;
+		} else {
+			DEBUG_PRINT("Failed to open sensor log file: ");
+			DEBUG_PRINTLN(f);
+		}
+	}
+	if (f == SENSOR_LOG_FILE_COUNT) f -= 1;
+	sensor_file_no = f;
 }
 
 void OpenSprinkler::write_sensor(Sensor *sensor, uint8_t index) {
@@ -2579,6 +2586,9 @@ void OpenSprinkler::write_sensor(Sensor *sensor, uint8_t index) {
 		if (sensor) {
 			len = sensor->serialize(tmp_buffer);
 		}
+
+		DEBUG_PRINTLN(pos);
+		DEBUG_PRINTLN(len);
 
 		file_seek(file, pos, FileSeekMode::Current);
 		file_write(file, &len, sizeof(len));
@@ -2653,29 +2663,25 @@ void OpenSprinkler::poll_sensors() {
 }
 
 SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
+	// result is statically allocated to avoid repeatedly new and delete
+	// Do not call delete on the return result from this function
+	static SensorAdjustment result(tmp_buffer);
+
 	if (index > MAX_NUM_PROGRAMS) return nullptr;
-	uint32_t pos = SENSOR_ADJUSTMENT_SIZE * index;
-	
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
 	if (file) {
-		file_seek(file, pos, FileSeekMode::Current);
-
+		file_seek(file, (uint32_t)index * SENSOR_ADJUSTMENT_SIZE, FileSeekMode::Current);
 		file_read(file, tmp_buffer, SENSOR_ADJUSTMENT_SIZE);
-
-		SensorAdjustment *result = new SensorAdjustment(tmp_buffer);
 		file_close(file);
-
-		if (result->sid == 255) {
-			delete result;
-			return nullptr;
-		} else {
-			return result;
+		result = SensorAdjustment(tmp_buffer);
+		if (result.sid < 255) {
+			return &result;
 		}
 	} else {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENADJ_FILENAME);
-		return nullptr;
 	}
+	return nullptr;
 }
 
 void OpenSprinkler::write_sensor_adjust(SensorAdjustment *adj, uint8_t index) {
@@ -2700,7 +2706,7 @@ void OpenSprinkler::write_sensor_adjust(SensorAdjustment *adj, uint8_t index) {
 	}
 }
 
-double OpenSprinkler::get_sensor_weather_data(WeatherAction action) {
+float OpenSprinkler::get_sensor_weather_data(WeatherAction action) {
 	return NAN; // TODO make function for WeatherSensor
 }
 #endif
