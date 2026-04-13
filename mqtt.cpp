@@ -483,7 +483,13 @@ WiFiClient wifiClient;
 int OSMqtt::_init(void) {
 	Client * client = NULL;
 
-	if (mqtt_client) { delete mqtt_client; mqtt_client = 0; }
+	if (mqtt_client) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
+		delete mqtt_client;
+#pragma GCC diagnostic pop
+		mqtt_client = 0;
+	}
 
 	#if defined(ESP8266)
 		client = &wifiClient;

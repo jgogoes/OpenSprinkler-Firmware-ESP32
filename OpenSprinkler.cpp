@@ -2422,6 +2422,15 @@ void OpenSprinkler::raindelay_stop() {
 #if defined(USE_SENSORS)
 /** Sensor functions */
 Sensor *OpenSprinkler::parse_sensor(os_file_type file) {
+	static uint8_t sensor_scratchpad[sizeof(SensorUnion)] __attribute__((aligned(4)));
+	static Sensor* active_sensor = nullptr;
+
+	// The Auto-Destructor: If a sensor was previously loaded,
+	// call its destructor before we overwrite the memory.
+	if (active_sensor != nullptr) {
+		active_sensor->~Sensor();
+		active_sensor = nullptr;
+	}
 	uint32_t len = 0;
 	file_read(file, &len, sizeof(len));
 
@@ -2433,19 +2442,21 @@ Sensor *OpenSprinkler::parse_sensor(os_file_type file) {
 	if ((uint8_t)(tmp_buffer[0]) >= (uint8_t)SensorType::MAX_VALUE) {
 		return nullptr;
 	}
-
 	SensorType sensor_type = static_cast<SensorType>(*tmp_buffer);
-
 	switch (sensor_type) {
 		case SensorType::Ensemble:
-			return new EnsembleSensor(os.sensors, (char*)tmp_buffer);
+			active_sensor = new (sensor_scratchpad) EnsembleSensor(os.sensors, (char*)tmp_buffer);
+			break;
 		case SensorType::ADS1115:
-			return new ADS1115Sensor(os.ads1115_devices, (char*)tmp_buffer);
+			active_sensor = new (sensor_scratchpad) ADS1115Sensor(os.ads1115_devices, (char*)tmp_buffer);
+			break;
 		case SensorType::Weather:
-			return new WeatherSensor(os.get_sensor_weather_data, (char*)tmp_buffer);
+			active_sensor = new (sensor_scratchpad) WeatherSensor(os.get_sensor_weather_data, (char*)tmp_buffer);
+			break;
 		default:
 			return nullptr;
 	};
+	return active_sensor;
 }
 
 Sensor *OpenSprinkler::get_sensor(uint8_t index) {
@@ -2458,7 +2469,7 @@ Sensor *OpenSprinkler::get_sensor(uint8_t index) {
 		Sensor *result = parse_sensor(file);
 		file_close(file);
 		return result;
-} else {
+	} else {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENSORS_FILENAME);
 		return nullptr;
@@ -2480,6 +2491,40 @@ os_file_type OpenSprinkler::open_sensor_log(uint16_t file_no, FileOpenMode mode)
 	snprintf(sensor_log_name_buf + sizeof(SENSORS_LOG_FILENAME) - 1, 4, "%03u", (uint16_t)(file_no % 1000));
 
 	return file_open(sensor_log_name_buf, mode);
+}
+
+void list_all_files() {
+    Serial.println(PSTR("\n--- Flash File System Map ---"));
+    Serial.printf("%-25s %10s\n", "Filename", "Size (B)");
+    Serial.println(PSTR("---------------------------------------"));
+
+    // Open the root directory
+    Dir dir = LittleFS.openDir("/");
+    uint32_t totalUsed = 0;
+    uint32_t fileCount = 0;
+
+    // Iterate through all files
+    while (dir.next()) {
+        String fileName = dir.fileName();
+        uint32_t fileSize = dir.fileSize();
+        
+        Serial.printf("%-25s %10u\n", fileName.c_str(), fileSize);
+        
+        totalUsed += fileSize;
+        fileCount++;
+    }
+
+    // Get filesystem totals
+    FSInfo fs_info;
+    LittleFS.info(fs_info);
+
+    Serial.println(PSTR("---------------------------------------"));
+    Serial.printf("Total Files: %u\n", fileCount);
+    Serial.printf("Used Space:  %u bytes\n", totalUsed);
+    Serial.printf("Total Flash: %u bytes\n", fs_info.totalBytes);
+    Serial.printf("Free Space:  %u bytes\n", fs_info.totalBytes - fs_info.usedBytes);
+		Serial.printf("LittleFS Block Size: %u bytes\n", fs_info.blockSize);		
+    Serial.println(PSTR("---------------------------------------\n"));
 }
 
 void OpenSprinkler::load_sensors() {
@@ -2548,7 +2593,6 @@ void OpenSprinkler::load_sensors() {
 				sensors[i].flags = sensor->flags;
 				sensors[i].next_update = 0;
 				sensors[i].value = sensor->get_initial_value();
-				delete sensor;
 			}
 		}
 
@@ -2575,6 +2619,8 @@ void OpenSprinkler::load_sensors() {
 	}
 	if (f == SENSOR_LOG_FILE_COUNT) f -= 1;
 	sensor_file_no = f;
+
+	list_all_files();
 }
 
 void OpenSprinkler::write_sensor(Sensor *sensor, uint8_t index) {
@@ -2651,7 +2697,6 @@ void OpenSprinkler::poll_sensors() {
 				Sensor *sensor = get_sensor(i);
 				if (sensor) {
 					sensors[i].value = sensor->get_new_value();
-					delete sensor;
 					sensors[i].next_update = millis() + (sensors[i].interval * 1000 * 60);
 					if (sensors[i].flags & (1 << SENSOR_FLAG_LOG)) {
 						os.log_sensor(i, sensors[i].value);
@@ -2665,7 +2710,7 @@ void OpenSprinkler::poll_sensors() {
 SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
 	// result is statically allocated to avoid repeatedly new and delete
 	// Do not call delete on the return result from this function
-	static SensorAdjustment result(tmp_buffer);
+	static SensorAdjustment result(0, 255, 0, nullptr);
 
 	if (index > MAX_NUM_PROGRAMS) return nullptr;
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);

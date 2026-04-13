@@ -31,6 +31,7 @@
 #include "mqtt.h"
 #include "RCSwitch.h"
 #include <cmath>
+#include <new>
 
 #if defined(ESP8266) // headers for Arduino
 	#include <Arduino.h>
@@ -222,6 +223,12 @@ struct OTCConfig {
 	uint32_t port;
 };
 
+union SensorUnion {
+	ADS1115Sensor ads1115;
+	EnsembleSensor ensemble;
+	WeatherSensor weather;
+};
+
 extern const char iopt_json_names[];
 extern const uint8_t iopt_max[];
 
@@ -374,12 +381,12 @@ public:
 	static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
 	static void remove_sensor_log(uint16_t file_no);
 	static void load_sensors();
-	static Sensor *parse_sensor(os_file_type file);
-	static Sensor *get_sensor(uint8_t index);
+	static Sensor *parse_sensor(os_file_type file); // return is a statically allocated object, don't delete
+	static Sensor *get_sensor(uint8_t index); // return is a statically allocated object, don't delete
 	static void write_sensor(Sensor *sensor, uint8_t index);
 	void log_sensor(uint8_t sid, float value);
 	static void poll_sensors();
-	static SensorAdjustment *get_sensor_adjust(uint8_t index);
+	static SensorAdjustment *get_sensor_adjust(uint8_t index); // return is a statically allocated object, don't delete
 	static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);
 
 	static float get_sensor_weather_data(WeatherAction action);

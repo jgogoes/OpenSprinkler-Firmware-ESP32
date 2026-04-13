@@ -1886,7 +1886,6 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 			sensor->emit_extra_json(&bfill);
 			bfill.emit_p(PSTR("}"));
 			sensor_count += 1;
-			delete sensor;
 			// push out a packet if available
 			// buffer size is getting small
 			if (available_ether_buffer() <= 0) {
@@ -1963,7 +1962,6 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			interval = sensor->interval;
 			unit = sensor->unit;
 			flags = sensor->flags;
-			delete sensor;
 		}
 	}
 
@@ -2031,7 +2029,6 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 					}
 
 					action = e->action;
-					delete sensor;
 				}
 			}
 
@@ -2081,7 +2078,6 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 					ADS1115Sensor* e = static_cast<ADS1115Sensor*>(sensor);
 					sensor_index = e->sensor_index;
 					sensor_pin = e->pin;
-					delete sensor;
 				}
 			}
 
@@ -2104,7 +2100,6 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 				if ((sensor = os.get_sensor(sid))) {
 					WeatherSensor* e = static_cast<WeatherSensor*>(sensor);
 					action = e->action;
-					delete sensor;
 				}
 			}
 
