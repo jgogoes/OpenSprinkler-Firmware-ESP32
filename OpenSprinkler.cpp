@@ -2494,6 +2494,7 @@ os_file_type OpenSprinkler::open_sensor_log(uint16_t file_no, FileOpenMode mode)
 }
 
 void list_all_files() {
+#if defined(ESP8266)
     Serial.println(PSTR("\n--- Flash File System Map ---"));
     Serial.printf("%-25s %10s\n", "Filename", "Size (B)");
     Serial.println(PSTR("---------------------------------------"));
@@ -2525,6 +2526,7 @@ void list_all_files() {
     Serial.printf("Free Space:  %u bytes\n", fs_info.totalBytes - fs_info.usedBytes);
 		Serial.printf("LittleFS Block Size: %u bytes\n", fs_info.blockSize);		
     Serial.println(PSTR("---------------------------------------\n"));
+	#endif
 }
 
 void OpenSprinkler::load_sensors() {
