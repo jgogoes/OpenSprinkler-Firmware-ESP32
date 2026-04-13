@@ -74,8 +74,8 @@ void manual_start_program(unsigned char, unsigned char, unsigned char);
 #define FLOWPOLL_INTERVAL         5     // flow poll interval (in milli-seconds)
 #define CURRPOLL_INTERVAL         20    // current poll interval (in milli-seconds)
 // Define buffers: need them to be sufficiently large to cover string option reading
-char ether_buffer[ETHER_BUFFER_SIZE*2]; // ethernet buffer, make it twice as large to allow overflow
-char tmp_buffer[TMP_BUFFER_SIZE*2]; // scratch buffer, make it twice as large to allow overflow
+char ether_buffer[ETHER_BUFFER_SIZE+100]; // ethernet buffer, expand by 100 bytes to allow possible overflow
+char tmp_buffer[TMP_BUFFER_SIZE+100]; // scratch buffer, expand by 100 bytes to allow overflow
 
 // ====== Object defines ======
 OpenSprinkler os; // OpenSprinkler object
