@@ -223,12 +223,6 @@ struct OTCConfig {
 	uint32_t port;
 };
 
-union SensorUnion {
-	ADS1115Sensor ads1115;
-	EnsembleSensor ensemble;
-	WeatherSensor weather;
-};
-
 extern const char iopt_json_names[];
 extern const uint8_t iopt_max[];
 
@@ -245,6 +239,11 @@ public:
 #endif
 
 #if defined(USE_SENSORS)
+	union SensorUnion {
+		ADS1115Sensor ads1115;
+		EnsembleSensor ensemble;
+		WeatherSensor weather;
+	};
 	static sensor_memory_t sensors[MAX_SENSORS];
 	static uint16_t sensor_file_no;
 #endif
