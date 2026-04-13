@@ -26,9 +26,10 @@
 #include "ArduinoJson.hpp"
 #include "opensprinkler_server.h"
 
-NotifNodeStruct* NotifQueue::head = NULL;
-NotifNodeStruct* NotifQueue::tail = NULL;
-unsigned char NotifQueue::nqueue = 0;
+uint8_t NotifQueue::nqueue = 0;
+uint8_t NotifQueue::head = 0;
+uint8_t NotifQueue::tail = 0;
+NotifNodeStruct NotifQueue::queue[NOTIF_QUEUE_MAXSIZE];
 
 extern OpenSprinkler os;
 extern ProgramData pd;
@@ -63,15 +64,10 @@ bool NotifQueue::add(uint16_t t, uint32_t l, float f, uint8_t b) {
 		return false;
 	}
 	if(nqueue<NOTIF_QUEUE_MAXSIZE) {
-		NotifNodeStruct* node = new NotifNodeStruct(t, l, f, b);
-		if(tail==NULL) {
-			head = node;
-		} else {
-			tail->next = node;
-		}
-		tail = node;
+		queue[tail] = NotifNodeStruct(t, l, f, b);
+		tail = (tail + 1 )% NOTIF_QUEUE_MAXSIZE;
 		nqueue++;
-		DEBUG_PRINTF("NotifQueue::add (type %d) [%d]\n", t, nqueue);
+		DEBUG_PRINTF("NotifQueue::add (type %d) [%d|%d|%d]\n", t, nqueue, head, tail);
 		return true;
 	}
 	DEBUG_PRINTLN(F("NotifQueue::add queue is full!"));
@@ -79,15 +75,9 @@ bool NotifQueue::add(uint16_t t, uint32_t l, float f, uint8_t b) {
 }
 
 void NotifQueue::clear() {
-	while(nqueue!=0) {
-		NotifNodeStruct* node = head;
-		head = head->next;
-		if(head==NULL) {
-			tail = NULL;
-		}
-		delete node;
-		nqueue--;
-	}
+	nqueue = 0;
+	head = 0;
+	tail = 0;
 }
 
 void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval);
@@ -96,16 +86,12 @@ bool NotifQueue::run(int n) {
 	if(nqueue == 0) return false; // queue is empty
 	if(n<=0 || n>nqueue) n=nqueue;
 	while(nqueue!=0 && n!=0) {
-		NotifNodeStruct* node = head;
-		head = head->next;
-		if(head==NULL) {
-			tail = NULL;
-		}
+		NotifNodeStruct* node = &queue[head];
+		head = (head + 1) % NOTIF_QUEUE_MAXSIZE;
 		push_message(node->type, node->lval, node->fval, node->bval);
-		DEBUG_PRINTF("NotifQueue::run (type %d) [%d]\n", node->type, nqueue);
-		delete node;
 		nqueue--;
 		n--;
+		DEBUG_PRINTF("NotifQueue::run (type %d) [%d|%d|%d]\n", node->type, nqueue, head, tail);
 	}
 	return true;
 }

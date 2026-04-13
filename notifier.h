@@ -23,7 +23,7 @@
 
 #pragma once
 
-#define NOTIF_QUEUE_MAXSIZE 32
+#define NOTIF_QUEUE_MAXSIZE 16
 
 #include "OpenSprinkler.h"
 #include "types.h"
@@ -34,8 +34,7 @@ struct NotifNodeStruct {
 	uint32_t lval;
 	float fval;
 	uint8_t bval;
-	NotifNodeStruct *next;
-	NotifNodeStruct(uint16_t t, uint32_t l=0, float f=0.f, uint8_t b=0) : type(t), lval(l), fval(f), bval(b), next(NULL)
+	NotifNodeStruct(uint16_t t=0, uint32_t l=0, float f=0.f, uint8_t b=0) : type(t), lval(l), fval(f), bval(b)
 	{ }
 };
 
@@ -49,7 +48,6 @@ public:
 	// Run/Process elements. By default process 1 at a time. If n<=0, process all.
 	static bool run(int n=1);
 protected:
-	static NotifNodeStruct* head;
-	static NotifNodeStruct* tail;
-	static unsigned char nqueue;
+	static NotifNodeStruct queue[NOTIF_QUEUE_MAXSIZE];
+	static uint8_t head, tail, nqueue;
 };
