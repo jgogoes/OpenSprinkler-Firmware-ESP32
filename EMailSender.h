@@ -508,7 +508,7 @@ private:
 	bool isSASLLogin = false;
 
 	bool useAuth = true;
-        bool isCramMD5Login = false;
+	bool isCramMD5Login = false;
 
     String _serverResponce;
 

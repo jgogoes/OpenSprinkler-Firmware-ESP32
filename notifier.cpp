@@ -568,15 +568,35 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 				EMailSender emailSend(email_username, email_password);
 				emailSend.setSMTPServer(email_host);
 				emailSend.setSMTPPort(email_port);
+				if (email_username == NULL || strlen(email_username) == 0) {
+					emailSend.setUseAuth(false);
+				}
 				EMailSender::Response resp = emailSend.send(email_recipient, email_message);
 			}
 		#else
 			struct smtp *smtp = NULL;
+			enum smtp_connection_security security_flag;
+			if (email_port == 25) {
+				security_flag = SMTP_SECURITY_NONE;
+			} else if (email_port == 587) {
+				security_flag = SMTP_SECURITY_STARTTLS;
+			} else {
+				// Default to Implicit SSL for 465 (or legacy configurations)
+				security_flag = SMTP_SECURITY_TLS;
+			}
+			enum smtp_authentication_method auth_flag;
+			// Check if the user left the SMTP Username field blank in the UI
+			if (email_username == NULL || strlen(email_username) == 0) {
+				auth_flag = SMTP_AUTH_NONE;
+			} else {
+				// Retain the OpenSprinkler default for populated credentials
+				auth_flag = SMTP_AUTH_PLAIN;
+			}
 			String email_port_str = to_string(email_port);
 			smtp_status_code rc;
 			if(email_host && email_username && email_password && email_recipient) { // make sure all are valid
-				rc = smtp_open(email_host, email_port_str.c_str(), SMTP_SECURITY_TLS, SMTP_NO_CERT_VERIFY, NULL, &smtp);
-				rc = smtp_auth(smtp, SMTP_AUTH_PLAIN, email_username, email_password);
+				rc = smtp_open(email_host, email_port_str.c_str(), security_flag, SMTP_NO_CERT_VERIFY, NULL, &smtp);
+				rc = smtp_auth(smtp, auth_flag, email_username, email_password);
 				rc = smtp_address_add(smtp, SMTP_ADDRESS_FROM, email_username, "OpenSprinkler");
 				rc = smtp_address_add(smtp, SMTP_ADDRESS_TO, email_recipient, "User");
 				rc = smtp_header_add(smtp, "Subject", email_message.subject.c_str());

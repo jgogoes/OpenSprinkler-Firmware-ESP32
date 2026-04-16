@@ -165,7 +165,7 @@ unsigned char findKeyVal (const char *str,char *strbuf, uint16_t maxlen,const ch
 }
 
 void rewind_ether_buffer() {
-	bfill = BufferFiller(ether_buffer, sizeof(ether_buffer));
+	bfill = BufferFiller(ether_buffer, ETHER_BUFFER_ALLOC_SIZE);
 	ether_buffer[0] = 0;
 }
 
@@ -1760,7 +1760,7 @@ void server_json_log(OTF_PARAMS_DEF) {
 
 	bool comma = 0;
 	for(unsigned int i=start;i<=end;i++) {
-		snprintf(tmp_buffer, TMP_BUFFER_SIZE*2 , "%d", i);
+		snprintf(tmp_buffer, TMP_BUFFER_ALLOC_SIZE , "%d", i);
 		make_logfile_name(tmp_buffer);
 
 #if defined(ESP8266)
@@ -2573,7 +2573,7 @@ void server_fill_files(OTF_PARAMS_DEF) {
 	ether_buffer[75] = 0;
 	FSInfo fs_info;
 	for(int index=1;index<64;index++) {
-		snprintf(tmp_buffer, TMP_BUFFER_SIZE*2 , "%d", index);
+		snprintf(tmp_buffer, TMP_BUFFER_ALLOC_SIZE , "%d", index);
 		make_logfile_name(tmp_buffer);
 		DEBUG_PRINT(F("creating "));
 		DEBUG_PRINT(tmp_buffer);
