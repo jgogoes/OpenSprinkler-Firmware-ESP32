@@ -19,6 +19,25 @@ typedef struct {
 	float value;
 } sensor_memory_t;
 
+// Sensor log file format — both structs are tightly packed (no padding) so
+// sizeof() gives the exact on-disk byte count and offsetof() gives exact field offsets.
+struct __attribute__((packed)) SensorLogHeader {
+	uint8_t  magic;            // SENSOR_LOG_MAGIC
+	uint8_t  version;          // SENSOR_LOG_VERSION
+	uint16_t max_files;        // number of data files in rotation
+	uint16_t records_per_file; // max records per data file
+	uint16_t cur_file;         // index of the data file currently being written
+	uint8_t  wrapped;          // 1 once all max_files slots have been used at least once
+	uint8_t  reserved[7];
+};  // 16 bytes
+
+struct __attribute__((packed)) SensorLogRecord {
+	uint32_t timestamp;    // unix epoch seconds
+	float    value;        // sensor reading
+	uint8_t  sid;          // sensor ID
+	uint8_t  reserved;
+};
+
 enum class SensorType : uint8_t {
 	Ensemble = 0,
 	ADS1115,

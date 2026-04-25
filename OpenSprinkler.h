@@ -245,7 +245,7 @@ public:
 		WeatherSensor weather;
 	};
 	static sensor_memory_t sensors[MAX_SENSORS];
-	static uint16_t sensor_file_no;
+
 #endif
 
 #if defined(OSPI)
@@ -377,13 +377,16 @@ public:
 
 	// -- Sensor functions
 #if defined(USE_SENSORS)
+	static void get_sensor_log_filename(char *buf, uint16_t file_no);
 	static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
-	static void remove_sensor_log(uint16_t file_no);
+	static os_file_type open_sensor_log_header(FileOpenMode mode);
+	static void remove_sensor_log(int16_t file_no = -1);  // -1 removes header + all data files
 	static void load_sensors();
 	static Sensor *parse_sensor(os_file_type file); // return is a statically allocated object, don't delete
 	static Sensor *get_sensor(uint8_t index); // return is a statically allocated object, don't delete
 	static void write_sensor(Sensor *sensor, uint8_t index);
 	void log_sensor(uint8_t sid, float value);
+	static void test_sensor_log(uint32_t n_records);
 	static void poll_sensors();
 	static SensorAdjustment *get_sensor_adjust(uint8_t index); // return is a statically allocated object, don't delete
 	static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);

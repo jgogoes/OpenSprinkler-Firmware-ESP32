@@ -73,6 +73,7 @@ bool file_seek(os_file_type f, uint32_t position, FileSeekMode mode);
 bool file_seek(os_file_type f, uint32_t position);
 int file_read(os_file_type f, void *target, uint32_t len);
 int file_write(os_file_type f, const void *source, uint32_t len);
+uint32_t file_size(os_file_type f);
 
 void file_read_block (const char *fname, void *dst, uint32_t pos, uint32_t len);
 void file_write_block(const char *fname, const void *src, uint32_t pos, uint32_t len);

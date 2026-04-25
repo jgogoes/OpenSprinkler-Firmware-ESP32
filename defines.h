@@ -53,7 +53,8 @@
 #define PROG_FILENAME         "prog.dat"    // program data file
 #define DONE_FILENAME         "done.dat"    // used to indicate the completion of all files
 #define SENSORS_FILENAME      "sens.dat"    // sensor data file
-#define SENSORS_LOG_FILENAME  "senslog.dat" // name base for all sensor files
+#define SENSORS_LOG_FILENAME        "senslog.dat" // data file prefix (senslog.dat000 … senslog.datNNN)
+#define SENSORS_LOG_HEADER_FILENAME "senslog.hdr" // central header file (separate to avoid per-write seeks)
 #define SENADJ_FILENAME       "senadj.dat"  // sensor adjustment data for programs file
 
 /** Station macro defines */
@@ -151,10 +152,10 @@ enum {
 #define MAX_SOPTS_SIZE    320   // maximum string option size
 
 #define MAX_SENSORS 64
-#define SENSOR_LOG_PER_FILE 1024
-#define SENSOR_LOG_FILE_COUNT 32
-#define MAX_SENSOR_LOG_COUNT (SENSOR_LOG_PER_FILE * SENSOR_LOG_FILE_COUNT)
-#define SENSOR_LOG_ITEM_SIZE (sizeof(time_os_t) + sizeof(float) + 1 + 1)
+#define SENSOR_LOG_MAGIC            0x55
+#define SENSOR_LOG_VERSION          0x01
+#define SENSOR_LOG_MAX_FILES        50   // number of data files in the rotation
+#define SENSOR_LOG_RECORDS_PER_FILE 819  // records per file; 819×10 B = 8 190 B fits in one 8 KB LittleFS block
 
 #define STATION_SPECIAL_DATA_SIZE  (TMP_BUFFER_SIZE - STATION_NAME_SIZE - 12)
 

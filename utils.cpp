@@ -409,6 +409,18 @@ int file_write(os_file_type f, const void *source, uint32_t len) {
 	#endif
 }
 
+uint32_t file_size(os_file_type f) {
+	#if defined(ESP8266)
+	return f.size();
+	#else
+	long cur = ftell(f);
+	fseek(f, 0, SEEK_END);
+	long sz = ftell(f);
+	fseek(f, cur, SEEK_SET);
+	return (uint32_t)(sz >= 0 ? sz : 0);
+	#endif
+}
+
 // file functions
 void file_read_block(const char *fn, void *dst, uint32_t pos, uint32_t len) {
 #if defined(ESP8266)

@@ -2184,53 +2184,36 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 	rewind_ether_buffer();
 	print_header(OTF_PARAMS);
 
-	//uint32_t start_time = millis();
-
-	uint32_t count = 0;
-	uint32_t i;
-
 	char *end;
+
+	// Read central header
+	os_file_type hfile = os.open_sensor_log_header(FileOpenMode::Read);
+	if (!hfile) handle_return(HTML_INTERNAL_ERROR);
+	SensorLogHeader hdr;
+	file_read(hfile, &hdr, sizeof(hdr));
+	file_close(hfile);
+	if (hdr.magic != SENSOR_LOG_MAGIC || hdr.version != SENSOR_LOG_VERSION)
+		handle_return(HTML_INTERNAL_ERROR);
+
+	uint32_t total_capacity = (uint32_t)hdr.max_files * hdr.records_per_file;
+
 	uint32_t max_count = 100;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("count"), true)) {
 		max_count = strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (max_count > MAX_SENSOR_LOG_COUNT) handle_return(HTML_DATA_OUTOFBOUND);
+		if (max_count > total_capacity) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
-	uint16_t file_no = os.sensor_file_no;
-	uint16_t next;
-
-	os_file_type file = os.open_sensor_log(file_no, FileOpenMode::Read);
-	if (file) {
-		file_read(file, &next, sizeof(next));
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open sensor log file: ");
-		DEBUG_PRINTLN(file_no);
-		handle_return(HTML_INTERNAL_ERROR);
-	}
-
-	if (next == SENSOR_LOG_PER_FILE) {
-		next = 0;
-		file_no = (file_no + 1) % SENSOR_LOG_FILE_COUNT;
-	} else {
-		next += 1;
-	}
-
-	DEBUG_PRINTLN(file_no);
-	DEBUG_PRINTLN(next);
-
-	uint32_t cursor = (file_no * SENSOR_LOG_PER_FILE) + next;
+	// cursor = flat sequential index from oldest record to skip before emitting
+	uint32_t cursor = 0;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("cursor"), true)) {
 		cursor = strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (cursor > MAX_SENSOR_LOG_COUNT) handle_return(HTML_DATA_OUTOFBOUND);
-		next = cursor % SENSOR_LOG_PER_FILE;
-		file_no = (cursor - next) / SENSOR_LOG_PER_FILE;
+		if (cursor > total_capacity) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
 	using std::numeric_limits;
-	time_os_t before = std::numeric_limits<time_os_t>::max();
+	time_os_t before = numeric_limits<time_os_t>::max();
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("before"), true)) {
 		before = (time_os_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
@@ -2241,7 +2224,7 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("after"), true)) {
 		after = (time_os_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (after <= before) handle_return(HTML_DATA_OUTOFBOUND);
+		if (after >= before) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
 	long target_sid = -1;
@@ -2251,134 +2234,108 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 		if (target_sid >= MAX_SENSORS || target_sid < -1) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
-	// Clear out buffer
-	memset(tmp_buffer, 0, SENSOR_LOG_ITEM_SIZE);
-
-	file = os.open_sensor_log(file_no, FileOpenMode::Read);
-	if (file) {
-		file_seek(file, sizeof(next) + (next * SENSOR_LOG_ITEM_SIZE), FileSeekMode::Current);
-	} else {
-		DEBUG_PRINT("Failed to open sensor log file: ");
-		DEBUG_PRINTLN(file_no);
-		handle_return(HTML_INTERNAL_ERROR);
-	}
-
 	send_packet(OTF_PARAMS);
 
+	// Iterate files from oldest to newest
+	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
+	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
+
+	SensorLogRecord rec;
 	char print_buf[22] = "00,00000000,00000000\n";
-	
-	for (i=0;i<max_count;i++) {
-		if (next == SENSOR_LOG_PER_FILE) {
-			if (file) {
-				file_close(file);
-				file_no = (file_no + 1) % SENSOR_LOG_FILE_COUNT;
-				next = 0;
-				file = os.open_sensor_log(file_no, FileOpenMode::Read);
-				if (file) {
-					file_seek(file, sizeof(next), FileSeekMode::Current);
-				} else {
-					DEBUG_PRINT("Failed to open sensor log file: ");
-					DEBUG_PRINTLN(file_no);
-					break;
-				}
-			} else {
-				DEBUG_PRINT("Failed to open sensor log file: ");
-				DEBUG_PRINTLN(file_no);
-				break;
-			}
-		}
+	uint32_t flat_idx = 0;  // sequential record counter across all files
+	uint32_t count = 0;
 
-		if (file) {
-			// Ensure a new value is read
-			tmp_buffer[0] = 0;
-			file_read(file, tmp_buffer, SENSOR_LOG_ITEM_SIZE);
-			cursor = (cursor + 1) % MAX_SENSOR_LOG_COUNT;
-			next += 1;
-			char *buf_ptr = tmp_buffer;
-			if (!(*buf_ptr & 1)) continue;
-			buf_ptr += 1;
+	for (uint16_t fi = 0; fi < total_files && count < max_count; fi++) {
+		uint16_t file_no = (first_file + fi) % hdr.max_files;
+		os_file_type dfile = os.open_sensor_log(file_no, FileOpenMode::Read);
+		if (!dfile) continue;
 
-			uint8_t sid = *buf_ptr;
-			if (sid > MAX_SENSORS) continue;
-			buf_ptr += 1;
+		while (count < max_count) {
+			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
 
-			if (target_sid > -1 && sid != target_sid) continue;
+			flat_idx++;
+			if (flat_idx <= cursor) continue;
+			if (rec.timestamp == 0) continue;
+			if (target_sid > -1 && rec.sid != (uint8_t)target_sid) continue;
+			if (rec.timestamp > before || rec.timestamp < after) continue;
 
-			time_os_t timestamp;
-			memcpy(&timestamp, buf_ptr, sizeof(timestamp));
-			buf_ptr += sizeof(timestamp);
-			uint32_t value;
-			memcpy(&value, buf_ptr, sizeof(value));
-			buf_ptr += sizeof(value);
+			uint32_t raw_value;
+			memcpy(&raw_value, &rec.value, sizeof(raw_value));
 
-			if (timestamp > before || timestamp < after) continue;
-
-			print_buf[0] = dec2hexchar((sid >> 4) & 0xF);
-			print_buf[1] = dec2hexchar(sid & 0xF);
-
-			print_buf[3] = dec2hexchar((timestamp >> 28) & 0xF);
-			print_buf[4] = dec2hexchar((timestamp >> 24) & 0xF);
-			print_buf[5] = dec2hexchar((timestamp >> 20) & 0xF);
-			print_buf[6] = dec2hexchar((timestamp >> 16) & 0xF);
-			print_buf[7] = dec2hexchar((timestamp >> 12) & 0xF);
-			print_buf[8] = dec2hexchar((timestamp >> 8) & 0xF);
-			print_buf[9] = dec2hexchar((timestamp >> 4) & 0xF);
-			print_buf[10] = dec2hexchar(timestamp & 0xF);
-
-			print_buf[12] = dec2hexchar((value >> 28) & 0xF);
-			print_buf[13] = dec2hexchar((value >> 24) & 0xF);
-			print_buf[14] = dec2hexchar((value >> 20) & 0xF);
-			print_buf[15] = dec2hexchar((value >> 16) & 0xF);
-			print_buf[16] = dec2hexchar((value >> 12) & 0xF);
-			print_buf[17] = dec2hexchar((value >> 8) & 0xF);
-			print_buf[18] = dec2hexchar((value >> 4) & 0xF);
-			print_buf[19] = dec2hexchar(value & 0xF);
+			print_buf[0]  = dec2hexchar((rec.sid >> 4) & 0xF);
+			print_buf[1]  = dec2hexchar(rec.sid & 0xF);
+			print_buf[3]  = dec2hexchar((rec.timestamp >> 28) & 0xF);
+			print_buf[4]  = dec2hexchar((rec.timestamp >> 24) & 0xF);
+			print_buf[5]  = dec2hexchar((rec.timestamp >> 20) & 0xF);
+			print_buf[6]  = dec2hexchar((rec.timestamp >> 16) & 0xF);
+			print_buf[7]  = dec2hexchar((rec.timestamp >> 12) & 0xF);
+			print_buf[8]  = dec2hexchar((rec.timestamp >> 8) & 0xF);
+			print_buf[9]  = dec2hexchar((rec.timestamp >> 4) & 0xF);
+			print_buf[10] = dec2hexchar(rec.timestamp & 0xF);
+			print_buf[12] = dec2hexchar((raw_value >> 28) & 0xF);
+			print_buf[13] = dec2hexchar((raw_value >> 24) & 0xF);
+			print_buf[14] = dec2hexchar((raw_value >> 20) & 0xF);
+			print_buf[15] = dec2hexchar((raw_value >> 16) & 0xF);
+			print_buf[16] = dec2hexchar((raw_value >> 12) & 0xF);
+			print_buf[17] = dec2hexchar((raw_value >> 8) & 0xF);
+			print_buf[18] = dec2hexchar((raw_value >> 4) & 0xF);
+			print_buf[19] = dec2hexchar(raw_value & 0xF);
 			res.write(print_buf, 21);
-			count += 1;
-		} else {
-			DEBUG_PRINT("Failed to open sensor log file: ");
-			DEBUG_PRINTLN(file_no);
-			break;
+			count++;
 		}
+		file_close(dfile);
 	}
-
-	if (file) file_close(file);
 
 	handle_return(HTML_OK);
 }
 
 
-// TODO: delete sensor log delete
 void server_clear_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	os_file_type file;
 
 	int sid = -1;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
 		sid = atoi(tmp_buffer);
-		if (sid<-1 || sid>=MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
+		if (sid < -1 || sid >= MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
 	} else {
 		handle_return(HTML_DATA_MISSING);
 	}
 
-	tmp_buffer[0] = 0;
-	tmp_buffer[1] = 255;
+	if (sid == -1) {
+		// Remove all log files — frees flash immediately; header recreated on next log_sensor call
+		os.remove_sensor_log();
+		handle_return(HTML_SUCCESS);
+	}
 
-	uint16_t next = SENSOR_LOG_PER_FILE;
-	for (uint16_t f = 0; f < SENSOR_LOG_FILE_COUNT; f++) {
-		file = os.open_sensor_log(f, FileOpenMode::ReadWrite);
-		if (file) {
-			file_write(file, &next, sizeof(next));
-			for (size_t i = 0; i < SENSOR_LOG_PER_FILE; i++) {
-				file_write(file, tmp_buffer, SENSOR_LOG_ITEM_SIZE);
+	// Per-sensor clear: read central header to know file layout
+	os_file_type hfile = os.open_sensor_log_header(FileOpenMode::Read);
+	if (!hfile) handle_return(HTML_INTERNAL_ERROR);
+	SensorLogHeader hdr;
+	file_read(hfile, &hdr, sizeof(hdr));
+	file_close(hfile);
+	if (hdr.magic != SENSOR_LOG_MAGIC || hdr.version != SENSOR_LOG_VERSION)
+		handle_return(HTML_INTERNAL_ERROR);
+
+	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
+	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
+
+	SensorLogRecord rec;
+	for (uint16_t fi = 0; fi < total_files; fi++) {
+		uint16_t file_no = (first_file + fi) % hdr.max_files;
+		os_file_type dfile = os.open_sensor_log(file_no, FileOpenMode::ReadWrite);
+		if (!dfile) continue;
+
+		uint32_t pos = 0;
+		while (true) {
+			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
+			if (rec.timestamp != 0 && rec.sid == (uint8_t)sid) {
+				memset(&rec, 0, sizeof(rec));
+				file_seek(dfile, pos);
+				file_write(dfile, &rec, sizeof(rec));
 			}
-
-			file_close(file);
-		} else {
-			DEBUG_PRINT("Failed to open sensor log file: ");
-			DEBUG_PRINTLN(f);
-			handle_return(HTML_INTERNAL_ERROR);
+			pos += sizeof(rec);
 		}
+		file_close(dfile);
 	}
 
 	handle_return(HTML_SUCCESS);
