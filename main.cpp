@@ -42,6 +42,7 @@
 	bool useEth = false; // tracks whether we are using WiFi or wired Ether connection
 	uint32_t getNtpTime();
 #else // header and defs for RPI/Linux
+	#include <dirent.h>
 	bool useEth = false;
 #endif
 
@@ -471,6 +472,7 @@ static void perform_ntp_sync();
 
 #if defined(ESP8266)
 bool delete_log_oldest();
+uint32_t get_sprinkler_log_size();
 void start_server_ap();
 void start_server_client();
 static Ticker reboot_ticker;
@@ -1656,18 +1658,13 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 // ================================
 // ====== LOGGING FUNCTIONS =======
 // ================================
-#if defined(ESP8266)
-char LOG_PREFIX[] = "/logs/";
-#else
-char LOG_PREFIX[] = "./logs/";
-#endif
 
 /** Generate log file name
  * Log files will be named /logs/xxxxx.txt
  */
 void make_logfile_name(char *name) {
 	strcpy(tmp_buffer+TMP_BUFFER_SIZE-10, name); // hack: we do this because name is from tmp_buffer too
-	strcpy(tmp_buffer, LOG_PREFIX);
+	strcpy(tmp_buffer, LOG_DIR);
 	strcat(tmp_buffer, tmp_buffer+TMP_BUFFER_SIZE-10);
 	strcat_P(tmp_buffer, PSTR(".txt"));
 }
@@ -1700,12 +1697,10 @@ void write_log(unsigned char type, time_os_t curr_time) {
 #if defined(ESP8266) // prepare log folder for Arduino
 	File file = LittleFS.open(tmp_buffer, "r+");
 	if(!file) {
-		FSInfo fs_info;
-		LittleFS.info(fs_info);
-		// check if we are getting close to run out of space, and delete some oldest files
-		if(fs_info.totalBytes < fs_info.usedBytes + fs_info.blockSize * 4) {
-			// delete the oldest 7 files (1 week of log)
-			for(unsigned char i=0;i<7;i++)	delete_log_oldest();
+		// New day file — trim sprinkler log budget before creating it
+		uint32_t limit = (uint32_t)LOG_SPRINKLER_MAX_KB * 1024;
+		while (get_sprinkler_log_size() >= limit) {
+			if (!delete_log_oldest()) break;
 		}
 		file = LittleFS.open(tmp_buffer, "w");
 		if(!file) return;
@@ -1713,8 +1708,8 @@ void write_log(unsigned char type, time_os_t curr_time) {
 	file.seek(0, SeekEnd);
 #else // prepare log folder for RPI/LINUX
 	struct stat st;
-	if(stat(get_filename_fullpath(LOG_PREFIX), &st)) {
-		if(mkdir(get_filename_fullpath(LOG_PREFIX), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH)) {
+	if(stat(get_filename_fullpath(LOG_DIR), &st)) {
+		if(mkdir(get_filename_fullpath(LOG_DIR), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH)) {
 			return;
 		}
 	}
@@ -1797,25 +1792,35 @@ void write_log(unsigned char type, time_os_t curr_time) {
 }
 
 #if defined(ESP8266)
+uint32_t get_sprinkler_log_size() {
+	Dir dir = LittleFS.openDir(LOG_DIR);
+	uint32_t total = 0;
+	while (dir.next()) {
+		if (dir.fileName().endsWith(".txt"))
+			total += dir.fileSize();
+	}
+	return total;
+}
+
 bool delete_log_oldest() {
-	Dir dir = LittleFS.openDir(LOG_PREFIX);
-	time_os_t oldest_t = ULONG_MAX;
+	Dir dir = LittleFS.openDir(LOG_DIR);
+	uint32_t oldest_day = UINT32_MAX;
 	String oldest_fn;
 	while (dir.next()) {
-		time_os_t t = dir.fileCreationTime();
-		if(t<oldest_t) {
-			oldest_t = t;
+		if (!dir.fileName().endsWith(".txt")) continue;
+		uint32_t day = (uint32_t)atol(dir.fileName().c_str());
+		if (day < oldest_day) {
+			oldest_day = day;
 			oldest_fn = dir.fileName();
 		}
 	}
-	if(oldest_fn.length()>0) {
+	if (oldest_fn.length() > 0) {
 		DEBUG_PRINT(F("deleting "))
-		DEBUG_PRINTLN(LOG_PREFIX+oldest_fn);
-		LittleFS.remove(LOG_PREFIX+oldest_fn);
+		DEBUG_PRINTLN(LOG_DIR + oldest_fn);
+		LittleFS.remove(LOG_DIR + oldest_fn);
 		return true;
-	} else {
-		return false;
 	}
+	return false;
 }
 #endif
 
@@ -1826,10 +1831,11 @@ void delete_log(char *name) {
 	if (!os.iopts[IOPT_ENABLE_LOGGING]) return;
 #if defined(ESP8266)
 	if (strncmp(name, "all", 3) == 0) {
-		// delete all log files
-		Dir dir = LittleFS.openDir(LOG_PREFIX);
+		// delete all sprinkler log files (.txt), leaving sensor logs intact
+		Dir dir = LittleFS.openDir(LOG_DIR);
 		while (dir.next()) {
-			LittleFS.remove(LOG_PREFIX+dir.fileName());
+			if (dir.fileName().endsWith(".txt"))
+				LittleFS.remove(LOG_DIR+dir.fileName());
 		}
 	} else {
 		// delete a single log file
@@ -1839,9 +1845,21 @@ void delete_log(char *name) {
 	}
 #else // delete_log implementation for RPI/LINUX
 	if (strncmp(name, "all", 3) == 0) {
-		// delete the log folder
-		rmdir(get_filename_fullpath(LOG_PREFIX));
-		return;
+		// delete all sprinkler log files (.txt), leaving sensor logs intact
+		char log_dir[PATH_MAX];
+		strcpy(log_dir, get_filename_fullpath(LOG_DIR));
+		DIR *d = opendir(log_dir);
+		if (d) {
+			struct dirent *ent;
+			while ((ent = readdir(d)) != NULL) {
+				size_t len = strlen(ent->d_name);
+				if (len > 4 && strcmp(ent->d_name + len - 4, ".txt") == 0) {
+					snprintf(tmp_buffer, TMP_BUFFER_SIZE, "%s%s", log_dir, ent->d_name);
+					remove(tmp_buffer);
+				}
+			}
+			closedir(d);
+		}
 	} else {
 		make_logfile_name(name);
 		remove(get_filename_fullpath(tmp_buffer));

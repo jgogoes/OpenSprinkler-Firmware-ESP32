@@ -33,6 +33,8 @@ extern OpenSprinkler os;
 #else // RPI/LINUX
 
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 char* get_runtime_path() {
 	static char path[PATH_MAX];
@@ -293,6 +295,16 @@ void remove_file(const char *fn) {
 
 	remove(get_filename_fullpath(fn));
 
+#endif
+}
+
+void ensure_log_dir() {
+#if !defined(ESP8266)
+	const char *dir = get_filename_fullpath(LOG_DIR);
+	struct stat st;
+	if (stat(dir, &st) != 0) {
+		mkdir(dir, S_IRUSR|S_IWUSR|S_IXUSR|S_IRGRP|S_IWGRP|S_IXGRP|S_IROTH|S_IWOTH|S_IXOTH);
+	}
 #endif
 }
 

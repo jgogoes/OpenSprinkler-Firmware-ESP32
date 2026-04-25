@@ -2474,11 +2474,11 @@ Sensor *OpenSprinkler::get_sensor(uint8_t index) {
 }
 
 void OpenSprinkler::get_sensor_log_filename(char *buf, uint16_t file_no) {
-	snprintf(buf, 16, "%s%03u", SENSORS_LOG_FILENAME, file_no%1000);
+	snprintf(buf, 24, "%s%03u", SENSORS_LOG_FILENAME, file_no%1000);
 }
 
 os_file_type OpenSprinkler::open_sensor_log(uint16_t file_no, FileOpenMode mode) {
-	char fname[16];
+	char fname[24];
 	get_sensor_log_filename(fname, file_no);
 	return file_open(fname, mode);
 }
@@ -2488,7 +2488,7 @@ os_file_type OpenSprinkler::open_sensor_log_header(FileOpenMode mode) {
 }
 
 void OpenSprinkler::remove_sensor_log(int16_t file_no) {
-	char fname[16];
+	char fname[24];
 	if (file_no < 0) {
 		remove_file(SENSORS_LOG_HEADER_FILENAME);
 		for (uint16_t i = 0; i < SENSOR_LOG_MAX_FILES; i++) {
@@ -2504,39 +2504,47 @@ void OpenSprinkler::remove_sensor_log(int16_t file_no) {
 void list_all_files() {
 #if defined(ESP8266)
     Serial.println(PSTR("\n--- Flash File System Map ---"));
-    Serial.printf("%-25s %10s\n", "Filename", "Size (B)");
-    Serial.println(PSTR("---------------------------------------"));
+    Serial.printf("%-30s %10s\n", "Filename", "Size (B)");
+    Serial.println(PSTR("------------------------------------------"));
 
-    // Open the root directory
-    Dir dir = LittleFS.openDir("/");
     uint32_t totalUsed = 0;
     uint32_t fileCount = 0;
 
-    // Iterate through all files
+    // Root directory (skip directory entries — they appear as dot-less names with size 0)
+    Dir dir = LittleFS.openDir("/");
     while (dir.next()) {
-        String fileName = dir.fileName();
-        uint32_t fileSize = dir.fileSize();
-        
-        Serial.printf("%-25s %10u\n", fileName.c_str(), fileSize);
-        
-        totalUsed += fileSize;
+        if (dir.fileName().indexOf('.') < 0) continue;
+        Serial.printf("%-30s %10u\n", ("/" + dir.fileName()).c_str(), dir.fileSize());
+        totalUsed += dir.fileSize();
         fileCount++;
     }
 
-    // Get filesystem totals
+    // /logs/ subdirectory
+    uint32_t logUsed = 0;
+    uint32_t logCount = 0;
+    Dir logdir = LittleFS.openDir("/logs/");
+    while (logdir.next()) {
+        String fullname = "/logs/" + logdir.fileName();
+        Serial.printf("%-30s %10u\n", fullname.c_str(), logdir.fileSize());
+        logUsed += logdir.fileSize();
+        logCount++;
+    }
+    totalUsed += logUsed;
+    fileCount += logCount;
+
+    // Filesystem totals
     FSInfo fs_info;
     LittleFS.info(fs_info);
 
-    Serial.println(PSTR("---------------------------------------"));
-    Serial.printf("Total File: %u\n", fileCount);
-    Serial.printf("Total Size:  %u bytes\n", totalUsed);
-    Serial.printf("Total Flash: %u bytes\n", fs_info.totalBytes);
-    Serial.printf("Free Space:  %u bytes\n", fs_info.totalBytes - fs_info.usedBytes);
-		Serial.printf("Used Bytes:  %u bytes\n", fs_info.usedBytes);
-    
-		Serial.printf("LittleFS Block Size: %u bytes\n", fs_info.blockSize);		
-    Serial.println(PSTR("---------------------------------------\n"));
-	#endif
+    Serial.println(PSTR("------------------------------------------"));
+    Serial.printf("Total Files: %u  (logs/: %u)\n", fileCount, logCount);
+    Serial.printf("Total Size:  %u bytes  (logs/: %u bytes)\n", totalUsed, logUsed);
+    Serial.printf("FS Total:    %u bytes\n", fs_info.totalBytes);
+    Serial.printf("FS Used:     %u bytes\n", fs_info.usedBytes);
+    Serial.printf("FS Free:     %u bytes\n", fs_info.totalBytes - fs_info.usedBytes);
+    Serial.printf("Block Size:  %u bytes\n", fs_info.blockSize);
+    Serial.println(PSTR("------------------------------------------\n"));
+#endif
 }
 
 void OpenSprinkler::load_sensors() {
@@ -2602,10 +2610,10 @@ void OpenSprinkler::load_sensors() {
 
 	// Uncomment one of the following to run a sensor log performance test on boot:
   //test_sensor_log(100);     // quick smoke test
-	test_sensor_log(2000);    // moderate
+	//test_sensor_log(2000);    // moderate
 	//test_sensor_log(32760);   // full capacity
 	// test_sensor_log(40000);   // beyond capacity (tests ring wrap)
-	list_all_files();
+	//list_all_files();
 }
 
 void OpenSprinkler::write_sensor(Sensor *sensor, uint8_t index) {
@@ -2648,8 +2656,9 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 	}
 
 	if (!hdr_valid) {
-		// First use or firmware upgrade: wipe any stale data files, write fresh header
-		char fname[16];
+		// First use or firmware upgrade: ensure directory exists, wipe stale data files, write fresh header
+		ensure_log_dir();
+		char fname[24];
 		for (uint16_t i = 0; i < SENSOR_LOG_MAX_FILES; i++) {
 			get_sensor_log_filename(fname, i);
 			remove_file(fname);

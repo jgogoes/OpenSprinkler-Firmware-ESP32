@@ -52,10 +52,17 @@
 #define NVCON_FILENAME        "nvcon.dat"   // non-volatile controller data file, see OpenSprinkler.h --> struct NVConData
 #define PROG_FILENAME         "prog.dat"    // program data file
 #define DONE_FILENAME         "done.dat"    // used to indicate the completion of all files
-#define SENSORS_FILENAME      "sens.dat"    // sensor data file
-#define SENSORS_LOG_FILENAME        "senslog.dat" // data file prefix (senslog.dat000 … senslog.datNNN)
-#define SENSORS_LOG_HEADER_FILENAME "senslog.hdr" // central header file (separate to avoid per-write seeks)
-#define SENADJ_FILENAME       "senadj.dat"  // sensor adjustment data for programs file
+// External sensor board (ADS1115-based analog inputs, see sensor.h).
+// Unrelated to the onboard SENSOR1/SENSOR2 GPIO inputs.
+#define SENSORS_FILENAME      "sens.dat"    // external sensor definitions
+#if defined(ESP8266)
+#define LOG_DIR                     "/logs/"   // absolute path on LittleFS; parent dir created implicitly
+#else
+#define LOG_DIR                     "logs/"    // relative to data dir on Linux; get_filename_fullpath prepends it
+#endif
+#define SENSORS_LOG_FILENAME        LOG_DIR "sens.log" // external sensor log data (…sens.log000 … sens.logNNN)
+#define SENSORS_LOG_HEADER_FILENAME LOG_DIR "sens.hdr" // external sensor log header
+#define SENADJ_FILENAME       "senadj.dat"  // external sensor adjustment data for programs
 
 /** Station macro defines */
 #define STN_TYPE_STANDARD    0x00 // standard solenoid station
@@ -151,6 +158,10 @@ enum {
 #define STATION_NAME_SIZE 32    // maximum number of characters in each station name
 #define MAX_SOPTS_SIZE    320   // maximum string option size
 
+#if defined(ESP8266)
+#define LOG_SPRINKLER_MAX_KB  1200  // max total size of sprinkler .txt log files in KB (~1.2 MB)
+#endif
+
 #define MAX_SENSORS 64
 #define SENSOR_LOG_MAGIC            0x55
 #define SENSOR_LOG_VERSION          0x01
@@ -193,6 +204,8 @@ enum {
 enum {
 	MASTER_1 = 0,
 	MASTER_2,
+	//MASTER_3,
+	//MASTER_4,
 	NUM_MASTER_ZONES,
 };
 
@@ -284,6 +297,20 @@ enum {
 	IOPT_RESERVE_8,
 	IOPT_WIFI_MODE, //ro
 	IOPT_RESET,     //ro
+	/*IOPT_SENSOR3_TYPE,
+	IOPT_SENSOR3_OPTION,
+	IOPT_SENSOR3_ON_DELAY,
+	IOPT_SENSOR3_OFF_DELAY,
+	IOPT_SENSOR4_TYPE,
+	IOPT_SENSOR4_OPTION,
+	IOPT_SENSOR4_ON_DELAY,
+	IOPT_SENSOR4_OFF_DELAY,
+	IOPT_MASTER_STATION_3,
+	IOPT_MASTER_ON_ADJ_3,
+	IOPT_MASTER_OFF_ADJ_3,
+	IOPT_MASTER_STATION_4,
+	IOPT_MASTER_ON_ADJ_4,
+	IOPT_MASTER_OFF_ADJ_4,*/
 	NUM_IOPTS // total number of integer options
 };
 
@@ -405,8 +432,8 @@ enum {
 
 	#define USE_DISPLAY
 	#define USE_ADS1115
-	#define USE_SENSORS
-	
+	#define USE_SENSORS     // enable external analog sensor board (ADS1115); distinct from onboard SENSOR1/SENSOR2 GPIO inputs
+
 #elif defined(OSPI) // for OSPi
 
 	#define OS_HW_VERSION    OSPI_HW_VERSION_BASE
@@ -432,7 +459,7 @@ enum {
 
 	#define USE_DISPLAY
 	#define USE_ADS1115
-	#define USE_SENSORS
+	#define USE_SENSORS     // enable external analog sensor board (ADS1115); distinct from onboard SENSOR1/SENSOR2 GPIO inputs
 
 #else // for demo / simulation
 	// use fake hardware pins

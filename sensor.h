@@ -1,5 +1,18 @@
 #pragma once
 
+// External / analog sensor subsystem
+//
+// The types in this file (Sensor, EnsembleSensor, WeatherSensor, ADS1115Sensor,
+// SensorAdjustment, etc.) model the *external* sensor board — an ADS1115-based
+// I2C ADC add-on that reads analog probes (soil moisture, temperature, etc.).
+// It is enabled by the USE_SENSORS compile-time guard.
+//
+// These are DISTINCT from the two onboard digital sensor inputs (SENSOR1 /
+// SENSOR2) that are wired directly to GPIO pins.  Those are simple binary
+// (open/closed) or pulse inputs handled entirely in OpenSprinkler.h/.cpp via
+// os.sensor1_status / os.sensor2_status and related IOPT_SENSOR* options.
+// No types from this file are involved in the onboard sensor logic.
+
 #include <stdint.h>
 #if defined(ARDUINO)
 #include <Arduino.h>

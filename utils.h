@@ -66,6 +66,7 @@ enum class FileSeekMode {
 //remove unused functions: void read_from_file(const char *fname, char *data, uint32_t maxsize=TMP_BUFFER_SIZE, int pos=0);
 void remove_file(const char *fname);
 bool file_exists(const char *fname);
+void ensure_log_dir();
 
 os_file_type file_open(const char *fn, FileOpenMode mode);
 void file_close(os_file_type f);
