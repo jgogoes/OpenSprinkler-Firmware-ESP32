@@ -25,11 +25,14 @@
 #define SENSOR_NAME_LEN 33
 #define SENSOR_CUSTOM_UNIT_LEN 9
 
+#define SENSOR_UUID_NONE 0  // sentinel: "no sensor assigned" (0 = uninitialized/disabled)
+
 typedef struct {
 	uint32_t interval;
-	uint32_t flags;
 	uint32_t next_update;
-	float value;
+	float    value;
+	uint16_t uuid;   // stable sensor identifier (0 = empty slot)
+	uint16_t flags;  // was uint32_t; only 2 bits used, uint16_t keeps struct at 16 bytes
 } sensor_memory_t;
 
 // Sensor log file format — both structs are tightly packed (no padding) so
@@ -47,8 +50,7 @@ struct __attribute__((packed)) SensorLogHeader {
 struct __attribute__((packed)) SensorLogRecord {
 	uint32_t timestamp;    // unix epoch seconds
 	float    value;        // sensor reading
-	uint8_t  sid;          // sensor ID
-	uint8_t  reserved;
+	uint16_t uuid;         // sensor UUID (replaces sid+reserved, same 10-byte size)
 };
 
 enum class SensorType : uint8_t {
@@ -115,7 +117,7 @@ typedef enum {
 
 class Sensor {
 public:
-	Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags);
+	Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags);
 	Sensor();
 	virtual ~Sensor() {}
 
@@ -129,10 +131,10 @@ public:
 	float max = 0.f;
 	float scale = 0.f;
 	float offset = 0.f;
-	char name[SENSOR_NAME_LEN] = {0};
+	uint16_t flags = 0;
+	uint16_t uuid = 0;   // assigned by write_sensor on creation; 0 = not yet assigned
 	SensorUnit unit = SensorUnit::None;
-
-	uint32_t flags = 0;
+	char name[SENSOR_NAME_LEN] = {0};
 
 	SensorType virtual get_sensor_type() = 0;
 	float virtual get_initial_value() = 0;
@@ -156,18 +158,18 @@ enum class EnsembleAction : uint8_t {
 typedef Sensor* (*SensorGetter)(uint8_t);
 
 typedef struct {
-	uint8_t sensor_id;
 	float min;
 	float max;
 	float scale;
 	float offset;
+	uint16_t uuid;   // UUID of child sensor (SENSOR_UUID_NONE = unused slot)
 } ensemble_children_t;
 
 #define ENSEMBLE_SENSOR_CHILDREN_COUNT 4
 
 class EnsembleSensor : public Sensor {
 	public:
-	EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
+	EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags, sensor_memory_t *sensors, ensemble_children_t *children, uint8_t children_count, EnsembleAction action);
 	EnsembleSensor(sensor_memory_t *sensors, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -197,7 +199,7 @@ typedef float (*WeatherGetter)(WeatherAction);
 
 class WeatherSensor : public Sensor {
 	public:
-	WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action);
+	WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags, WeatherGetter weather_getter, WeatherAction action);
 	WeatherSensor(WeatherGetter weather_getter, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -231,19 +233,20 @@ typedef enum {
 
 class SensorAdjustment {
 public:
-	SensorAdjustment(uint8_t flags, uint8_t sid, uint8_t point_count, sensor_adjustment_point_t *points);
+	SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t *points);
 	SensorAdjustment(char *buf);
 
 	float get_adjustment_factor(sensor_memory_t *sensors);
 	uint32_t serialize(char *buf);
 
-	uint8_t flags;
-	uint8_t sid;
-	uint8_t point_count;
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS];
+	uint16_t uuid;        // sensor UUID (SENSOR_UUID_NONE = adjustment disabled)
+	uint8_t  flags;
+	uint8_t  point_count;
 };
 
-#define SENSOR_ADJUSTMENT_SIZE (3 + (SENSOR_ADJUSTMENT_POINTS * sizeof(sensor_adjustment_point_t)))
+// points + uuid(2) + flags(1) + point_count(1)
+#define SENSOR_ADJUSTMENT_SIZE (4 + (SENSOR_ADJUSTMENT_POINTS * sizeof(sensor_adjustment_point_t)))
 
 const char *enum_string(SensorUnitGroup group);
 const char *enum_string(EnsembleAction action);

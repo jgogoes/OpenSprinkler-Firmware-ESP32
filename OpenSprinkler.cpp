@@ -2600,6 +2600,14 @@ void list_all_files() {
 #endif
 }
 
+uint8_t OpenSprinkler::find_sensor_index(uint16_t uuid) {
+	if (uuid == SENSOR_UUID_NONE) return MAX_SENSORS;
+	for (uint8_t i = 0; i < MAX_SENSORS; i++) {
+		if (sensors[i].uuid == uuid) return i;
+	}
+	return MAX_SENSORS;
+}
+
 void OpenSprinkler::load_sensors() {
 	lcd.clear();
 	lcd.setCursor(0,0);
@@ -2635,6 +2643,7 @@ void OpenSprinkler::load_sensors() {
 			if ((sensor = parse_sensor(file))) {
 				sensors[i].interval = sensor->interval;
 				sensors[i].flags = sensor->flags;
+				sensors[i].uuid = sensor->uuid;
 				sensors[i].next_update = 0;
 				sensors[i].value = sensor->get_initial_value();
 			}
@@ -2748,7 +2757,7 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 	SensorLogRecord rec = {};
 	rec.timestamp = now();
 	rec.value     = value;
-	rec.sid       = sid;
+	rec.uuid      = sensors[sid].uuid;
 	file_write(dfile, &rec, sizeof(rec));
 	file_close(dfile);
 }
@@ -2824,7 +2833,7 @@ void OpenSprinkler::poll_sensors() {
 SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
 	// result is statically allocated to avoid repeatedly new and delete
 	// Do not call delete on the return result from this function
-	static SensorAdjustment result(0, 255, 0, nullptr);
+	static SensorAdjustment result(0, SENSOR_UUID_NONE, 0, nullptr);
 
 	if (index >= pd.nprograms) return nullptr;
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
@@ -2838,7 +2847,7 @@ SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
 		file_read(file, tmp_buffer, SENSOR_ADJUSTMENT_SIZE);
 		file_close(file);
 		result = SensorAdjustment(tmp_buffer);
-		if (result.sid < 255) {
+		if (result.uuid != SENSOR_UUID_NONE) {
 			return &result;
 		}
 	}
@@ -2850,9 +2859,9 @@ void OpenSprinkler::write_sensor_adjust(SensorAdjustment *adj, uint8_t index) {
 
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::ReadWrite);
 	if (file) {
-		// Build a disabled entry (sid=255 is the "no adjustment" sentinel).
+		// Build a disabled entry (uuid=SENSOR_UUID_NONE is the "no adjustment" sentinel).
 		// Used both for padding gaps and for writing a null adj.
-		SensorAdjustment disabled(0, 255, 0, nullptr);
+		SensorAdjustment disabled(0, SENSOR_UUID_NONE, 0, nullptr);
 		uint32_t disabled_len = disabled.serialize(tmp_buffer);
 
 		// Pad with disabled entries if the file doesn't yet reach pos.

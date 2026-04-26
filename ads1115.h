@@ -55,7 +55,7 @@ public:
 
 class ADS1115Sensor : public Sensor {
 	public:
-	ADS1115Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint32_t flags, ADS1115 **sensors, uint8_t sensor_index, uint8_t pin);
+	ADS1115Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags, ADS1115 **sensors, uint8_t sensor_index, uint8_t pin);
 	ADS1115Sensor(ADS1115 **sensors, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);

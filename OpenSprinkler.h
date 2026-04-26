@@ -116,11 +116,12 @@ extern OTF::OpenThingsFramework *otf;
 
 /** Non-volatile data structure */
 struct NVConData {
-	uint16_t sunrise_time;  // sunrise time (in minutes)
-	uint16_t sunset_time;   // sunset time (in minutes)
-	uint32_t rd_stop_time;  // rain delay stop time
-	uint32_t external_ip;   // external ip
-	uint8_t  reboot_cause;  // reboot cause
+	uint16_t sunrise_time;       // sunrise time (in minutes)
+	uint16_t sunset_time;        // sunset time (in minutes)
+	uint32_t rd_stop_time;       // rain delay stop time
+	uint32_t external_ip;        // external ip
+	uint8_t  reboot_cause;       // reboot cause
+	uint16_t last_sensor_uuid;   // counter for sensor UUID generation; next sensor gets ++this
 };
 
 struct StationAttrib {  // station attributes
@@ -389,6 +390,7 @@ public:
 	static os_file_type open_sensor_log_header(FileOpenMode mode);
 	static void remove_sensor_log(int16_t file_no = -1);  // -1 removes header + all data files
 	static void load_sensors();
+	static uint8_t find_sensor_index(uint16_t uuid); // linear scan; returns MAX_SENSORS if not found
 	static Sensor *parse_sensor(os_file_type file); // return is a statically allocated object, don't delete
 	static Sensor *get_sensor(uint8_t index); // return is a statically allocated object, don't delete
 	static void write_sensor(Sensor *sensor, uint8_t index);

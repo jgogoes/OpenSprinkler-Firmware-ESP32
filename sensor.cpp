@@ -1,6 +1,8 @@
 #include "sensor.h"
 #include "OpenSprinkler.h"
 
+extern OpenSprinkler os;
+
 const char *enum_string(SensorUnitGroup group) {
 	switch (group) {
 		case SensorUnitGroup::None:
@@ -272,8 +274,8 @@ const uint32_t get_sensor_unit_index(SensorUnit unit) {
 	return static_cast<uint32_t>(unit);
 }
 
-Sensor::Sensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags) :
-	interval(interval), min(min), max(max), scale(scale), offset(offset), unit(unit), flags(flags) {
+Sensor::Sensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint16_t flags) :
+	interval(interval), min(min), max(max), scale(scale), offset(offset), flags(flags), unit(unit) {
 	strncpy(this->name, name, SENSOR_NAME_LEN);
 	this->name[SENSOR_NAME_LEN - 1] = 0;
 }
@@ -312,11 +314,12 @@ uint32_t Sensor::serialize(char* buf) {
 	i += SENSOR_NAME_LEN;
 	buf[i++] = static_cast<uint8_t>(this->unit);
 	i += write_buf<uint32_t>(buf + i, this->interval);
-	i += write_buf<uint32_t>(buf + i, this->flags);
+	i += write_buf<uint16_t>(buf + i, this->flags);
 	i += write_buf<float>(buf + i, this->scale);
 	i += write_buf<float>(buf + i, this->offset);
 	i += write_buf<float>(buf + i, this->min);
 	i += write_buf<float>(buf + i, this->max);
+	i += write_buf<uint16_t>(buf + i, this->uuid);
 
 	i += this->_serialize_internal(buf + i);
 	return i;
@@ -329,16 +332,17 @@ uint32_t Sensor::_deserialize(char* buf) {
 	i += SENSOR_NAME_LEN;
 	this->unit = static_cast<SensorUnit>(buf[i++]);
 	this->interval = read_buf<uint32_t>(buf, &i);
-	this->flags = read_buf<uint32_t>(buf, &i);
+	this->flags = read_buf<uint16_t>(buf, &i);
 	this->scale = read_buf<float>(buf, &i);
 	this->offset = read_buf<float>(buf, &i);
 	this->min = read_buf<float>(buf, &i);
 	this->max = read_buf<float>(buf, &i);
+	this->uuid = read_buf<uint16_t>(buf, &i);
 
 	return i;
 }
 
-EnsembleSensor::EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags, sensor_memory_t* sensors, ensemble_children_t* children, uint8_t children_count, EnsembleAction action) :
+EnsembleSensor::EnsembleSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint16_t flags, sensor_memory_t* sensors, ensemble_children_t* children, uint8_t children_count, EnsembleAction action) :
 	Sensor(interval, min, max, scale, offset, name, unit, flags),
 	action(action),
 	sensors(sensors) {
@@ -347,7 +351,7 @@ EnsembleSensor::EnsembleSensor(uint32_t interval, float min, float max, float sc
 			this->children[i] = children[i];
 		}
 		else {
-			this->children[i] = ensemble_children_t{ sensor_id: 255, min : 0.f, max : 0.f, scale : 0.f, offset : 0.f };
+			this->children[i] = ensemble_children_t{ 0.f, 0.f, 0.f, 0.f, SENSOR_UUID_NONE };
 		}
 	}
 }
@@ -357,7 +361,7 @@ void EnsembleSensor::emit_extra_json(BufferFiller* bfill) {
 	for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
 		if (i) bfill->emit_p(PSTR(","));
 		ensemble_children_t* child = &this->children[i];
-		bfill->emit_p(PSTR("{\"sid\":$D,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E}"), child->sensor_id, child->max, child->min, child->scale, child->offset);
+		bfill->emit_p(PSTR("{\"uuid\":$D,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E}"), child->uuid, child->max, child->min, child->scale, child->offset);
 	}
 	bfill->emit_p(PSTR("]}"));
 }
@@ -392,7 +396,7 @@ float EnsembleSensor::_get_raw_value() {
 	uint8_t count = 0;
 
 	for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
-		uint8_t sensor = this->children[i].sensor_id;
+		uint8_t sensor = os.find_sensor_index(this->children[i].uuid);
 		if (sensor < MAX_SENSORS && sensors[sensor].interval) {
 			float value = sensors[sensor].value;
 			value = (value * this->children[i].scale) + this->children[i].offset;
@@ -436,7 +440,7 @@ float EnsembleSensor::_get_raw_value() {
 uint32_t EnsembleSensor::_serialize_internal(char* buf) {
 	uint32_t i = 0;
 	for (size_t j = 0; j < ENSEMBLE_SENSOR_CHILDREN_COUNT; j++) {
-		i += write_buf<uint8_t>(buf + i, this->children[j].sensor_id);
+		i += write_buf<uint16_t>(buf + i, this->children[j].uuid);
 		i += write_buf<float>(buf + i, this->children[j].min);
 		i += write_buf<float>(buf + i, this->children[j].max);
 		i += write_buf<float>(buf + i, this->children[j].scale);
@@ -450,7 +454,7 @@ uint32_t EnsembleSensor::_serialize_internal(char* buf) {
 EnsembleSensor::EnsembleSensor(sensor_memory_t* sensors, char* buf) {
 	uint32_t i = Sensor::_deserialize(buf);
 	for (size_t j = 0; j < ENSEMBLE_SENSOR_CHILDREN_COUNT; j++) {
-		this->children[j].sensor_id = read_buf<uint8_t>(buf, &i);
+		this->children[j].uuid = read_buf<uint16_t>(buf, &i);
 		this->children[j].min = read_buf<float>(buf, &i);
 		this->children[j].max = read_buf<float>(buf, &i);
 		this->children[j].scale = read_buf<float>(buf, &i);
@@ -462,7 +466,7 @@ EnsembleSensor::EnsembleSensor(sensor_memory_t* sensors, char* buf) {
 }
 
 
-WeatherSensor::WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint32_t flags, WeatherGetter weather_getter, WeatherAction action) :
+WeatherSensor::WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint16_t flags, WeatherGetter weather_getter, WeatherAction action) :
 	Sensor(interval, min, max, scale, offset, name, unit, flags),
 	action(action),
 	weather_getter(weather_getter) {
@@ -495,9 +499,9 @@ WeatherSensor::WeatherSensor(WeatherGetter weather_getter, char* buf) {
 	this->action = static_cast<WeatherAction>(buf[i++]);
 }
 
-SensorAdjustment::SensorAdjustment(uint8_t flags, uint8_t sid, uint8_t point_count, sensor_adjustment_point_t* points) {
+SensorAdjustment::SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t* points) {
 	this->flags = flags;
-	this->sid = sid;
+	this->uuid = uuid;
 	if (point_count > SENSOR_ADJUSTMENT_POINTS) point_count = SENSOR_ADJUSTMENT_POINTS;
 	this->point_count = point_count;
 	for (size_t i = 0; i < point_count; i++) {
@@ -508,7 +512,7 @@ SensorAdjustment::SensorAdjustment(uint8_t flags, uint8_t sid, uint8_t point_cou
 SensorAdjustment::SensorAdjustment(char* buf) {
 	uint32_t i = 0;
 	this->flags = buf[i++];
-	this->sid = buf[i++];
+	this->uuid = read_buf<uint16_t>(buf, &i);
 	this->point_count = buf[i++];
 
 	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
@@ -518,37 +522,38 @@ SensorAdjustment::SensorAdjustment(char* buf) {
 }
 
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
-	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->sid < MAX_SENSORS && sensors[this->sid].interval) {
-		float value = sensors[this->sid].value;
-		if (value <= this->points[0].x) return this->points[0].y;
-		if (value >= this->points[this->point_count - 1].x) return this->points[this->point_count - 1].y;
+	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
+		uint8_t idx = os.find_sensor_index(this->uuid);
+		if (idx < MAX_SENSORS && sensors[idx].interval) {
+			float value = sensors[idx].value;
+			if (value <= this->points[0].x) return this->points[0].y;
+			if (value >= this->points[this->point_count - 1].x) return this->points[this->point_count - 1].y;
 
-		uint8_t i;
+			uint8_t i;
 
-		for (i = 0; i < this->point_count - 1; i++) {
-			if (value >= this->points[i].x) {
-				break;
+			for (i = 0; i < this->point_count - 1; i++) {
+				if (value >= this->points[i].x) {
+					break;
+				}
 			}
+
+			sensor_adjustment_point_t left = this->points[i];
+			sensor_adjustment_point_t right = this->points[i + 1];
+			if (right.x == left.x) return left.y;
+
+			value = (value - left.x) / (right.x - left.x) * (right.y - left.y) + left.y;
+
+			if (value < 0) return 0;
+			return value;
 		}
-
-		sensor_adjustment_point_t left = this->points[i];
-		sensor_adjustment_point_t right = this->points[i + 1];
-		if (right.x == left.x) return left.y;
-
-		value = (value - left.x) / (right.x - left.x) * (right.y - left.y) + left.y;
-
-		if (value < 0) return 0;
-		return value;
 	}
-	else {
-		return 1.f;
-	}
+	return 1.f;
 }
 
 uint32_t SensorAdjustment::serialize(char* buf) {
 	uint32_t i = 0;
 	buf[i++] = this->flags;
-	buf[i++] = this->sid;
+	i += write_buf<uint16_t>(buf + i, this->uuid);
 	buf[i++] = this->point_count;
 
 	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
