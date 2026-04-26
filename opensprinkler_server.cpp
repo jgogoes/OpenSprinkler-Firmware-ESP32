@@ -746,13 +746,7 @@ void server_delete_program(OTF_PARAMS_DEF) {
 	if (pid == -1) {
 		pd.eraseall();
 	} else if (pid < pd.nprograms) {
-		if (pd.del(pid)) {
-			#if defined(USE_SENSORS)
-			for (int i = pid; i < pd.nprograms-1; i++) {
-				file_copy_block(SENADJ_FILENAME, SENSOR_ADJUSTMENT_SIZE * (i+1), SENSOR_ADJUSTMENT_SIZE * i, SENSOR_ADJUSTMENT_SIZE, tmp_buffer);
-			}
-			#endif
-		}
+		pd.del(pid);
 	} else {
 		handle_return(HTML_DATA_OUTOFBOUND);
 	}
@@ -846,6 +840,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 		}
 	}
 
+	SensorAdjustment *snadj_ptr = nullptr;
 	#if defined(USE_SENSORS)
 	char *end;
 
@@ -854,17 +849,17 @@ void server_change_program(OTF_PARAMS_DEF) {
 	uint32_t sid = 255;
 	uint32_t point_count = 0;
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
-	
+
 	if ((adj = os.get_sensor_adjust(pid))) {
 		flags = adj->flags;
 		sid = adj->sid;
 		point_count = adj->point_count;
 
-		for (size_t i = 0; i <= point_count; i++) { // TODO: <=?
+		for (size_t i = 0; i < point_count; i++) {
 			points[i] = adj->points[i];
 		}
 	}
-	
+
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flags"), true)) {
 		flags=strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
@@ -891,14 +886,13 @@ void server_change_program(OTF_PARAMS_DEF) {
 			}
 			points[i++] = sensor_adjustment_point_t {x, y};
 			last_x = x;
-			while (*(ptr++) != ';') {}
+			while (*ptr != '\0' && *(ptr++) != ';') {}
 		}
 		point_count = i;
 	}
 
 	SensorAdjustment snadj(flags, sid, point_count, points);
-	os.write_sensor_adjust(&snadj, pid);
-
+	snadj_ptr = &snadj;
 	#endif
 
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "v",false)) handle_return(HTML_DATA_MISSING);
@@ -938,9 +932,9 @@ void server_change_program(OTF_PARAMS_DEF) {
 	}
 
 	if (pid==-1) {
-		if(!pd.add(&prog)) handle_return(HTML_DATA_OUTOFBOUND);
+		if(!pd.add(&prog, snadj_ptr)) handle_return(HTML_DATA_OUTOFBOUND);
 	} else {
-		if(!pd.modify(pid, &prog)) handle_return(HTML_DATA_OUTOFBOUND);
+		if(!pd.modify(pid, &prog, snadj_ptr)) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 	handle_return(HTML_SUCCESS);
 }
@@ -1072,30 +1066,22 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 	uint8_t adj_count = 0;
 
 	SensorAdjustment *adj;
-	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
-	if (file) {
-		for (size_t i = 0; i < pd.nprograms; i++) {
-			if ((adj = os.get_sensor_adjust(i))) {
-				if (adj_count) bfill.emit_p(PSTR(","));
-				bfill.emit_p(PSTR("{\"pid\":$D,\"flags\":$D,\"sid\":$D,\"point_count\":$D,\"splits\":["), i, adj->flags, adj->sid, adj->point_count);
-				for (int j = 0; j < adj->point_count; j++) {
-					if (j) bfill.emit_p(PSTR(","));
-					bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
-				}
-				bfill.emit_p(PSTR("]}"));
-				adj_count += 1;
-				// push out a packet if available
-				// buffer size is getting small
-				if (available_ether_buffer() <= 0) {
-					send_packet(OTF_PARAMS);
-				}
+	for (size_t i = 0; i < pd.nprograms; i++) {
+		if ((adj = os.get_sensor_adjust(i))) {
+			if (adj_count) bfill.emit_p(PSTR(","));
+			bfill.emit_p(PSTR("{\"pid\":$D,\"flags\":$D,\"sid\":$D,\"point_count\":$D,\"splits\":["), i, adj->flags, adj->sid, adj->point_count);
+			for (int j = 0; j < adj->point_count; j++) {
+				if (j) bfill.emit_p(PSTR(","));
+				bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
+			}
+			bfill.emit_p(PSTR("]}"));
+			adj_count += 1;
+			// push out a packet if available
+			// buffer size is getting small
+			if (available_ether_buffer() <= 0) {
+				send_packet(OTF_PARAMS);
 			}
 		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENADJ_FILENAME);
 	}
 	#endif
 	bfill.emit_p(PSTR("]}"));
@@ -2062,7 +2048,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 
 					children[i++] = ensemble_children_t {(uint8_t)d, d1, d2, d3, d4};
 
-					while (*(ptr++) != ';') {}
+					while (*ptr != '\0' && *(ptr++) != ';') {}
 				}
 
 				children_count = i;
@@ -2391,10 +2377,9 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 			case SensorType::MAX_VALUE:
 				break;
 		}
-	}
-
-	if (available_ether_buffer() <= 0) {
-		send_packet(OTF_PARAMS);
+		if (available_ether_buffer() <= 0) {
+			send_packet(OTF_PARAMS);
+		}
 	}
 
 	bfill.emit_p(PSTR("],\"units\":["));
@@ -2402,11 +2387,11 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 		if (i) bfill.emit_p(PSTR(","));
 		SensorUnit unit = static_cast<SensorUnit>(i);
 		bfill.emit_p(PSTR("{\"name\":\"$S\",\"short\":\"$S\",\"group\":$D,\"index\":$D,\"value\":$D}"), get_sensor_unit_name(unit), get_sensor_unit_short(unit), get_sensor_unit_group(unit), get_sensor_unit_index(unit), i);
+		if (available_ether_buffer() <= 0) {
+			send_packet(OTF_PARAMS);
+		}
 	}
 
-	if (available_ether_buffer() <= 0) {
-		send_packet(OTF_PARAMS);
-	}
 	
 	bfill.emit_p(PSTR("],\"enums\":{"));
 	bfill_enum_values<SensorUnitGroup>(PSTR("SensorUnitGroup"));

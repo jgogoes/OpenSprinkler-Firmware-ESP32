@@ -2624,20 +2624,7 @@ void OpenSprinkler::load_sensors() {
 			DEBUG_PRINTLN(SENSORS_FILENAME);
 		}
 
-		// Initialize the program adjustment file (SENADJ_FILENAME)
-		file = file_open(SENADJ_FILENAME, FileOpenMode::WriteTruncate);
-		if (file) {
-			sensor_adjustment_point_t point = sensor_adjustment_point_t {0.0, 0.0};
-			SensorAdjustment adj = SensorAdjustment(0, 0, 0, &point);
-			uint32_t size = adj.serialize(tmp_buffer);
-			for (size_t i = 0; i < MAX_NUM_PROGRAMS; i++) {
-				file_write(file, tmp_buffer, size);
-			}
-			file_close(file);
-		} else {
-			DEBUG_PRINT("Failed to open file: ");
-			DEBUG_PRINTLN(SENADJ_FILENAME);
-		}
+		// SENADJ_FILENAME grows on demand; no pre-allocation needed.
 	}
 
 	// 2. Proceed with existing load logic
@@ -2839,36 +2826,52 @@ SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
 	// Do not call delete on the return result from this function
 	static SensorAdjustment result(0, 255, 0, nullptr);
 
-	if (index > MAX_NUM_PROGRAMS) return nullptr;
+	if (index >= pd.nprograms) return nullptr;
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
 	if (file) {
-		file_seek(file, (uint32_t)index * SENSOR_ADJUSTMENT_SIZE, FileSeekMode::Current);
+		uint32_t pos = (uint32_t)index * SENSOR_ADJUSTMENT_SIZE;
+		if (file_size(file) < pos + SENSOR_ADJUSTMENT_SIZE) {
+			file_close(file);
+			return nullptr; // entry not yet written
+		}
+		file_seek(file, pos, FileSeekMode::Set);
 		file_read(file, tmp_buffer, SENSOR_ADJUSTMENT_SIZE);
 		file_close(file);
 		result = SensorAdjustment(tmp_buffer);
 		if (result.sid < 255) {
 			return &result;
 		}
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENADJ_FILENAME);
 	}
 	return nullptr;
 }
 
 void OpenSprinkler::write_sensor_adjust(SensorAdjustment *adj, uint8_t index) {
-	uint32_t pos = SENSOR_ADJUSTMENT_SIZE * index;
-	
+	uint32_t pos = (uint32_t)SENSOR_ADJUSTMENT_SIZE * index;
+
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::ReadWrite);
 	if (file) {
-		file_seek(file, pos, FileSeekMode::Current);
+		// Build a disabled entry (sid=255 is the "no adjustment" sentinel).
+		// Used both for padding gaps and for writing a null adj.
+		SensorAdjustment disabled(0, 255, 0, nullptr);
+		uint32_t disabled_len = disabled.serialize(tmp_buffer);
 
+		// Pad with disabled entries if the file doesn't yet reach pos.
+		// This can happen when programs before this one have no adjustment written.
+		uint32_t cur_size = file_size(file);
+		if (cur_size < pos) {
+			file_seek(file, 0, FileSeekMode::End);
+			while (cur_size < pos) {
+				file_write(file, tmp_buffer, disabled_len);
+				cur_size += disabled_len;
+			}
+		}
+
+		file_seek(file, pos, FileSeekMode::Set);
 		if (adj) {
 			uint32_t len = adj->serialize(tmp_buffer);
 			file_write(file, tmp_buffer, len);
 		} else {
-			tmp_buffer[0] = 0;
-			file_write(file, tmp_buffer, 1);
+			file_write(file, tmp_buffer, disabled_len);
 		}
 
 		file_close(file);

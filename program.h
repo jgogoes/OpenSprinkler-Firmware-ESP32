@@ -31,6 +31,8 @@
 #include "OpenSprinkler.h"
 #include "types.h"
 
+class SensorAdjustment; // forward declaration for platforms where USE_SENSORS is not defined
+
 /** Log data structure */
 struct LogStruct {
 	unsigned char station;
@@ -144,8 +146,8 @@ public:
 	static void init();
 	static void eraseall();
 	static void read(unsigned char pid, ProgramStruct *buf);
-	static unsigned char add(ProgramStruct *buf);
-	static unsigned char modify(unsigned char pid, ProgramStruct *buf);
+	static unsigned char add(ProgramStruct *buf, SensorAdjustment *adj = nullptr);
+	static unsigned char modify(unsigned char pid, ProgramStruct *buf, SensorAdjustment *adj = nullptr);
 	static unsigned char set_flagbit(unsigned char pid, unsigned char bid, unsigned char value);
 	static void moveup(unsigned char pid);
 	static unsigned char del(unsigned char pid);

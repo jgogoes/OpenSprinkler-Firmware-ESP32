@@ -25,7 +25,7 @@
 #define ENABLE_DEBUG  // enable serial debug
 
 #define TMP_BUFFER_SIZE       320   // scratch buffer size
-#define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+100 // allocate extra space to allow overflow when needed
+#define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+(TMP_BUFFER_SIZE/2) // allocate extra space to allow overflow when needed
 
 /** Firmware version, hardware version, and maximal values */
 #define OS_FW_VERSION  221  // Firmware version: 221 means 2.2.1
@@ -360,7 +360,7 @@ enum {
 	#define PIN_LATCH_VOLT_SENSE A0 // latch voltage sensing pin
 	#define PIN_FREE_LIST     {} // no free GPIO pin at the moment
 	#define ETHER_BUFFER_SIZE   2048
-	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+100 // allocate extra space to allow overflow when needed
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+(ETHER_BUFFER_SIZE/2) // allocate extra space to allow overflow when needed
 
 	#define PIN_ETHER_CS       16 // Ethernet CS (chip select pin) is 16 on OS 3.2 and above
 	#define ETHER_SPI_CLOCK    10000000L // SPI clock for Ethernet (e.g. 10MHz)
@@ -451,7 +451,7 @@ enum {
 
 	#define PIN_FREE_LIST       {5,6,7,8,9,11,12,13,16,19,20,21,23,25,26}  // free GPIO pins
 	#define ETHER_BUFFER_SIZE   16384
-	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+100 // allocate extra space to allow overflow when needed
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+(ETHER_BUFFER_SIZE/2) // allocate extra space to allow overflow when needed
 
 
 	#define SDA 0
@@ -477,7 +477,7 @@ enum {
 	#define PIN_RFTX        0
 	#define PIN_FREE_LIST  {}
 	#define ETHER_BUFFER_SIZE   16384
-	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+100 // allocate extra space to allow overflow when needed
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE+(ETHER_BUFFER_SIZE/2) // allocate extra space to allow overflow when needed
 
 
 #endif
