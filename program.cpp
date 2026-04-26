@@ -109,7 +109,7 @@ unsigned char ProgramData::add(ProgramStruct *buf, SensorAdjustment *adj) {
 	if (nprograms >= MAX_NUM_PROGRAMS)	return 0;
 	file_write_block(PROG_FILENAME, buf, 1+(uint32_t)nprograms*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
 #if defined(USE_SENSORS)
-	if (adj) os.write_sensor_adjust(adj, nprograms);
+	if (adj) SensorAdjustment::write(adj, nprograms);
 #endif
 	nprograms++;
 	save_count();
@@ -194,7 +194,7 @@ unsigned char ProgramData::modify(unsigned char pid, ProgramStruct *buf, SensorA
 	uint32_t pos = 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE;
 	file_write_block(PROG_FILENAME, buf, pos, PROGRAMSTRUCT_SIZE);
 #if defined(USE_SENSORS)
-	if (adj) os.write_sensor_adjust(adj, pid);
+	if (adj) SensorAdjustment::write(adj, pid);
 #endif
 	return 1;
 }

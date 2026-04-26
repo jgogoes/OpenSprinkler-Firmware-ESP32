@@ -850,7 +850,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 	uint32_t point_count = 0;
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
 
-	if ((adj = os.get_sensor_adjust(pid))) {
+	if ((adj = SensorAdjustment::read(pid, pd.nprograms))) {
 		flags = adj->flags;
 		adj_uuid = adj->uuid;
 		point_count = adj->point_count;
@@ -1067,7 +1067,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 
 	SensorAdjustment *adj;
 	for (size_t i = 0; i < pd.nprograms; i++) {
-		if ((adj = os.get_sensor_adjust(i))) {
+		if ((adj = SensorAdjustment::read(i, pd.nprograms))) {
 			if (adj_count) bfill.emit_p(PSTR(","));
 			bfill.emit_p(PSTR("{\"pid\":$D,\"flags\":$D,\"uuid\":$D,\"point_count\":$D,\"splits\":["), i, adj->flags, adj->uuid, adj->point_count);
 			for (int j = 0; j < adj->point_count; j++) {

@@ -397,9 +397,6 @@ public:
 	void log_sensor(uint8_t sid, float value);
 	static void test_sensor_log(uint32_t n_records);
 	static void poll_sensors();
-	static SensorAdjustment *get_sensor_adjust(uint8_t index); // return is a statically allocated object, don't delete
-	static void write_sensor_adjust(SensorAdjustment *adj, uint8_t index);
-
 	static float get_sensor_weather_data(WeatherAction action);
 #endif
 

@@ -509,18 +509,6 @@ SensorAdjustment::SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_c
 	}
 }
 
-SensorAdjustment::SensorAdjustment(char* buf) {
-	uint32_t i = 0;
-	this->flags = buf[i++];
-	this->uuid = read_buf<uint16_t>(buf, &i);
-	this->point_count = buf[i++];
-
-	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
-		this->points[j].x = read_buf<float>(buf, &i);
-		this->points[j].y = read_buf<float>(buf, &i);
-	}
-}
-
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
 		uint8_t idx = os.find_sensor_index(this->uuid);
@@ -550,16 +538,50 @@ float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 	return 1.f;
 }
 
-uint32_t SensorAdjustment::serialize(char* buf) {
-	uint32_t i = 0;
-	buf[i++] = this->flags;
-	i += write_buf<uint16_t>(buf + i, this->uuid);
-	buf[i++] = this->point_count;
+SensorAdjustment *SensorAdjustment::read(uint8_t index, uint8_t nprograms) {
+	static SensorAdjustment result(0, SENSOR_UUID_NONE, 0, nullptr);
 
-	for (size_t j = 0; j < SENSOR_ADJUSTMENT_POINTS; j++) {
-		i += write_buf<float>(buf + i, this->points[j].x);
-		i += write_buf<float>(buf + i, this->points[j].y);
+	if (index >= nprograms) return nullptr;
+	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
+	if (file) {
+		uint32_t pos = (uint32_t)index * SENSOR_ADJUSTMENT_SIZE;
+		if (file_size(file) < pos + SENSOR_ADJUSTMENT_SIZE) {
+			file_close(file);
+			return nullptr;
+		}
+		file_seek(file, pos, FileSeekMode::Set);
+		file_read(file, &result, SENSOR_ADJUSTMENT_SIZE);
+		file_close(file);
+		if (result.uuid != SENSOR_UUID_NONE) {
+			return &result;
+		}
 	}
+	return nullptr;
+}
 
-	return i;
+void SensorAdjustment::write(SensorAdjustment *adj, uint8_t index) {
+	uint32_t pos = (uint32_t)SENSOR_ADJUSTMENT_SIZE * index;
+
+	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::ReadWrite);
+	if (file) {
+		SensorAdjustment disabled(0, SENSOR_UUID_NONE, 0, nullptr);
+
+		uint32_t cur_size = file_size(file);
+		if (cur_size < pos) {
+			file_seek(file, 0, FileSeekMode::End);
+			while (cur_size < pos) {
+				file_write(file, &disabled, SENSOR_ADJUSTMENT_SIZE);
+				cur_size += SENSOR_ADJUSTMENT_SIZE;
+			}
+		}
+
+		file_seek(file, pos, FileSeekMode::Set);
+		SensorAdjustment *to_write = adj ? adj : &disabled;
+		file_write(file, to_write, SENSOR_ADJUSTMENT_SIZE);
+
+		file_close(file);
+	} else {
+		DEBUG_PRINT("Failed to open file: ");
+		DEBUG_PRINTLN(SENADJ_FILENAME);
+	}
 }

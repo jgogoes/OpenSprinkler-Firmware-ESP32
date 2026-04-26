@@ -779,7 +779,7 @@ void do_loop()
 				pd.read(pid, &prog);	// todo future: reduce load time
 				float sensor_adj = 1.f;
 				#if defined(USE_SENSORS)
-				SensorAdjustment *adj = os.get_sensor_adjust(pid);
+				SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 				if (adj) {
 					sensor_adj = adj->get_adjustment_factor(os.sensors);
 				}
@@ -1621,7 +1621,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 	if ((pid>0)&&(pid<255)) {
 		pd.read(pid-1, &prog);
 		#if defined(USE_SENSORS)
-		SensorAdjustment *adj = os.get_sensor_adjust(pid-1);
+		SensorAdjustment *adj = SensorAdjustment::read(pid-1, pd.nprograms);
 		if (adj) {
 			sensor_adj = adj->get_adjustment_factor(os.sensors);
 		}

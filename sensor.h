@@ -234,10 +234,11 @@ typedef enum {
 class SensorAdjustment {
 public:
 	SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t *points);
-	SensorAdjustment(char *buf);
+
+	static SensorAdjustment *read(uint8_t index, uint8_t nprograms); // returns statically allocated object, do not delete
+	static void              write(SensorAdjustment *adj, uint8_t index);
 
 	float get_adjustment_factor(sensor_memory_t *sensors);
-	uint32_t serialize(char *buf);
 
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS];
 	uint16_t uuid;        // sensor UUID (SENSOR_UUID_NONE = adjustment disabled)
@@ -245,8 +246,7 @@ public:
 	uint8_t  point_count;
 };
 
-// points + uuid(2) + flags(1) + point_count(1)
-#define SENSOR_ADJUSTMENT_SIZE (4 + (SENSOR_ADJUSTMENT_POINTS * sizeof(sensor_adjustment_point_t)))
+#define SENSOR_ADJUSTMENT_SIZE sizeof(SensorAdjustment)
 
 const char *enum_string(SensorUnitGroup group);
 const char *enum_string(EnsembleAction action);

@@ -2830,66 +2830,6 @@ void OpenSprinkler::poll_sensors() {
 	}
 }
 
-SensorAdjustment *OpenSprinkler::get_sensor_adjust(uint8_t index) {
-	// result is statically allocated to avoid repeatedly new and delete
-	// Do not call delete on the return result from this function
-	static SensorAdjustment result(0, SENSOR_UUID_NONE, 0, nullptr);
-
-	if (index >= pd.nprograms) return nullptr;
-	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
-	if (file) {
-		uint32_t pos = (uint32_t)index * SENSOR_ADJUSTMENT_SIZE;
-		if (file_size(file) < pos + SENSOR_ADJUSTMENT_SIZE) {
-			file_close(file);
-			return nullptr; // entry not yet written
-		}
-		file_seek(file, pos, FileSeekMode::Set);
-		file_read(file, tmp_buffer, SENSOR_ADJUSTMENT_SIZE);
-		file_close(file);
-		result = SensorAdjustment(tmp_buffer);
-		if (result.uuid != SENSOR_UUID_NONE) {
-			return &result;
-		}
-	}
-	return nullptr;
-}
-
-void OpenSprinkler::write_sensor_adjust(SensorAdjustment *adj, uint8_t index) {
-	uint32_t pos = (uint32_t)SENSOR_ADJUSTMENT_SIZE * index;
-
-	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::ReadWrite);
-	if (file) {
-		// Build a disabled entry (uuid=SENSOR_UUID_NONE is the "no adjustment" sentinel).
-		// Used both for padding gaps and for writing a null adj.
-		SensorAdjustment disabled(0, SENSOR_UUID_NONE, 0, nullptr);
-		uint32_t disabled_len = disabled.serialize(tmp_buffer);
-
-		// Pad with disabled entries if the file doesn't yet reach pos.
-		// This can happen when programs before this one have no adjustment written.
-		uint32_t cur_size = file_size(file);
-		if (cur_size < pos) {
-			file_seek(file, 0, FileSeekMode::End);
-			while (cur_size < pos) {
-				file_write(file, tmp_buffer, disabled_len);
-				cur_size += disabled_len;
-			}
-		}
-
-		file_seek(file, pos, FileSeekMode::Set);
-		if (adj) {
-			uint32_t len = adj->serialize(tmp_buffer);
-			file_write(file, tmp_buffer, len);
-		} else {
-			file_write(file, tmp_buffer, disabled_len);
-		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENADJ_FILENAME);
-	}
-}
-
 float OpenSprinkler::get_sensor_weather_data(WeatherAction action) {
 	return NAN; // TODO make function for WeatherSensor
 }
