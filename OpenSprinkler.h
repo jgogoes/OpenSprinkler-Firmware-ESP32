@@ -134,8 +134,11 @@ struct StationAttrib {  // station attributes
 	unsigned char igpu:1; // todo: ignore pause
 
 	unsigned char gid;    // sequential group id
-	unsigned char reserved[2]; // reserved bytes for the future
-}; // total is 4 bytes so far
+	unsigned char mas3:1; // master 3 binding bit (was reserved[0])
+	unsigned char mas4:1; // master 4 binding bit
+	unsigned char :6;     // remaining bits of this byte, reserved
+	unsigned char reserved; // reserved for future use (was reserved[1])
+}; // total is 4 bytes
 
 /** Station data structure */
 struct StationData {
@@ -207,6 +210,8 @@ struct ConStatus {
 	unsigned char network_fails:3;   // number of network fails
 	unsigned char mas:8;             // master station index
 	unsigned char mas2:8;            // master2 station index
+	unsigned char mas3:8;            // master3 station index
+	unsigned char mas4:8;            // master4 station index
 	unsigned char sensor2:1;         // sensor2 status bit (when set, sensor2 on is detected)
 	unsigned char sensor1_active:1;  // sensor1 active bit (when set, sensor1 is activated)
 	unsigned char sensor2_active:1;  // sensor2 active bit (when set, sensor2 is activated)
@@ -269,6 +274,8 @@ public:
 	static unsigned char attrib_mas[];
 	static unsigned char attrib_igs[];
 	static unsigned char attrib_mas2[];
+	static unsigned char attrib_mas3[];
+	static unsigned char attrib_mas4[];
 	static unsigned char attrib_igs2[];
 	static unsigned char attrib_igrd[];
 	static unsigned char attrib_dis[];

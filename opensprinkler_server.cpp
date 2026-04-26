@@ -378,6 +378,8 @@ void server_json_stations_attrib(const char* name, unsigned char *attrib)
 void server_json_stations_main(OTF_PARAMS_DEF) {
 	server_json_board_attrib(PSTR("masop"), os.attrib_mas);
 	server_json_board_attrib(PSTR("masop2"), os.attrib_mas2);
+	server_json_board_attrib(PSTR("masop3"), os.attrib_mas3);
+	server_json_board_attrib(PSTR("masop4"), os.attrib_mas4);
 	server_json_board_attrib(PSTR("ignore_rain"), os.attrib_igrd);
 	server_json_board_attrib(PSTR("ignore_sn1"), os.attrib_igs);
 	server_json_board_attrib(PSTR("ignore_sn2"), os.attrib_igs2);
@@ -496,6 +498,8 @@ void server_change_stations(OTF_PARAMS_DEF) {
 	server_change_board_attrib(FKV_SOURCE, 'j', os.attrib_igs); // ignore sensor1
 	server_change_board_attrib(FKV_SOURCE, 'k', os.attrib_igs2); // ignore sensor2
 	server_change_board_attrib(FKV_SOURCE, 'n', os.attrib_mas2); // master2
+	server_change_board_attrib(FKV_SOURCE, 'u', os.attrib_mas3); // master3
+	server_change_board_attrib(FKV_SOURCE, 'v', os.attrib_mas4); // master4
 	server_change_board_attrib(FKV_SOURCE, 'd', os.attrib_dis); // disable
 	server_change_stations_attrib(FKV_SOURCE, 'g', os.attrib_grp); // sequential groups
 	/* handle special data */
@@ -955,8 +959,10 @@ void server_json_options_main() {
 		#endif
 
 		int32_t v=os.iopts[oid];
-		if (oid==IOPT_MASTER_OFF_ADJ || oid==IOPT_MASTER_OFF_ADJ_2 ||
-				oid==IOPT_MASTER_ON_ADJ  || oid==IOPT_MASTER_ON_ADJ_2 ||
+		if (oid==IOPT_MASTER_OFF_ADJ   || oid==IOPT_MASTER_OFF_ADJ_2 ||
+				oid==IOPT_MASTER_OFF_ADJ_3 || oid==IOPT_MASTER_OFF_ADJ_4 ||
+				oid==IOPT_MASTER_ON_ADJ    || oid==IOPT_MASTER_ON_ADJ_2  ||
+				oid==IOPT_MASTER_ON_ADJ_3  || oid==IOPT_MASTER_ON_ADJ_4  ||
 				oid==IOPT_STATION_DELAY_TIME) {
 			v=water_time_decode_signed(v);
 		}
@@ -1424,8 +1430,10 @@ void server_change_options(OTF_PARAMS_DEF)
 		strncpy_P0(tbuf2, iopt_json_names+oid*5, 5);
 		if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, tbuf2)) {
 			int32_t v = atol(tmp_buffer);
-			if (oid==IOPT_MASTER_OFF_ADJ || oid==IOPT_MASTER_OFF_ADJ_2 ||
-					oid==IOPT_MASTER_ON_ADJ  || oid==IOPT_MASTER_ON_ADJ_2  ||
+			if (oid==IOPT_MASTER_OFF_ADJ   || oid==IOPT_MASTER_OFF_ADJ_2 ||
+					oid==IOPT_MASTER_OFF_ADJ_3 || oid==IOPT_MASTER_OFF_ADJ_4 ||
+					oid==IOPT_MASTER_ON_ADJ    || oid==IOPT_MASTER_ON_ADJ_2  ||
+					oid==IOPT_MASTER_ON_ADJ_3  || oid==IOPT_MASTER_ON_ADJ_4  ||
 					oid==IOPT_STATION_DELAY_TIME) {
 				v=water_time_encode_signed(v);
 			} // encode station delay time
@@ -1649,7 +1657,8 @@ void server_change_manual(OTF_PARAMS_DEF) {
 			// schedule manual station
 			// skip if the station is a master station
 			// (because master cannot be scheduled independently)
-			if ((os.status.mas==sid+1) || (os.status.mas2==sid+1))
+			if ((os.status.mas==sid+1) || (os.status.mas2==sid+1) ||
+			    (os.status.mas3==sid+1) || (os.status.mas4==sid+1))
 				handle_return(HTML_NOT_PERMITTED);
 
 			RuntimeQueueStruct *q = NULL;

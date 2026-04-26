@@ -67,6 +67,8 @@ unsigned char    OpenSprinkler::weather_update_flag;
 unsigned char OpenSprinkler::attrib_mas[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igs[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas2[MAX_NUM_BOARDS];
+unsigned char OpenSprinkler::attrib_mas3[MAX_NUM_BOARDS];
+unsigned char OpenSprinkler::attrib_mas4[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igs2[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igrd[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_dis[MAX_NUM_BOARDS];
@@ -190,6 +192,12 @@ const char iopt_json_names[] PROGMEM =
 	"resv8"
 	"wimod"
 	"reset"
+	"mas3\0"
+	"mton3"
+	"mtof3"
+	"mas4\0"
+	"mton4"
+	"mtof4"
 	;
 
 /** Option prompts (stored in PROGMEM to reduce RAM usage) */
@@ -268,7 +276,13 @@ const char iopt_prompts[] PROGMEM =
 	"Reserved 7      "
 	"Reserved 8      "
 	"WiFi mode?      "
-	"Factory reset?  ";
+	"Factory reset?  "
+	"Master 3 (Mas3):"
+	"Mas3  on adjust:"
+	"Mas3 off adjust:"
+	"Master 4 (Mas4):"
+	"Mas4  on adjust:"
+	"Mas4 off adjust:";
 
 // string options do not have prompts
 
@@ -346,7 +360,13 @@ const unsigned char iopt_max[] PROGMEM = {
 	255,
 	255,
 	255,
-	1
+	1,
+	MAX_NUM_STATIONS,
+	255,
+	255,
+	MAX_NUM_STATIONS,
+	255,
+	255
 };
 
 // string options do not have maximum values
@@ -430,7 +450,13 @@ unsigned char OpenSprinkler::iopts[] = {
 	0,  // reserved 7
 	0,  // reserved 8
 	WIFI_MODE_AP, // wifi mode
-	0   // reset
+	0,  // reset
+	0,  // index of master3. 0: no master3 station
+	120,// master3 on adjusted time
+	120,// master3 off adjusted time
+	0,  // index of master4. 0: no master4 station
+	120,// master4 on adjusted time
+	120,// master4 off adjusted time
 };
 
 /** String option values (stored in RAM) */
@@ -1573,10 +1599,16 @@ unsigned char OpenSprinkler::bound_to_master(unsigned char sid, unsigned char ma
 
 	switch (mas) {
 		case MASTER_1:
-			attributes= attrib_mas[bid];
+			attributes = attrib_mas[bid];
 			break;
 		case MASTER_2:
 			attributes = attrib_mas2[bid];
+			break;
+		case MASTER_3:
+			attributes = attrib_mas3[bid];
+			break;
+		case MASTER_4:
+			attributes = attrib_mas4[bid];
 			break;
 		default:
 			break;
@@ -1608,6 +1640,8 @@ void OpenSprinkler::attribs_save() {
 			at.igs2= (attrib_igs2[bid]>>s) & 1;
 			at.igrd= (attrib_igrd[bid]>>s) & 1;
 			at.dis = (attrib_dis[bid]>>s) & 1;
+			at.mas3= (attrib_mas3[bid]>>s) & 1;
+			at.mas4= (attrib_mas4[bid]>>s) & 1;
 			at.gid = get_station_gid(sid);
 			set_station_gid(sid, at.gid);
 
@@ -1637,6 +1671,8 @@ void OpenSprinkler::attribs_load() {
 	memset(attrib_mas, 0, nboards);
 	memset(attrib_igs, 0, nboards);
 	memset(attrib_mas2, 0, nboards);
+	memset(attrib_mas3, 0, nboards);
+	memset(attrib_mas4, 0, nboards);
 	memset(attrib_igs2, 0, nboards);
 	memset(attrib_igrd, 0, nboards);
 	memset(attrib_dis, 0, nboards);
@@ -1649,6 +1685,8 @@ void OpenSprinkler::attribs_load() {
 			attrib_mas[bid] |= (at.mas<<s);
 			attrib_igs[bid] |= (at.igs<<s);
 			attrib_mas2[bid]|= (at.mas2<<s);
+			attrib_mas3[bid]|= (at.mas3<<s);
+			attrib_mas4[bid]|= (at.mas4<<s);
 			attrib_igs2[bid]|= (at.igs2<<s);
 			attrib_igrd[bid]|= (at.igrd<<s);
 			attrib_dis[bid] |= (at.dis<<s);
@@ -2315,7 +2353,14 @@ void parse_wto(char* wto);
 
 /** Load integer options from file */
 void OpenSprinkler::iopts_load() {
-	file_read_block(IOPTS_FILENAME, iopts, 0, NUM_IOPTS);
+	// Load only as many entries as the file actually contains so that new options
+	// (added in a later firmware) keep their compile-time defaults when upgrading
+	// from an older iopts.dat that has fewer entries.
+	os_file_type f = file_open(IOPTS_FILENAME, FileOpenMode::Read);
+	uint32_t load_count = f ? file_size(f) : 0;
+	if (f) file_close(f);
+	if (load_count > NUM_IOPTS) load_count = NUM_IOPTS;
+	file_read_block(IOPTS_FILENAME, iopts, 0, load_count);
 	nboards = iopts[IOPT_EXT_BOARDS]+1;
 	nstations = nboards * 8;
 	status.enabled = iopts[IOPT_DEVICE_ENABLE];
@@ -2347,6 +2392,14 @@ void OpenSprinkler::populate_master() {
 	masters[MASTER_2][MASOPT_SID] = iopts[IOPT_MASTER_STATION_2];
 	masters[MASTER_2][MASOPT_ON_ADJ] = iopts[IOPT_MASTER_ON_ADJ_2];
 	masters[MASTER_2][MASOPT_OFF_ADJ] = iopts[IOPT_MASTER_OFF_ADJ_2];
+
+	masters[MASTER_3][MASOPT_SID] = iopts[IOPT_MASTER_STATION_3];
+	masters[MASTER_3][MASOPT_ON_ADJ] = iopts[IOPT_MASTER_ON_ADJ_3];
+	masters[MASTER_3][MASOPT_OFF_ADJ] = iopts[IOPT_MASTER_OFF_ADJ_3];
+
+	masters[MASTER_4][MASOPT_SID] = iopts[IOPT_MASTER_STATION_4];
+	masters[MASTER_4][MASOPT_ON_ADJ] = iopts[IOPT_MASTER_ON_ADJ_4];
+	masters[MASTER_4][MASOPT_OFF_ADJ] = iopts[IOPT_MASTER_OFF_ADJ_4];
 }
 
 /** Save integer options to file */
@@ -2965,6 +3018,10 @@ void OpenSprinkler::lcd_print_screen(char c) {
 				lcd.print((bitvalue&1) ? c : 'M'); // print master station
 			} else if (sid == iopts[IOPT_MASTER_STATION_2]) {
 				lcd.print((bitvalue&1) ? c : 'N'); // print master2 station
+			} else if (sid == iopts[IOPT_MASTER_STATION_3]) {
+				lcd.print((bitvalue&1) ? c : 'U'); // print master3 station
+			} else if (sid == iopts[IOPT_MASTER_STATION_4]) {
+				lcd.print((bitvalue&1) ? c : 'V'); // print master4 station
 			} else {
 				lcd.print((bitvalue&1) ? c : '_');
 			}
@@ -3110,8 +3167,12 @@ void OpenSprinkler::lcd_print_option(int i) {
 		break;
 	case IOPT_MASTER_ON_ADJ:
 	case IOPT_MASTER_ON_ADJ_2:
+	case IOPT_MASTER_ON_ADJ_3:
+	case IOPT_MASTER_ON_ADJ_4:
 	case IOPT_MASTER_OFF_ADJ:
 	case IOPT_MASTER_OFF_ADJ_2:
+	case IOPT_MASTER_OFF_ADJ_3:
+	case IOPT_MASTER_OFF_ADJ_4:
 	case IOPT_STATION_DELAY_TIME:
 		{
 		int16_t t=water_time_decode_signed(iopts[i]);
@@ -3196,7 +3257,10 @@ void OpenSprinkler::lcd_print_option(int i) {
 		break;
 	}
 	if (i==IOPT_WATER_PERCENTAGE)  lcd_print_pgm(PSTR("%"));
-	else if (i==IOPT_MASTER_ON_ADJ || i==IOPT_MASTER_OFF_ADJ || i==IOPT_MASTER_ON_ADJ_2 || i==IOPT_MASTER_OFF_ADJ_2)
+	else if (i==IOPT_MASTER_ON_ADJ || i==IOPT_MASTER_OFF_ADJ ||
+	         i==IOPT_MASTER_ON_ADJ_2 || i==IOPT_MASTER_OFF_ADJ_2 ||
+	         i==IOPT_MASTER_ON_ADJ_3 || i==IOPT_MASTER_OFF_ADJ_3 ||
+	         i==IOPT_MASTER_ON_ADJ_4 || i==IOPT_MASTER_OFF_ADJ_4)
 		lcd_print_pgm(PSTR(" sec"));
 
 }
@@ -3294,8 +3358,10 @@ void OpenSprinkler::ui_set_options(int oid)
 				if (i==IOPT_USE_DHCP && iopts[i]) i += 9; // if use DHCP, skip static ip set
 				else if (i==IOPT_HTTPPORT_0) i+=2; // skip IOPT_HTTPPORT_1
 				else if (i==IOPT_PULSE_RATE_0) i+=2; // skip IOPT_PULSE_RATE_1
-				else if (i==IOPT_MASTER_STATION && iopts[i]==0) i+=3; // if not using master station, skip master on/off adjust including two retired options
-				else if (i==IOPT_MASTER_STATION_2&& iopts[i]==0) i+=3; // if not using master2, skip master2 on/off adjust
+				else if (i==IOPT_MASTER_STATION   && iopts[i]==0) i+=3; // if not using master, skip on/off adjust
+				else if (i==IOPT_MASTER_STATION_2 && iopts[i]==0) i+=3; // if not using master2, skip on/off adjust
+				else if (i==IOPT_MASTER_STATION_3 && iopts[i]==0) i+=3; // if not using master3, skip on/off adjust
+				else if (i==IOPT_MASTER_STATION_4 && iopts[i]==0) i+=3; // if not using master4, skip on/off adjust
 				else	{
 					i = (i+1) % NUM_IOPTS;
 				}
