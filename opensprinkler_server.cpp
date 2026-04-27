@@ -2619,6 +2619,64 @@ void server_json_debug(OTF_PARAMS_DEF) {
 	handle_return(HTML_OK);
 }
 
+/**
+ * List all files
+ * Command: /lf?pw=xxx
+ *
+ * pw:   password
+ * Returns a JSON array of [filename, size]
+ */
+#if defined(ESP8266)
+void server_list_files(OTF_PARAMS_DEF) {
+	if(!process_password(OTF_PARAMS)) return;
+	rewind_ether_buffer();
+	print_header(OTF_PARAMS);
+
+	bfill.emit_p(PSTR("{\"files\":["));
+	bool first = true;
+
+	// root
+	Dir dir = LittleFS.openDir("/");
+	while (dir.next()) {
+		if (dir.fileName().indexOf('.') < 0) continue;
+		if (!first) bfill.emit_p(PSTR(","));
+		bfill.emit_p(PSTR("[\"/$S\",$D]"), dir.fileName().c_str(), dir.fileSize());
+		first = false;
+		if (available_ether_buffer() <= 0) send_packet(OTF_PARAMS);
+	}
+	// logs
+	dir = LittleFS.openDir("/logs/");
+	while (dir.next()) {
+		if (!first) bfill.emit_p(PSTR(","));
+		bfill.emit_p(PSTR("[\"/logs/$S\",$D]"), dir.fileName().c_str(), dir.fileSize());
+		first = false;
+		if (available_ether_buffer() <= 0) send_packet(OTF_PARAMS);
+	}
+
+	bfill.emit_p(PSTR("]}"));
+	handle_return(HTML_OK);
+}
+#endif
+
+/**
+ * Delete a file
+ * Command: /df?pw=xxx&fn=filename
+ *
+ * pw:   password
+ * fn:   filename to delete
+ */
+#if defined(ESP8266)
+void server_delete_file(OTF_PARAMS_DEF) {
+	if(!process_password(OTF_PARAMS)) return;
+
+	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("fn"), true))
+		handle_return(HTML_DATA_MISSING);
+
+	remove_file(tmp_buffer);
+	handle_return(HTML_SUCCESS);
+}
+#endif
+
 /*
 // fill ESP8266 flash with some dummy files
 void server_fill_files(OTF_PARAMS_DEF) {
@@ -2674,6 +2732,10 @@ const char *uris[] PROGMEM = {
 	"ja",
 	"pq",
 	"db",
+#if defined(ESP8266)
+	"lf",
+	"df",
+#endif
 #if defined(USE_SENSORS)
 	"jsn",
 	"csn",
@@ -2709,6 +2771,10 @@ URLHandler urls[] = {
 	server_json_all,        // ja
 	server_pause_queue,     // pq
 	server_json_debug,      // db
+#if defined(ESP8266)
+	server_list_files,      // lf
+	server_delete_file,     // df
+#endif
 	#if defined(USE_SENSORS)
 	server_json_sensors,      // jsn
 	server_change_sensor,     // csn

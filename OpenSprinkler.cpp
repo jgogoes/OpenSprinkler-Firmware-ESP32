@@ -2155,7 +2155,7 @@ void OpenSprinkler::factory_reset() {
 	file_write_byte(PROG_FILENAME, 0, 0);
 
 #if defined(USE_SENSORS)
-	// remove all sensor files, so they will be re-created in load_sensors()
+	// remove all sensor files, so they will be re-created during loading
 	remove_file(SENSORS_FILENAME);
 	remove_sensor_log();
 	remove_file(SENADJ_FILENAME);

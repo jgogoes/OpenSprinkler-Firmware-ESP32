@@ -646,19 +646,19 @@ void Sensor::write(Sensor *sensor, uint8_t index) {
 	uint32_t pos = 1 + (uint32_t)TMP_BUFFER_SIZE * index;
 	uint32_t len = 0;
 
+	// Zero data area before serializing so the full TMP_BUFFER_SIZE slot is clean.
+	memset(tmp_buffer, 0, TMP_BUFFER_SIZE - sizeof(uint32_t));
+	if (sensor) {
+		len = sensor->serialize(tmp_buffer);
+		if (len > (TMP_BUFFER_SIZE - sizeof(uint32_t)))
+			len = TMP_BUFFER_SIZE - sizeof(uint32_t);
+	}
+
 	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::ReadWrite);
 	if (file) {
-		if (sensor) {
-			len = sensor->serialize(tmp_buffer);
-			if (len > (TMP_BUFFER_SIZE - sizeof(uint32_t))) {
-				len = TMP_BUFFER_SIZE - sizeof(uint32_t);
-			}
-		}
-
 		file_seek(file, pos, FileSeekMode::Set);
 		file_write(file, &len, sizeof(len));
-		if (sensor) file_write(file, tmp_buffer, len);
-
+		file_write(file, tmp_buffer, TMP_BUFFER_SIZE - sizeof(uint32_t));  // always write full slot
 		file_close(file);
 	} else {
 		DEBUG_PRINT("Failed to open file: ");
@@ -679,9 +679,31 @@ void Sensor::save_count() {
 /** Add a sensor */
 unsigned char Sensor::add(Sensor *sensor) {
 	if (OpenSprinkler::nsensors >= MAX_SENSORS) return 0;
-	Sensor::write(sensor, OpenSprinkler::nsensors);
 
-	// update memory
+	// Serialize into the data portion of tmp_buffer (after the 4-byte len header).
+	// Zero the area first so the full TMP_BUFFER_SIZE slot is clean when written.
+	uint32_t len = 0;
+	memset(tmp_buffer, 0, TMP_BUFFER_SIZE - sizeof(uint32_t));
+	if (sensor) {
+		len = sensor->serialize(tmp_buffer);
+		if (len > (TMP_BUFFER_SIZE - sizeof(uint32_t)))
+			len = TMP_BUFFER_SIZE - sizeof(uint32_t);
+	}
+
+	// Append the new slot (always TMP_BUFFER_SIZE bytes) to the file.
+	// Using Append avoids seeking past EOF which fails on LittleFS.
+	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Append);
+	if (file) {
+		file_write(file, &len, sizeof(len));
+		file_write(file, tmp_buffer, TMP_BUFFER_SIZE - sizeof(uint32_t));
+		file_close(file);
+	} else {
+		DEBUG_PRINT("Failed to open file: ");
+		DEBUG_PRINTLN(SENSORS_FILENAME);
+		return 0;
+	}
+
+	// update in-memory state
 	sensor_memory_t &m = OpenSprinkler::sensors[OpenSprinkler::nsensors];
 	m.interval = sensor->interval;
 	m.flags = sensor->flags;
