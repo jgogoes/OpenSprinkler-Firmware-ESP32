@@ -33,8 +33,9 @@ struct NotifNodeStruct {
 	uint16_t type;
 	uint32_t lval;
 	float fval;
+	float fval2;
 	uint8_t bval;
-	NotifNodeStruct(uint16_t t=0, uint32_t l=0, float f=0.f, uint8_t b=0) : type(t), lval(l), fval(f), bval(b)
+	NotifNodeStruct(uint16_t t=0, uint32_t l=0, float f=0.f, uint8_t b=0, float f2=0.f) : type(t), lval(l), fval(f), fval2(f2), bval(b)
 	{ }
 };
 
@@ -42,7 +43,7 @@ struct NotifNodeStruct {
 class NotifQueue {
 public:
 	// Insert a new notification element
-	static bool add(uint16_t t, uint32_t l=0, float f=0.f, uint8_t b=0);
+	static bool add(uint16_t t, uint32_t l=0, float f=0.f, uint8_t b=0, float f2=0.f);
 	// Clear all elements (i.e. empty the queue)
 	static void clear();
 	// Run/Process elements. By default process 1 at a time. If n<=0, process all.

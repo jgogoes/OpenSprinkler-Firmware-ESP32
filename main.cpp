@@ -74,6 +74,7 @@ void manual_start_program(unsigned char, unsigned char, unsigned char);
 #define DHCP_CHECKLEASE_INTERVAL  3600L // DHCP check lease interval (in seconds)
 #define FLOWPOLL_INTERVAL         5     // flow poll interval (in milli-seconds)
 #define CURRPOLL_INTERVAL         20    // current poll interval (in milli-seconds)
+#define SENSORPOLL_INTERVAL       5000  // sensor poll interval (in milli-seconds)
 // Define buffers: need them to be sufficiently large to cover string option reading
 char ether_buffer[ETHER_BUFFER_ALLOC_SIZE]; // ethernet buffer
 char tmp_buffer[TMP_BUFFER_ALLOC_SIZE];     // scratch buffer
@@ -531,7 +532,14 @@ void do_loop()
 	}
 
 #if defined(USE_SENSORS)
-	os.poll_sensors();
+	{
+		static uint32_t sensorpoll_timeout = 0;
+		uint32_t tm = millis();
+		if((long)(tm-sensorpoll_timeout) > 0) {
+			sensorpoll_timeout = tm + SENSORPOLL_INTERVAL;
+			os.poll_sensors();
+		}
+	}
 #endif
 
 #if defined(ESP8266)
@@ -853,7 +861,7 @@ void do_loop()
 						}// if prog.durations[sid]
 					}// for sid
 					if(match_found) {
-						notif.add(NOTIFY_PROGRAM_SCHED, pid, prog.use_weather?wl:100);
+						notif.add(NOTIFY_PROGRAM_SCHED, pid, prog.use_weather?wl:100, 0, sensor_adj);
 					} else {
 						// program being skipped e.g. due to 0% watering level
 						notif.add(NOTIFY_PROGRAM_SCHED, pid, -1, wt_restricted);
@@ -1628,7 +1636,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 		}
 		#endif
 		if(uwt) wl = os.iopts[IOPT_WATER_PERCENTAGE];
-		notif.add(NOTIFY_PROGRAM_SCHED, pid-1, wl, 1);
+		notif.add(NOTIFY_PROGRAM_SCHED, pid-1, wl, 1, sensor_adj);
 		// get station ordering from program name
 		prog.gen_station_runorder(1, order);
 	}

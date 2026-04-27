@@ -59,12 +59,12 @@ void ip2string(char* str, size_t str_len, unsigned char ip[4]) {
 	snprintf_P(str+strlen(str), str_len, PSTR("%d.%d.%d.%d"), ip[0], ip[1], ip[2], ip[3]);
 }
 
-bool NotifQueue::add(uint16_t t, uint32_t l, float f, uint8_t b) {
+bool NotifQueue::add(uint16_t t, uint32_t l, float f, uint8_t b, float f2) {
 		if (!is_notif_enabled(t)) { // if not subscribed to this type, return
 		return false;
 	}
 	if(nqueue<NOTIF_QUEUE_MAXSIZE) {
-		queue[tail] = NotifNodeStruct(t, l, f, b);
+		queue[tail] = NotifNodeStruct(t, l, f, b, f2);
 		tail = (tail + 1 )% NOTIF_QUEUE_MAXSIZE;
 		nqueue++;
 		DEBUG_PRINTF("NotifQueue::add (type %d) [%d|%d|%d]\n", t, nqueue, head, tail);
@@ -80,7 +80,7 @@ void NotifQueue::clear() {
 	tail = 0;
 }
 
-void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval);
+void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float fval2=0.f);
 
 bool NotifQueue::run(int n) {
 	if(nqueue == 0) return false; // queue is empty
@@ -88,7 +88,7 @@ bool NotifQueue::run(int n) {
 	while(nqueue!=0 && n!=0) {
 		NotifNodeStruct* node = &queue[head];
 		head = (head + 1) % NOTIF_QUEUE_MAXSIZE;
-		push_message(node->type, node->lval, node->fval, node->bval);
+		push_message(node->type, node->lval, node->fval, node->bval, node->fval2);
 		nqueue--;
 		n--;
 		DEBUG_PRINTF("NotifQueue::run (type %d) [%d|%d|%d]\n", node->type, nqueue, head, tail);
@@ -99,7 +99,7 @@ bool NotifQueue::run(int n) {
 #define PUSH_TOPIC_LEN	120
 #define PUSH_PAYLOAD_LEN TMP_BUFFER_SIZE
 
-void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
+void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float fval2) {
 	if (!is_notif_enabled(type)) {
 		return;
 	}
@@ -345,6 +345,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 				} else {
 					strcat_P(payload, PSTR("{\"state\":1,\"wl\":"));
 					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR("%d"), (int)fval);
+					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"sensor_adj\":%.4g"), fval2);
 				}
 				strcat_P(payload, PSTR("}"));
 			}
@@ -365,6 +366,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval) {
 				}
 				if(fval>0) {
 					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" with %d%% water level."), (int)fval);
+					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" Sensor adjustment: %.4g."), fval2);
 				}
 
 				if(email_enabled) { email_message.subject += PSTR("program event"); }
