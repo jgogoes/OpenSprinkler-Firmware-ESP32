@@ -398,7 +398,7 @@ void do_setup() {
 #endif
 
 #if defined(USE_SENSORS)
-	os.load_sensors();
+	Sensor::load_all();
 #endif
 
 	pd.init();           // ProgramData init

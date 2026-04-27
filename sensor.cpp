@@ -2,6 +2,7 @@
 #include "OpenSprinkler.h"
 
 extern OpenSprinkler os;
+extern char tmp_buffer[];
 
 const char *enum_string(SensorUnitGroup group) {
 	switch (group) {
@@ -396,7 +397,7 @@ float EnsembleSensor::_get_raw_value() {
 	uint8_t count = 0;
 
 	for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
-		uint8_t sensor = os.find_sensor_index(this->children[i].uuid);
+		uint8_t sensor = Sensor::find_index(this->children[i].uuid);
 		if (sensor < MAX_SENSORS && sensors[sensor].interval) {
 			float value = sensors[sensor].value;
 			value = (value * this->children[i].scale) + this->children[i].offset;
@@ -511,7 +512,7 @@ SensorAdjustment::SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_c
 
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
-		uint8_t idx = os.find_sensor_index(this->uuid);
+		uint8_t idx = Sensor::find_index(this->uuid);
 		if (idx < MAX_SENSORS && sensors[idx].interval) {
 			float value = sensors[idx].value;
 			if (value <= this->points[0].x) return this->points[0].y;
@@ -583,5 +584,278 @@ void SensorAdjustment::write(SensorAdjustment *adj, uint8_t index) {
 	} else {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENADJ_FILENAME);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Sensor file I/O
+// ---------------------------------------------------------------------------
+
+Sensor *Sensor::parse(os_file_type file) {
+	static uint8_t sensor_scratchpad[sizeof(OpenSprinkler::SensorUnion)] __attribute__((aligned(4)));
+	static Sensor *active_sensor = nullptr;
+
+	if (active_sensor != nullptr) {
+		active_sensor->~Sensor();
+		active_sensor = nullptr;
+	}
+	uint32_t len = 0;
+	file_read(file, &len, sizeof(len));
+
+	if (len == 0 || len > (TMP_BUFFER_SIZE - sizeof(uint32_t))) return nullptr;
+
+	file_read(file, tmp_buffer, len);
+	file_seek(file, TMP_BUFFER_SIZE - sizeof(uint32_t) - len, FileSeekMode::Current);
+
+	if ((uint8_t)(tmp_buffer[0]) >= (uint8_t)SensorType::MAX_VALUE) return nullptr;
+
+	SensorType sensor_type = static_cast<SensorType>(*tmp_buffer);
+	switch (sensor_type) {
+		case SensorType::Ensemble:
+			active_sensor = new (sensor_scratchpad) EnsembleSensor(os.sensors, (char*)tmp_buffer);
+			break;
+		case SensorType::ADS1115:
+			active_sensor = new (sensor_scratchpad) ADS1115Sensor(os.ads1115_devices, (char*)tmp_buffer);
+			break;
+		case SensorType::Weather:
+			active_sensor = new (sensor_scratchpad) WeatherSensor(os.get_sensor_weather_data, (char*)tmp_buffer);
+			break;
+		default:
+			return nullptr;
+	}
+	return active_sensor;
+}
+
+Sensor *Sensor::get(uint8_t index) {
+	uint32_t pos = 1 + (uint32_t)TMP_BUFFER_SIZE * index;
+
+	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
+	if (file) {
+		file_seek(file, pos, FileSeekMode::Set);
+		Sensor *result = Sensor::parse(file);
+		file_close(file);
+		return result;
+	} else {
+		DEBUG_PRINT("Failed to open file: ");
+		DEBUG_PRINTLN(SENSORS_FILENAME);
+		return nullptr;
+	}
+}
+
+void Sensor::write(Sensor *sensor, uint8_t index) {
+	uint32_t pos = 1 + (uint32_t)TMP_BUFFER_SIZE * index;
+	uint32_t len = 0;
+
+	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::ReadWrite);
+	if (file) {
+		if (sensor) {
+			len = sensor->serialize(tmp_buffer);
+			if (len > (TMP_BUFFER_SIZE - sizeof(uint32_t))) {
+				len = TMP_BUFFER_SIZE - sizeof(uint32_t);
+			}
+		}
+
+		file_seek(file, pos, FileSeekMode::Set);
+		file_write(file, &len, sizeof(len));
+		if (sensor) file_write(file, tmp_buffer, len);
+
+		file_close(file);
+	} else {
+		DEBUG_PRINT("Failed to open file: ");
+		DEBUG_PRINTLN(SENSORS_FILENAME);
+	}
+}
+
+/** Load sensor count from sensor file */
+void Sensor::load_count() {
+	OpenSprinkler::nsensors = file_read_byte(SENSORS_FILENAME, 0);
+}
+
+/** Save sensor count to sensor file */
+void Sensor::save_count() {
+	file_write_byte(SENSORS_FILENAME, 0, OpenSprinkler::nsensors);
+}
+
+/** Add a sensor */
+unsigned char Sensor::add(Sensor *sensor) {
+	if (OpenSprinkler::nsensors >= MAX_SENSORS) return 0;
+	Sensor::write(sensor, OpenSprinkler::nsensors);
+
+	// update memory
+	sensor_memory_t &m = OpenSprinkler::sensors[OpenSprinkler::nsensors];
+	m.interval = sensor->interval;
+	m.flags = sensor->flags;
+	m.uuid = sensor->uuid;
+	m.next_update = 0;
+	m.value = sensor->get_initial_value();
+
+	OpenSprinkler::nsensors++;
+	Sensor::save_count();
+	return 1;
+}
+
+/** Modify a sensor */
+unsigned char Sensor::modify(uint8_t index, Sensor *sensor) {
+	if (index >= OpenSprinkler::nsensors) return 0;
+	Sensor::write(sensor, index);
+
+	// update memory
+	sensor_memory_t &m = OpenSprinkler::sensors[index];
+	m.interval = sensor->interval;
+	m.flags = sensor->flags;
+	m.uuid = sensor->uuid;
+	m.next_update = 0;
+	m.value = sensor->get_initial_value();
+
+	return 1;
+}
+
+/** Delete a sensor */
+unsigned char Sensor::del(uint8_t index) {
+	if (index >= OpenSprinkler::nsensors) return 0;
+	if (OpenSprinkler::nsensors == 0) return 0;
+
+	// erase by copying backward
+	for (uint8_t i = index; i < OpenSprinkler::nsensors - 1; i++) {
+		file_copy_block(SENSORS_FILENAME, 1 + (uint32_t)(i + 1) * TMP_BUFFER_SIZE, 1 + (uint32_t)i * TMP_BUFFER_SIZE, TMP_BUFFER_SIZE, tmp_buffer);
+		// also shift in-memory state
+		OpenSprinkler::sensors[i] = OpenSprinkler::sensors[i + 1];
+	}
+
+	OpenSprinkler::nsensors--;
+	Sensor::save_count();
+	return 1;
+}
+
+/** Load all sensors from file to memory */
+void Sensor::load_all() {
+	OpenSprinkler::lcd.clear();
+	OpenSprinkler::lcd.setCursor(0, 0);
+	OpenSprinkler::lcd_print_pgm(PSTR("Init sensors..."));
+
+	// 1. Check if the configuration file exists.
+	// If not, we need to initialize it with a 0 count.
+	if (!file_exists(SENSORS_FILENAME)) {
+		DEBUG_PRINTLN(F("Sensor files missing. Initializing..."));
+		OpenSprinkler::nsensors = 0;
+		Sensor::save_count();
+	} else {
+		Sensor::load_count();
+	}
+
+	// 2. Proceed with existing load logic
+	Sensor *sensor;
+	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
+	if (file) {
+		// skip the first byte (count)
+		file_seek(file, 1, FileSeekMode::Set);
+		for (size_t i = 0; i < OpenSprinkler::nsensors; i++) {
+			if ((sensor = Sensor::parse(file))) {
+				sensor_memory_t &m = OpenSprinkler::sensors[i];
+				m.interval = sensor->interval;
+				m.flags = sensor->flags;
+				m.uuid = sensor->uuid;
+				m.next_update = 0;
+				m.value = sensor->get_initial_value();
+			}
+		}
+
+		file_close(file);
+	} else {
+		DEBUG_PRINT("Failed to open file: ");
+		DEBUG_PRINTLN(SENSORS_FILENAME);
+	}
+}
+
+/** Find sensor index by UUID */
+uint8_t Sensor::find_index(uint16_t uuid) {
+	if (uuid == SENSOR_UUID_NONE) return OpenSprinkler::nsensors;
+	for (uint8_t i = 0; i < OpenSprinkler::nsensors; i++) {
+		if (OpenSprinkler::sensors[i].uuid == uuid) return i;
+	}
+	return OpenSprinkler::nsensors;
+}
+
+/** Sensor log performance test */
+void Sensor::test_log(uint32_t n_records) {
+	remove_sensor_log();
+
+	DEBUG_PRINTF("sensor log test: writing %lu records\n", (unsigned long)n_records);
+	uint32_t t0 = millis();
+
+	for (uint32_t i = 0; i < n_records; i++) {
+		if (OpenSprinkler::nsensors > 0) os.log_sensor((uint8_t)((i + 1) % OpenSprinkler::nsensors), (float)i / 1000.f);
+	}
+
+	uint32_t write_ms = millis() - t0;
+	DEBUG_PRINTF("sensor log write: %lu ms total, %.2f ms/record\n",
+		(unsigned long)write_ms,
+		n_records ? (float)write_ms / n_records : 0.f);
+
+	// Read pass: iterate all files in order (oldest to newest)
+	os_file_type hfile = open_sensor_log_header(FileOpenMode::Read);
+	if (!hfile) {
+		DEBUG_PRINTLN("sensor log test: cannot open header");
+		return;
+	}
+	SensorLogHeader hdr = {};
+	file_read(hfile, &hdr, sizeof(hdr));
+	file_close(hfile);
+	if (hdr.magic != SENSOR_LOG_MAGIC || hdr.version != SENSOR_LOG_VERSION) {
+		DEBUG_PRINTLN("sensor log test: bad header");
+		return;
+	}
+
+	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
+	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
+	DEBUG_PRINTF("sensor log state: max_files=%u records_per_file=%u cur_file=%u wrapped=%u total_files=%u\n",
+		hdr.max_files, hdr.records_per_file, hdr.cur_file, hdr.wrapped, total_files);
+
+	uint32_t tr = millis();
+	uint32_t count = 0;
+	for (uint16_t fi = 0; fi < total_files; fi++) {
+		uint16_t file_no = (first_file + fi) % hdr.max_files;
+		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+		if (!dfile) continue;
+		SensorLogRecord rec;
+		while (file_read(dfile, &rec, sizeof(rec)) == (int)sizeof(rec)) count++;
+		file_close(dfile);
+	}
+
+	uint32_t read_ms = millis() - tr;
+	DEBUG_PRINTF("sensor log read: %lu records in %lu ms (%.2f ms/record)\n",
+		(unsigned long)count, (unsigned long)read_ms,
+		count ? (float)read_ms / count : 0.f);
+}
+
+// ---------------------------------------------------------------------------
+// Sensor log file helpers
+// ---------------------------------------------------------------------------
+
+void get_sensor_log_filename(char *buf, uint16_t file_no) {
+	snprintf(buf, 24, "%s%03u", SENSORS_LOG_FILENAME, file_no % 1000);
+}
+
+os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode) {
+	char fname[24];
+	get_sensor_log_filename(fname, file_no);
+	return file_open(fname, mode);
+}
+
+os_file_type open_sensor_log_header(FileOpenMode mode) {
+	return file_open(SENSORS_LOG_HEADER_FILENAME, mode);
+}
+
+void remove_sensor_log(int16_t file_no) {
+	char fname[24];
+	if (file_no < 0) {
+		remove_file(SENSORS_LOG_HEADER_FILENAME);
+		for (uint16_t i = 0; i < SENSOR_LOG_MAX_FILES; i++) {
+			get_sensor_log_filename(fname, i);
+			remove_file(fname);
+		}
+	} else {
+		get_sensor_log_filename(fname, (uint16_t)file_no);
+		remove_file(fname);
 	}
 }

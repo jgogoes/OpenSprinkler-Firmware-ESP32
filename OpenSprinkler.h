@@ -263,7 +263,7 @@ public:
 	static NVConData nvdata;
 	static ConStatus status;
 	static ConStatus old_status;
-	static unsigned char nboards, nstations;
+	static unsigned char nboards, nstations, nsensors;
 	static unsigned char hw_type;  // hardware type
 	static unsigned char hw_rev;   // hardware minor
 
@@ -385,21 +385,10 @@ public:
 
 	// -- Sensor functions
 #if defined(USE_SENSORS)
-	static void get_sensor_log_filename(char *buf, uint16_t file_no);
-	static os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
-	static os_file_type open_sensor_log_header(FileOpenMode mode);
-	static void remove_sensor_log(int16_t file_no = -1);  // -1 removes header + all data files
-	static void load_sensors();
-	static uint8_t find_sensor_index(uint16_t uuid); // linear scan; returns MAX_SENSORS if not found
-	static Sensor *parse_sensor(os_file_type file); // return is a statically allocated object, don't delete
-	static Sensor *get_sensor(uint8_t index); // return is a statically allocated object, don't delete
-	static void write_sensor(Sensor *sensor, uint8_t index);
-	void log_sensor(uint8_t sid, float value);
-	static void test_sensor_log(uint32_t n_records);
-	static void poll_sensors();
-	static float get_sensor_weather_data(WeatherAction action);
+    void log_sensor(uint8_t sid, float value);
+    static void poll_sensors();
+    static float get_sensor_weather_data(WeatherAction action);
 #endif
-
 	// -- LCD functions
 #if defined(USE_DISPLAY)
 	static void lcd_print_time(time_os_t t);  // print current time

@@ -14,11 +14,7 @@
 // No types from this file are involved in the onboard sensor logic.
 
 #include <stdint.h>
-#if defined(ARDUINO)
-#include <Arduino.h>
-#else
 #include "utils.h"
-#endif
 #include "defines.h"
 #include "bfiller.h"
 
@@ -123,6 +119,18 @@ public:
 
 	float get_new_value();
 	uint32_t serialize(char *buf);
+
+	static Sensor *parse(os_file_type file);         // statically allocated, do not delete
+	static Sensor *get(uint8_t index);               // statically allocated, do not delete
+	static void    write(Sensor *sensor, uint8_t index);
+	static void    load_count();
+	static void    save_count();
+	static unsigned char add(Sensor *sensor);
+	static unsigned char modify(uint8_t index, Sensor *sensor); // index is positional index
+	static unsigned char del(uint8_t index); // index is positional index
+	static void          load_all();
+	static uint8_t       find_index(uint16_t uuid);
+	static void          test_log(uint32_t n_records);
 
 	void virtual emit_extra_json(BufferFiller *bfill) = 0;
 
@@ -256,3 +264,9 @@ const char* get_sensor_unit_name(SensorUnit unit);
 const char* get_sensor_unit_short(SensorUnit unit);
 const SensorUnitGroup get_sensor_unit_group(SensorUnit unit);
 const uint32_t get_sensor_unit_index(SensorUnit unit);
+
+// Sensor log file helpers
+void         get_sensor_log_filename(char *buf, uint16_t file_no);
+os_file_type open_sensor_log(uint16_t file_no, FileOpenMode mode);
+os_file_type open_sensor_log_header(FileOpenMode mode);
+void         remove_sensor_log(int16_t file_no = -1);  // -1 removes header + all data files

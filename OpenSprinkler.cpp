@@ -41,6 +41,7 @@ unsigned char OpenSprinkler::hw_type;
 unsigned char OpenSprinkler::hw_rev;
 unsigned char OpenSprinkler::nboards;
 unsigned char OpenSprinkler::nstations;
+unsigned char OpenSprinkler::nsensors;
 unsigned char OpenSprinkler::station_bits[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::engage_booster;
 uint16_t OpenSprinkler::baseline_current;
@@ -2471,88 +2472,6 @@ void OpenSprinkler::raindelay_stop() {
 
 #if defined(USE_SENSORS)
 /** Sensor functions */
-Sensor *OpenSprinkler::parse_sensor(os_file_type file) {
-	static uint8_t sensor_scratchpad[sizeof(SensorUnion)] __attribute__((aligned(4)));
-	static Sensor* active_sensor = nullptr;
-
-	// The Auto-Destructor: If a sensor was previously loaded,
-	// call its destructor before we overwrite the memory.
-	if (active_sensor != nullptr) {
-		active_sensor->~Sensor();
-		active_sensor = nullptr;
-	}
-	uint32_t len = 0;
-	file_read(file, &len, sizeof(len));
-
-	if (len == 0 || len > TMP_BUFFER_SIZE) return nullptr;
-
-	file_read(file, tmp_buffer, len);
-	file_seek(file, TMP_BUFFER_SIZE - len, FileSeekMode::Current);
-
-	if ((uint8_t)(tmp_buffer[0]) >= (uint8_t)SensorType::MAX_VALUE) {
-		return nullptr;
-	}
-	SensorType sensor_type = static_cast<SensorType>(*tmp_buffer);
-	switch (sensor_type) {
-		case SensorType::Ensemble:
-			active_sensor = new (sensor_scratchpad) EnsembleSensor(os.sensors, (char*)tmp_buffer);
-			break;
-		case SensorType::ADS1115:
-			active_sensor = new (sensor_scratchpad) ADS1115Sensor(os.ads1115_devices, (char*)tmp_buffer);
-			break;
-		case SensorType::Weather:
-			active_sensor = new (sensor_scratchpad) WeatherSensor(os.get_sensor_weather_data, (char*)tmp_buffer);
-			break;
-		default:
-			return nullptr;
-	};
-	return active_sensor;
-}
-
-Sensor *OpenSprinkler::get_sensor(uint8_t index) {
-	uint32_t pos = (TMP_BUFFER_SIZE + sizeof(uint32_t)) * index;
-	
-	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
-	if (file) {
-		file_seek(file, pos, FileSeekMode::Current);
-
-		Sensor *result = parse_sensor(file);
-		file_close(file);
-		return result;
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENSORS_FILENAME);
-		return nullptr;
-	}
-}
-
-void OpenSprinkler::get_sensor_log_filename(char *buf, uint16_t file_no) {
-	snprintf(buf, 24, "%s%03u", SENSORS_LOG_FILENAME, file_no%1000);
-}
-
-os_file_type OpenSprinkler::open_sensor_log(uint16_t file_no, FileOpenMode mode) {
-	char fname[24];
-	get_sensor_log_filename(fname, file_no);
-	return file_open(fname, mode);
-}
-
-os_file_type OpenSprinkler::open_sensor_log_header(FileOpenMode mode) {
-	return file_open(SENSORS_LOG_HEADER_FILENAME, mode);
-}
-
-void OpenSprinkler::remove_sensor_log(int16_t file_no) {
-	char fname[24];
-	if (file_no < 0) {
-		remove_file(SENSORS_LOG_HEADER_FILENAME);
-		for (uint16_t i = 0; i < SENSOR_LOG_MAX_FILES; i++) {
-			get_sensor_log_filename(fname, i);
-			remove_file(fname);
-		}
-	} else {
-		get_sensor_log_filename(fname, (uint16_t)file_no);
-		remove_file(fname);
-	}
-}
 
 void list_all_files() {
 #if defined(ESP8266)
@@ -2600,96 +2519,6 @@ void list_all_files() {
 #endif
 }
 
-uint8_t OpenSprinkler::find_sensor_index(uint16_t uuid) {
-	if (uuid == SENSOR_UUID_NONE) return MAX_SENSORS;
-	for (uint8_t i = 0; i < MAX_SENSORS; i++) {
-		if (sensors[i].uuid == uuid) return i;
-	}
-	return MAX_SENSORS;
-}
-
-void OpenSprinkler::load_sensors() {
-	lcd.clear();
-	lcd.setCursor(0,0);
-	lcd.print(F("Init sensors..."));
-
-	// 1. Check if the configuration file exists.
-	// If not, we need to initialize all sensor-related files.
-	if (!file_exists(SENSORS_FILENAME)) {
-		DEBUG_PRINTLN(F("Sensor files missing. Initializing..."));
-
-		// Initialize the sensors configuration file (SENSORS_FILENAME)
-		memset(tmp_buffer, 0, TMP_BUFFER_SIZE);
-		os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::WriteTruncate);
-		if (file) {
-			for (size_t i = 0; i < MAX_SENSORS; i++) {
-				file_write(file, tmp_buffer, sizeof(uint32_t)); // length 0
-				file_write(file, tmp_buffer, TMP_BUFFER_SIZE); // empty block
-			}
-			file_close(file);
-		} else {
-			DEBUG_PRINT("Failed to open file: ");
-			DEBUG_PRINTLN(SENSORS_FILENAME);
-		}
-
-		// SENADJ_FILENAME grows on demand; no pre-allocation needed.
-	}
-
-	// 2. Proceed with existing load logic
-	Sensor *sensor;
-	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
-	if (file) {
-		for (size_t i = 0; i < MAX_SENSORS; i++) {
-			if ((sensor = parse_sensor(file))) {
-				sensors[i].interval = sensor->interval;
-				sensors[i].flags = sensor->flags;
-				sensors[i].uuid = sensor->uuid;
-				sensors[i].next_update = 0;
-				sensors[i].value = sensor->get_initial_value();
-			}
-		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENSORS_FILENAME);
-	}
-
-	list_all_files();
-
-	// Uncomment one of the following to run a sensor log performance test on boot:
-  //test_sensor_log(100);     // quick smoke test
-	//test_sensor_log(2000);    // moderate
-	//test_sensor_log(32760);   // full capacity
-	// test_sensor_log(40000);   // beyond capacity (tests ring wrap)
-	//list_all_files();
-}
-
-void OpenSprinkler::write_sensor(Sensor *sensor, uint8_t index) {
-	uint32_t pos = (TMP_BUFFER_SIZE + sizeof(uint32_t)) * index;
-	uint32_t len = 0;
-
-	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::ReadWrite);
-	if (file) {
-		if (sensor) {
-			len = sensor->serialize(tmp_buffer);
-		}
-
-		DEBUG_PRINTLN(pos);
-		DEBUG_PRINTLN(len);
-
-		file_seek(file, pos, FileSeekMode::Current);
-		file_write(file, &len, sizeof(len));
-		if (sensor) {
-			file_write(file, tmp_buffer, len);
-		}
-
-		file_close(file);
-	} else {
-		DEBUG_PRINT("Failed to open file: ");
-		DEBUG_PRINTLN(SENSORS_FILENAME);
-	}
-}
 
 void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 	// Read central header; create/recreate if missing or version mismatch
@@ -2762,62 +2591,11 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 	file_close(dfile);
 }
 
-void OpenSprinkler::test_sensor_log(uint32_t n_records) {
-	remove_sensor_log();
-
-	DEBUG_PRINTF("sensor log test: writing %lu records\n", (unsigned long)n_records);
-	uint32_t t0 = millis();
-
-	for (uint32_t i = 0; i < n_records; i++) {
-		os.log_sensor((uint8_t)((i + 1) % MAX_SENSORS), (float)i / 1000.f);
-	}
-
-	uint32_t write_ms = millis() - t0;
-	DEBUG_PRINTF("sensor log write: %lu ms total, %.2f ms/record\n",
-		(unsigned long)write_ms,
-		n_records ? (float)write_ms / n_records : 0.f);
-
-	// Read pass: iterate all files in order (oldest to newest)
-	os_file_type hfile = open_sensor_log_header(FileOpenMode::Read);
-	if (!hfile) {
-		DEBUG_PRINTLN("sensor log test: cannot open header");
-		return;
-	}
-	SensorLogHeader hdr = {};
-	file_read(hfile, &hdr, sizeof(hdr));
-	file_close(hfile);
-	if (hdr.magic != SENSOR_LOG_MAGIC || hdr.version != SENSOR_LOG_VERSION) {
-		DEBUG_PRINTLN("sensor log test: bad header");
-		return;
-	}
-
-	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
-	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
-	DEBUG_PRINTF("sensor log state: max_files=%u records_per_file=%u cur_file=%u wrapped=%u total_files=%u\n",
-		hdr.max_files, hdr.records_per_file, hdr.cur_file, hdr.wrapped, total_files);
-
-	uint32_t tr = millis();
-	uint32_t count = 0;
-	for (uint16_t fi = 0; fi < total_files; fi++) {
-		uint16_t file_no = (first_file + fi) % hdr.max_files;
-		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
-		if (!dfile) continue;
-		SensorLogRecord rec;
-		while (file_read(dfile, &rec, sizeof(rec)) == (int)sizeof(rec)) count++;
-		file_close(dfile);
-	}
-
-	uint32_t read_ms = millis() - tr;
-	DEBUG_PRINTF("sensor log read: %lu records in %lu ms (%.2f ms/record)\n",
-		(unsigned long)count, (unsigned long)read_ms,
-		count ? (float)read_ms / count : 0.f);
-}
-
 void OpenSprinkler::poll_sensors() {
-	for (uint8_t i = 0; i < MAX_SENSORS; i++) {
+	for (uint8_t i = 0; i < nsensors; i++) {
 		if (sensors[i].interval && (sensors[i].flags & (1 << SENSOR_FLAG_ENABLE))) {
 			if ((long)(millis() - sensors[i].next_update) > 0) {
-				Sensor *sensor = get_sensor(i);
+				Sensor *sensor = Sensor::get(i);
 				if (sensor) {
 					sensors[i].value = sensor->get_new_value();
 					sensors[i].next_update = millis() + (sensors[i].interval * 1000 * 60);

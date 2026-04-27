@@ -478,6 +478,8 @@ void server_change_stations_attrib(const OTF::Request &req, char header, unsigne
  * q?: station sequential bit field
  * p?: station special flag bit field
  * g?: sequential group id
+ * u?: master3 operation bit field
+ * v?: master4 operation bit field
  */
 void server_change_stations(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
@@ -1874,8 +1876,8 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 	uint8_t sensor_count = 0;
 
 	Sensor *sensor;
-	for (size_t i = 0; i < MAX_SENSORS; i++) {
-		if (os.sensors[i].interval && (sensor = os.get_sensor(i))) {
+	for (size_t i = 0; i < os.nsensors; i++) {
+		if (os.sensors[i].interval && (sensor = Sensor::get(i))) {
 			if (sensor_count) bfill.emit_p(PSTR(","));
 			bfill.emit_p(PSTR("{\"uuid\":$D,\"idx\":$D,\"name\":\"$S\",\"unit\":$D,\"flags\":$D,\"interval\":$L,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, i, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flags, sensor->interval, sensor->max, sensor->min, sensor->scale, sensor->offset, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
 			sensor->emit_extra_json(&bfill);
@@ -1905,32 +1907,58 @@ void server_json_sensors(OTF_PARAMS_DEF)
 	handle_return(HTML_OK);
 }
 
+/**
+ * Add or change a sensor
+ * Command: /csn?pw=xxx&[uuid=xxx|sid=xxx]&type=xxx&...
+ *
+ * pw:   password
+ * uuid: sensor stable ID (1-65535; -1 to add new)
+ * sid:  sensor positional index (0-based; -1 to add new)
+ *       (uuid takes precedence if both are provided)
+ * type: sensor type (0: Ensemble, 1: ADS1115, 2: Weather)
+ * name: sensor name
+ * min/max/scale/offset: calibration values
+ * interval: sampling interval in minutes
+ * unit: sensor unit index
+ * flags: bitmask (bit 0: enable, bit 1: log)
+ * [Ensemble] children: semicolon separated list of "uuid,min,max,scale,offset;"
+ * [Ensemble] action: ensemble action index (0: Min, 1: Max, 2: Average, 3: Sum, 4: Product)
+ * [ADS1115]  pin: pin number (1-16)
+ * [Weather]  action: weather information index
+ */
 void server_change_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) handle_return(HTML_DATA_MISSING);
 
 	char *end;
-	long sid_param = strtol(tmp_buffer, &end, 10);
-	if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-
+	long sid = -1;
 	bool is_new = false;
-	long sid;
 
-	if (sid_param == -1) {
-		// Find first empty slot for a new sensor
-		sid = -1;
-		for (long i = 0; i < MAX_SENSORS; i++) {
-			if (!os.sensors[i].interval) { sid = i; break; }
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
+		long uuid_param = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (uuid_param == -1) {
+			is_new = true;
+			sid = os.nsensors;
+		} else {
+			if (uuid_param < 1 || uuid_param > 0xFFFF) handle_return(HTML_DATA_OUTOFBOUND);
+			sid = Sensor::find_index((uint16_t)uuid_param);
+			if (sid >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
 		}
-		if (sid == -1) handle_return(HTML_DATA_OUTOFBOUND);
-		is_new = true;
+	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
+		long sid_param = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (sid_param == -1) {
+			is_new = true;
+			sid = os.nsensors;
+		} else {
+			if (sid_param < 0 || sid_param >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
+			sid = sid_param;
+		}
 	} else {
-		// sid_param is a UUID — look up the slot
-		if (sid_param < 1 || sid_param > 0xFFFF) handle_return(HTML_DATA_OUTOFBOUND);
-		uint8_t idx = os.find_sensor_index((uint16_t)sid_param);
-		if (idx >= MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
-		sid = idx;
+		handle_return(HTML_DATA_MISSING);
 	}
+
+	if (is_new && sid >= MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
 
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("type"), true)) handle_return(HTML_DATA_MISSING);
 	
@@ -1954,7 +1982,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	
 	SensorType original_sensor_type = SensorType::MAX_VALUE;
 	if (os.sensors[sid].interval) {
-		if ((sensor = os.get_sensor(sid))) {
+		if ((sensor = Sensor::get(sid))) {
 			original_sensor_type = sensor->get_sensor_type();
 			strncpy(name, sensor->name, SENSOR_NAME_LEN);
 			min = sensor->min;
@@ -2024,7 +2052,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			EnsembleAction action = EnsembleAction::Min;
 
 			if (sensor_type == original_sensor_type) {
-				if ((sensor = os.get_sensor(sid))) {
+				if ((sensor = Sensor::get(sid))) {
 					EnsembleSensor* e = static_cast<EnsembleSensor*>(sensor);
 					for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
 						children[i] = e->children[i];
@@ -2076,7 +2104,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			uint32_t sensor_pin = 0;
 
 			if (sensor_type == original_sensor_type) {
-				if ((sensor = os.get_sensor(sid))) {
+				if ((sensor = Sensor::get(sid))) {
 					ADS1115Sensor* e = static_cast<ADS1115Sensor*>(sensor);
 					sensor_index = e->sensor_index;
 					sensor_pin = e->pin;
@@ -2099,7 +2127,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			WeatherAction action = WeatherAction::MAX_VALUE;
 
 			if (sensor_type == original_sensor_type) {
-				if ((sensor = os.get_sensor(sid))) {
+				if ((sensor = Sensor::get(sid))) {
 					WeatherSensor* e = static_cast<WeatherSensor*>(sensor);
 					action = e->action;
 				}
@@ -2134,12 +2162,18 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 		os.nvdata.last_sensor_uuid = new_uuid;
 		os.nvdata_save();
 		result_sensor->uuid = new_uuid;
-		os.sensors[sid].uuid = new_uuid;
+
+		if (!Sensor::add(result_sensor)) {
+			delete result_sensor;
+			handle_return(HTML_DATA_OUTOFBOUND);
+		}
 	} else {
 		result_sensor->uuid = os.sensors[sid].uuid;
+		if (!Sensor::modify(sid, result_sensor)) {
+			delete result_sensor;
+			handle_return(HTML_DATA_OUTOFBOUND);
+		}
 	}
-
-	os.write_sensor(result_sensor, sid);
 
 	delete result_sensor;
 
@@ -2148,34 +2182,53 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 
 /**
  * Delete a sensor
- * Command: /dsn?pw=xxx&sid=xxx
+ * Command: /dsn?pw=xxx&[uuid=xxx|sid=xxx]
  *
- * pw: password
- * sid:staiton index (-1 will delete all programs)
+ * pw:   password
+ * uuid: sensor stable ID (1-65535; -1 to delete all sensors)
+ * sid:  sensor positional index (0-based; -1 to delete all sensors)
+ *       (uuid takes precedence if both are provided)
  */
 void server_delete_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true))
-		handle_return(HTML_DATA_MISSING);
+	
+	long idx = -1;
+	bool delete_all = false;
+	char *end;
 
-	int sid = atoi(tmp_buffer);
-	if (sid == -1) {
-		// Delete all sensors
-		for (uint8_t i = 0; i < MAX_SENSORS; i++) {
-			if (os.sensors[i].interval) {
-				os.write_sensor(nullptr, i);
-				os.sensors[i].interval = 0;
-				os.sensors[i].uuid = 0;
-			}
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
+		long uuid_param = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (uuid_param == -1) {
+			delete_all = true;
+		} else {
+			if (uuid_param < 1 || uuid_param > 0xFFFF) handle_return(HTML_DATA_OUTOFBOUND);
+			idx = Sensor::find_index((uint16_t)uuid_param);
+			if (idx >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
+		}
+	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
+		long sid_param = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (sid_param == -1) {
+			delete_all = true;
+		} else {
+			if (sid_param < 0 || sid_param >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
+			idx = sid_param;
 		}
 	} else {
-		// sid is a UUID — look up the slot
-		if (sid < 1 || sid > 0xFFFF) handle_return(HTML_DATA_OUTOFBOUND);
-		uint8_t idx = os.find_sensor_index((uint16_t)sid);
-		if (idx >= MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
-		os.write_sensor(nullptr, idx);
-		os.sensors[idx].interval = 0;
-		os.sensors[idx].uuid = 0;
+		handle_return(HTML_DATA_MISSING);
+	}
+
+	if (delete_all) {
+		// Delete all sensors
+		os.nsensors = 0;
+		Sensor::save_count();
+		for (uint8_t i = 0; i < MAX_SENSORS; i++) {
+			os.sensors[i].interval = 0;
+			os.sensors[i].uuid = 0;
+		}
+	} else {
+		if (!Sensor::del((uint8_t)idx)) handle_return(HTML_INTERNAL_ERROR);
 	}
 
 	handle_return(HTML_SUCCESS);
@@ -2196,6 +2249,19 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
 	}
 }
 
+/**
+ * Get sensor logs
+ * Command: /lsn?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx
+ *
+ * pw:     password
+ * uuid:   sensor stable ID (1-65535; -1 for all)
+ * sid:    sensor positional index (0-based; -1 for all)
+ *         (uuid takes precedence if both are provided)
+ * count:  max records to return
+ * before: timestamp before which records are returned
+ * after:  timestamp after which records are returned
+ * cursor: number of records to skip
+ */
 void server_log_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
@@ -2204,7 +2270,7 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 	char *end;
 
 	// Read central header
-	os_file_type hfile = os.open_sensor_log_header(FileOpenMode::Read);
+	os_file_type hfile = open_sensor_log_header(FileOpenMode::Read);
 	if (!hfile) handle_return(HTML_INTERNAL_ERROR);
 	SensorLogHeader hdr;
 	file_read(hfile, &hdr, sizeof(hdr));
@@ -2245,10 +2311,19 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 	}
 
 	long target_uuid = -1;
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
 		target_uuid = strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (target_uuid != -1 && (target_uuid < 1 || target_uuid > 0xFFFF)) handle_return(HTML_DATA_OUTOFBOUND);
+	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
+		long sid_param = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (sid_param == -1) {
+			target_uuid = -1;
+		} else {
+			if (sid_param < 0 || sid_param >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
+			target_uuid = os.sensors[sid_param].uuid;
+		}
 	}
 
 	send_packet(OTF_PARAMS);
@@ -2264,7 +2339,7 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 
 	for (uint16_t fi = 0; fi < total_files && count < max_count; fi++) {
 		uint16_t file_no = (first_file + fi) % hdr.max_files;
-		os_file_type dfile = os.open_sensor_log(file_no, FileOpenMode::Read);
+		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
 		if (!dfile) continue;
 
 		while (count < max_count) {
@@ -2325,12 +2400,12 @@ void server_clear_sensor_log(OTF_PARAMS_DEF) {
 
 	if (uuid == -1) {
 		// Remove all log files — frees flash immediately; header recreated on next log_sensor call
-		os.remove_sensor_log();
+		remove_sensor_log();
 		handle_return(HTML_SUCCESS);
 	}
 
 	// Per-sensor clear: read central header to know file layout
-	os_file_type hfile = os.open_sensor_log_header(FileOpenMode::Read);
+	os_file_type hfile = open_sensor_log_header(FileOpenMode::Read);
 	if (!hfile) handle_return(HTML_INTERNAL_ERROR);
 	SensorLogHeader hdr;
 	file_read(hfile, &hdr, sizeof(hdr));
@@ -2344,7 +2419,7 @@ void server_clear_sensor_log(OTF_PARAMS_DEF) {
 	SensorLogRecord rec;
 	for (uint16_t fi = 0; fi < total_files; fi++) {
 		uint16_t file_no = (first_file + fi) % hdr.max_files;
-		os_file_type dfile = os.open_sensor_log(file_no, FileOpenMode::ReadWrite);
+		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::ReadWrite);
 		if (!dfile) continue;
 
 		uint32_t pos = 0;
