@@ -521,18 +521,19 @@ float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 			uint8_t i;
 
 			for (i = 0; i < this->point_count - 1; i++) {
-				if (value >= this->points[i].x) {
+				if (value < this->points[i + 1].x) {
 					break;
 				}
 			}
 
 			sensor_adjustment_point_t left = this->points[i];
 			sensor_adjustment_point_t right = this->points[i + 1];
+
 			if (right.x == left.x) return left.y;
 
 			value = (value - left.x) / (right.x - left.x) * (right.y - left.y) + left.y;
 
-			if (value < 0) return 0;
+			if (value < 0) value = 0;
 			return value;
 		}
 	}

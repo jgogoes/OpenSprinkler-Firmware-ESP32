@@ -777,17 +777,18 @@ void do_loop()
 			// check through all programs
 			for(pid=0; pid<pd.nprograms; pid++) {
 				pd.read(pid, &prog);	// todo future: reduce load time
-				float sensor_adj = 1.f;
-				#if defined(USE_SENSORS)
-				SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
-				if (adj) {
-					sensor_adj = adj->get_adjustment_factor(os.sensors);
-				}
-				#endif
 				bool will_delete = false;
 				unsigned char runcount = prog.check_match(curr_time, &will_delete);
 				if(runcount>0) {
 					// program match found
+					float sensor_adj = 1.f;
+					#if defined(USE_SENSORS)
+					SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
+					if (adj) {
+						sensor_adj = adj->get_adjustment_factor(os.sensors);
+					}
+					#endif
+
 					// check and process special program command
 					if(process_special_program_command(prog.name, curr_time))	continue;
 
@@ -824,13 +825,13 @@ void do_loop()
 							continue;
 
 						// TODO: compare with old code
-						uint32_t dur = (uint32_t)((float)prog.durations[sid] * sensor_adj);
+						uint32_t dur = prog.durations[sid];
 						// if station has non-zero water time and the station is not disabled
 						if (dur && !(os.attrib_dis[bid]&(1<<s))) {
 							// water time is scaled by watering percentage
-							uint32_t water_time = water_time_resolve(prog.durations[sid]);
+							uint32_t water_time = water_time_resolve(dur);
 
-							water_time = water_time * wl / 100 * sensor_adj;
+							water_time = (uint32_t)(water_time * wl / 100 * sensor_adj);
 							if (wl < 20 && water_time < 10) { // if water_percentage is less than 20% and water_time is less than 10 seconds, skip watering
 								water_time = 0;
 							}
@@ -1645,10 +1646,9 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 			dur=2;
 		} else if (pid>0) {
 			dur = water_time_resolve(prog.durations[sid]);
-			dur = (uint32_t)((float)dur * sensor_adj);
 		}
 
-		dur = dur * wl / 100;
+		dur = (uint32_t)(dur * wl / 100 * sensor_adj);
 		if(dur>0 && !(os.attrib_dis[bid]&(1<<s))) {
 			RuntimeQueueStruct *q = pd.enqueue();
 			if (q) {

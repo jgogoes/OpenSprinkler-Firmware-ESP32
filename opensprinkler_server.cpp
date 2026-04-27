@@ -1879,7 +1879,7 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 	for (size_t i = 0; i < os.nsensors; i++) {
 		if (os.sensors[i].interval && (sensor = Sensor::get(i))) {
 			if (sensor_count) bfill.emit_p(PSTR(","));
-			bfill.emit_p(PSTR("{\"uuid\":$D,\"idx\":$D,\"name\":\"$S\",\"unit\":$D,\"flags\":$D,\"interval\":$L,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, i, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flags, sensor->interval, sensor->max, sensor->min, sensor->scale, sensor->offset, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
+			bfill.emit_p(PSTR("{\"uuid\":$D,\"name\":\"$S\",\"unit\":$D,\"flags\":$D,\"interval\":$L,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flags, sensor->interval, sensor->max, sensor->min, sensor->scale, sensor->offset, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
 			sensor->emit_extra_json(&bfill);
 			bfill.emit_p(PSTR("}"));
 			sensor_count += 1;
