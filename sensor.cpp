@@ -398,7 +398,7 @@ float EnsembleSensor::_get_raw_value() {
 
 	for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
 		uint8_t sensor = Sensor::find_index(this->children[i].uuid);
-		if (sensor < MAX_SENSORS && sensors[sensor].interval) {
+		if (sensor < OpenSprinkler::nsensors && sensors[sensor].interval) {
 			float value = sensors[sensor].value;
 			value = (value * this->children[i].scale) + this->children[i].offset;
 			if (value < this->children[i].min) value = this->children[i].min;
@@ -725,6 +725,9 @@ unsigned char Sensor::del(uint8_t index) {
 	}
 
 	OpenSprinkler::nsensors--;
+	OpenSprinkler::sensors[OpenSprinkler::nsensors].interval = 0;
+	OpenSprinkler::sensors[OpenSprinkler::nsensors].uuid = 0;
+
 	Sensor::save_count();
 	return 1;
 }
@@ -775,7 +778,7 @@ uint8_t Sensor::find_index(uint16_t uuid) {
 	for (uint8_t i = 0; i < OpenSprinkler::nsensors; i++) {
 		if (OpenSprinkler::sensors[i].uuid == uuid) return i;
 	}
-	return OpenSprinkler::nsensors;
+	return MAX_SENSORS;
 }
 
 /** Sensor log performance test */

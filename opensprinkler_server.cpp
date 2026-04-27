@@ -1052,7 +1052,26 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		// program name
 		strncpy(tmp_buffer, prog.name, PROGRAM_NAME_SIZE);
 		tmp_buffer[PROGRAM_NAME_SIZE] = 0;	// make sure the string ends
-		bfill.emit_p(PSTR("$S\",[$D,$D,$D]]"), tmp_buffer,prog.en_daterange,prog.daterange[0],prog.daterange[1]);
+		bfill.emit_p(PSTR("$S\",[$D,$D,$D],"), tmp_buffer,prog.en_daterange,prog.daterange[0],prog.daterange[1]);
+		// sensor adjustment embedded in each program entry
+		#if defined(USE_SENSORS)
+		{
+			SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
+			if (adj) {
+				bfill.emit_p(PSTR("{\"flags\":$D,\"uuid\":$D,\"splits\":["), adj->flags, adj->uuid);
+				for (int j = 0; j < adj->point_count; j++) {
+					if (j) bfill.emit_p(PSTR(","));
+					bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
+				}
+				bfill.emit_p(PSTR("]}"));
+			} else {
+				bfill.emit_p(PSTR("{}"));
+			}
+		}
+		#else
+		bfill.emit_p(PSTR("{}"));
+		#endif
+		bfill.emit_p(PSTR("]"));
 		if(pid!=pd.nprograms-1) {
 			bfill.emit_p(PSTR(","));
 		}
@@ -1062,30 +1081,6 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 			send_packet(OTF_PARAMS);
 		}
 	}
-
-	#if defined(USE_SENSORS)
-	bfill.emit_p(PSTR("],\"adj\":["));
-	uint8_t adj_count = 0;
-
-	SensorAdjustment *adj;
-	for (size_t i = 0; i < pd.nprograms; i++) {
-		if ((adj = SensorAdjustment::read(i, pd.nprograms))) {
-			if (adj_count) bfill.emit_p(PSTR(","));
-			bfill.emit_p(PSTR("{\"pid\":$D,\"flags\":$D,\"uuid\":$D,\"point_count\":$D,\"splits\":["), i, adj->flags, adj->uuid, adj->point_count);
-			for (int j = 0; j < adj->point_count; j++) {
-				if (j) bfill.emit_p(PSTR(","));
-				bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
-			}
-			bfill.emit_p(PSTR("]}"));
-			adj_count += 1;
-			// push out a packet if available
-			// buffer size is getting small
-			if (available_ether_buffer() <= 0) {
-				send_packet(OTF_PARAMS);
-			}
-		}
-	}
-	#endif
 	bfill.emit_p(PSTR("]}"));
 }
 

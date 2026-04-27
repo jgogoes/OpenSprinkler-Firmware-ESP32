@@ -147,7 +147,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 			email_recipient= doc["recipient"];
 		}
 	}
-	
+
 	#if defined(ESP8266)
 		EMailSender::EMailMessage email_message;
 	#else
@@ -174,7 +174,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 		topic[PUSH_TOPIC_LEN]=0;
 		strcat(postval+strlen(postval), topic);
 		strcat_P(postval, PSTR("], "));
-		if(email_enabled) {		
+		if(email_enabled) {
 			strcat(topic, " ");
 			email_message.subject = topic; // prefix the email subject with device name
 		}
@@ -264,7 +264,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 				char *endptr;
 				flow_gpm_alert_setpoint = strtod(station_name_last_five_chars, &endptr);
 				if (endptr != station_name_last_five_chars) {
-					//station_name_last_five_chars was successfully converted to a number 
+					//station_name_last_five_chars was successfully converted to a number
 					//flow_last_gpm is actually collected and stored as pulses per minute, not gallons per minute
 					// Alert Check - Compare flow_gpm_alert_setpoint with flow_last_gpm and enable flow_alert_flag if flow is above setpoint
 					if ((flow_last_gpm*flowrate100/100.f) > flow_gpm_alert_setpoint) {
@@ -327,7 +327,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 
 				}
 			} else {
-				//Do not send an alert.  Flow was not above setpoint or setpoint not valid. 
+				//Do not send an alert.  Flow was not above setpoint or setpoint not valid.
 				//Must force ifftt_enabled and email_enabled to false to prevent sending
 				//Can not force os.mqtt.enabled() off, but it will not publish an mqtt message as topic\payload will be empty.
 				ifttt_enabled=false;
@@ -335,7 +335,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 			}
 		break;
 		}
- 
+
 		case NOTIFY_PROGRAM_SCHED:
 			if (os.mqtt.enabled()) {
 				snprintf_P(topic, PUSH_TOPIC_LEN, PSTR("program/%d"), lval);
@@ -345,7 +345,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 				} else {
 					strcat_P(payload, PSTR("{\"state\":1,\"wl\":"));
 					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR("%d"), (int)fval);
-					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"sensor_adj\":%.4g"), fval2);
+					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"snadj\":%.2f"), fval2*100.f);
 				}
 				strcat_P(payload, PSTR("}"));
 			}
@@ -365,8 +365,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 					if(lval<pd.nprograms) strcat(postval, prog.name);
 				}
 				if(fval>0) {
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" with %d%% water level."), (int)fval);
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(" Sensor adjustment: %.4g."), fval2);
+					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(". Water level: %d%%. Sensor adjustment: %.2f%%."), (int)fval, fval2*100.f);
 				}
 
 				if(email_enabled) { email_message.subject += PSTR("program event"); }
