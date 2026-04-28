@@ -1956,7 +1956,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	if (is_new && sid >= MAX_SENSORS) handle_return(HTML_DATA_OUTOFBOUND);
 
 	if (!findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("type"), true)) handle_return(HTML_DATA_MISSING);
-	
+
 	uint32_t type_raw = strtol(tmp_buffer, &end, 10);
 	if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 	if (type_raw >= (uint32_t)SensorType::MAX_VALUE) handle_return(HTML_DATA_OUTOFBOUND);
@@ -1974,7 +1974,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 
 	char name[SENSOR_NAME_LEN];
 	snprintf(name, SENSOR_NAME_LEN, "Sensor: %d", (int)sid);
-	
+
 	SensorType original_sensor_type = SensorType::MAX_VALUE;
 	if (os.sensors[sid].interval) {
 		if ((sensor = Sensor::get(sid))) {
@@ -2083,7 +2083,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 
 				children_count = i;
 			}
-		
+
 			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("action"), true)) {
 				uint32_t action_raw = strtol(tmp_buffer, &end, 10);
 				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
@@ -2186,7 +2186,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
  */
 void server_delete_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	
+
 	long idx = -1;
 	bool delete_all = false;
 	char *end;
@@ -2246,7 +2246,7 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
 
 /**
  * Get sensor logs
- * Command: /lsn?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx
+ * Command: /jsl?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx
  *
  * pw:     password
  * uuid:   sensor stable ID (1-65535; -1 for all)
@@ -2257,10 +2257,9 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  * after:  timestamp after which records are returned
  * cursor: number of records to skip
  */
-void server_log_sensor(OTF_PARAMS_DEF) {
+void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 	rewind_ether_buffer();
-	print_header(OTF_PARAMS);
 
 	char *end;
 
@@ -2277,9 +2276,14 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 
 	uint32_t max_count = 100;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("count"), true)) {
-		max_count = strtoul(tmp_buffer, &end, 10);
-		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (max_count > total_capacity) handle_return(HTML_DATA_OUTOFBOUND);
+		if (strcmp(tmp_buffer, "max") == 0 || strcmp(tmp_buffer, "all") == 0) {
+			max_count = total_capacity;
+		} else {
+			max_count = strtoul(tmp_buffer, &end, 10);
+			if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+			if (max_count == 0) handle_return(HTML_DATA_OUTOFBOUND);
+			if (max_count > total_capacity) max_count = total_capacity;
+		}
 	}
 
 	// cursor = flat sequential index from oldest record to skip before emitting
@@ -2321,7 +2325,8 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 		}
 	}
 
-	send_packet(OTF_PARAMS);
+	print_header(OTF_PARAMS);
+	res.writeBodyData("", 0);
 
 	// Iterate files from oldest to newest
 	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
@@ -2382,11 +2387,11 @@ void server_log_sensor(OTF_PARAMS_DEF) {
 }
 
 
-void server_clear_sensor_log(OTF_PARAMS_DEF) {
+void server_delete_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
 	long uuid = -1;
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
 		uuid = atol(tmp_buffer);
 		if (uuid != -1 && (uuid < 1 || uuid > 0xFFFF)) handle_return(HTML_DATA_OUTOFBOUND);
 	} else {
@@ -2489,7 +2494,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 		}
 	}
 
-	
+
 	bfill.emit_p(PSTR("],\"enums\":{"));
 	bfill_enum_values<SensorUnitGroup>(PSTR("SensorUnitGroup"));
 	bfill.emit_p(PSTR(","));
@@ -2697,8 +2702,6 @@ void server_fill_files(OTF_PARAMS_DEF) {
 typedef void (*URLHandler)(OTF_PARAMS_DEF);
 
 /* Server function urls
- * To save RAM space, each GET command keyword is exactly
- * 2 characters long, with no ending 0
  * The order must exactly match the order of the
  * handler functions below
  */
@@ -2735,8 +2738,8 @@ const char *uris[] PROGMEM = {
 	"jsn",
 	"csn",
 	"dsn",
-	"lsn",
-	"csl",
+	"jsl",
+	"dsl",
 	"jsd",
 #endif
 };
@@ -2774,8 +2777,8 @@ URLHandler urls[] = {
 	server_json_sensors,      // jsn
 	server_change_sensor,     // csn
 	server_delete_sensor,     // dsn
-	server_log_sensor,        // lsn
-	server_clear_sensor_log,  // csl
+	server_json_sensor_log,   // jsl
+	server_delete_sensor_log, // dsl
 	server_json_sen_desc,     // jsd
 	#endif
 };
