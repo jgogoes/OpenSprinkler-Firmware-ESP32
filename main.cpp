@@ -76,7 +76,7 @@ void manual_start_program(unsigned char, unsigned char, unsigned char);
 #define CURRPOLL_INTERVAL         20    // current poll interval (in milli-seconds)
 #define SENSORPOLL_INTERVAL       5000  // sensor poll interval (in milli-seconds)
 // Define buffers: need them to be sufficiently large to cover string option reading
-char ether_buffer[ETHER_BUFFER_ALLOC_SIZE]; // ethernet buffer
+char ether_buffer[ETHER_BUFFER_ALLOC_SIZE]; // HTTP client send/receive buffer
 char tmp_buffer[TMP_BUFFER_ALLOC_SIZE];     // scratch buffer
 
 // ====== Object defines ======

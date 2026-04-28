@@ -35,7 +35,7 @@ extern OTF::OpenThingsFramework *otf;
 #define OTF_PARAMS_DEF const OTF::Request &req,OTF::Response &res
 #define OTF_PARAMS req,res
 #define FKV_SOURCE req
-#define handle_return(x) {if(x==HTML_OK) res.writeBodyData(ether_buffer, strlen(ether_buffer)); else otf_send_result(req,res,x); return;}
+#define handle_return(x) {if(x!=HTML_OK) otf_send_result(req,res,x); return;}
 
 #if defined(ESP8266)
 	#include <FS.h>
@@ -51,17 +51,24 @@ extern OTF::OpenThingsFramework *otf;
 	#include "etherport.h"
 #endif
 
-extern char ether_buffer[];
 extern char tmp_buffer[];
+extern char ether_buffer[];
 extern OpenSprinkler os;
 extern ProgramData pd;
 extern uint32_t flow_count;
 
+static OTF::Response *current_res = nullptr;
 BufferFiller bfill;
 
-/* Check available space (number of bytes) in the Ethernet buffer */
-int available_ether_buffer() {
-	return ETHER_BUFFER_SIZE - (int)bfill.position();
+static void bfill_flush(const char *buf, size_t len) {
+	if (current_res && len > 0)
+		current_res->writeBodyData(buf, len);
+}
+
+void begin_response(OTF::Response &res) {
+	current_res = &res;
+	bfill = BufferFiller(ether_buffer, ETHER_BUFFER_SIZE);
+	bfill.set_flush(bfill_flush);
 }
 
 // Define return error code
@@ -164,15 +171,6 @@ unsigned char findKeyVal (const char *str,char *strbuf, uint16_t maxlen,const ch
 	return(i);
 }
 
-void rewind_ether_buffer() {
-	bfill = BufferFiller(ether_buffer, ETHER_BUFFER_ALLOC_SIZE);
-	ether_buffer[0] = 0;
-}
-
-void send_packet(OTF_PARAMS_DEF) {
-	res.writeBodyData(ether_buffer, strlen(ether_buffer));
-	rewind_ether_buffer();
-}
 
 void print_header(OTF_PARAMS_DEF, bool isJson=true, int len=0) {
 	res.writeStatus(200, F("OK"));
@@ -340,10 +338,9 @@ boolean process_password(OTF_PARAMS_DEF, boolean fwv_on_fail=false) {
 
 	/* if fwv_on_fail is true, output fwv if password check has failed */
 	if(fwv_on_fail) {
-		rewind_ether_buffer();
+		print_header(OTF_PARAMS, true);
+		begin_response(res);
 		bfill.emit_p(PSTR("{\"$F\":$D}"), iopt_json_names+0, os.iopts[0]);
-		print_header(OTF_PARAMS,true,strlen(ether_buffer));
-		res.writeBodyChunk((char *)"%s",ether_buffer);
 	} else {
 		otf_send_result(OTF_PARAMS, HTML_UNAUTHORIZED);
 	}
@@ -394,9 +391,6 @@ void server_json_stations_main(OTF_PARAMS_DEF) {
 		bfill.emit_p(PSTR("\"$S\""), tmp_buffer);
 		if(sid!=os.nstations-1)
 			bfill.emit_p(PSTR(","));
-		if (available_ether_buffer() <=0 ) {
-			send_packet(OTF_PARAMS);
-		}
 	}
 	bfill.emit_p(PSTR("],\"maxlen\":$D}"), STATION_NAME_SIZE);
 }
@@ -404,7 +398,7 @@ void server_json_stations_main(OTF_PARAMS_DEF) {
 /** Output stations data */
 void server_json_stations(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{"));
@@ -415,7 +409,7 @@ void server_json_stations(OTF_PARAMS_DEF) {
 /** Output station special attribute */
 void server_json_station_special(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	unsigned char sid;
@@ -430,9 +424,6 @@ void server_json_station_special(OTF_PARAMS_DEF) {
 			if (comma) bfill.emit_p(PSTR(","));
 			else {comma=1;}
 			bfill.emit_p(PSTR("\"$D\":{\"st\":$D,\"sd\":\"$S\"}"), sid, data->type, data->sped);
-		}
-		if (available_ether_buffer() <=0 ) {
-			send_packet(OTF_PARAMS);
 		}
 	}
 	bfill.emit_p(PSTR("}"));
@@ -1018,7 +1009,7 @@ void server_json_options_main() {
 /** Output Options */
 void server_json_options(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS,true)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 	bfill.emit_p(PSTR("{"));
 	server_json_options_main();
@@ -1075,11 +1066,6 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		if(pid!=pd.nprograms-1) {
 			bfill.emit_p(PSTR(","));
 		}
-		// push out a packet if available
-		// buffer size is getting small
-		if (available_ether_buffer() <= 0) {
-			send_packet(OTF_PARAMS);
-		}
 	}
 	bfill.emit_p(PSTR("]}"));
 }
@@ -1087,7 +1073,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 /** Output program data */
 void server_json_programs(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 	bfill.emit_p(PSTR("{"));
 	server_json_programs_main(OTF_PARAMS);
@@ -1096,8 +1082,8 @@ void server_json_programs(OTF_PARAMS_DEF) {
 
 /** Output script url form */
 void server_view_scripturl(OTF_PARAMS_DEF) {
-	rewind_ether_buffer();
-	print_header(OTF_PARAMS,false,strlen(ether_buffer));
+	begin_response(res);
+	print_header(OTF_PARAMS, false);
 	//bfill.emit_p(PSTR("<form name=of action=cu method=get><table cellspacing=12><tr><td><b>JavaScript</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=jsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Weather</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=wsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Password</b>:</td><td><input type=password size=32 name=pw> <input type=submit value=Submit></td></tr></table></form><script src=https://ui.opensprinkler.com/js/hasher.js></script>"),
 	bfill.emit_p(PSTR(R"(<form name=of action=cu method=get><table cellspacing=12>
 <tr><td><b>UI Source</b>:</td><td><input type=text size=40 maxlength=$D value='$O' id=jsp name=jsp></td></tr>
@@ -1197,11 +1183,6 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("0],\"ps\":["));
 	// print ps
 	for(sid=0;sid<os.nstations;sid++) {
-		// if available ether buffer is getting small
-		// send out a packet
-		if(available_ether_buffer() <= 0) {
-			send_packet(OTF_PARAMS);
-		}
 		uint32_t rem = 0;
 		unsigned char qid = pd.station_qid[sid];
 		RuntimeQueueStruct *q = pd.queue + qid;
@@ -1232,7 +1213,7 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 /** Output controller variables in json */
 void server_json_controller(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{"));
@@ -1243,8 +1224,8 @@ void server_json_controller(OTF_PARAMS_DEF) {
 /** Output homepage */
 void server_home(OTF_PARAMS_DEF)
 {
-	rewind_ether_buffer();
-	print_header(OTF_PARAMS,false,strlen(ether_buffer));
+	begin_response(res);
+	print_header(OTF_PARAMS, false);
 	bfill.emit_p(PSTR("<!DOCTYPE html><html><head>$F</head><body><script>"), htmlMobileHeader);
 	// send server variables and javascript packets
 	bfill.emit_p(PSTR("var ver=$D,ipas=$D;</script>"),
@@ -1367,8 +1348,8 @@ void server_change_scripturl(OTF_PARAMS_DEF) {
 		string_remove_space(tmp_buffer);
 		os.sopt_save(SOPT_WEATHERURL, tmp_buffer);
 	}
-	rewind_ether_buffer();
-	print_header(OTF_PARAMS,false,strlen(ether_buffer));
+	begin_response(res);
+	print_header(OTF_PARAMS, false);
 	bfill.emit_p(PSTR("$F"), htmlReturnHome);
 	handle_return(HTML_OK);
 }
@@ -1587,7 +1568,7 @@ void server_json_status_main() {
 void server_json_status(OTF_PARAMS_DEF)
 {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{"));
@@ -1745,7 +1726,7 @@ void server_json_log(OTF_PARAMS_DEF) {
 
 	// as the log data can be large, we will use ESP8266's sendContent function to
 	// send multiple packets of data, instead of the standard way of using send().
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("["));
@@ -1804,11 +1785,6 @@ void server_json_log(OTF_PARAMS_DEF) {
 			if (comma)	bfill.emit_p(PSTR(","));
 			else {comma=1;}
 			bfill.emit_p(PSTR("$S"), tmp_buffer);
-			// if the available ether buffer size is getting small
-			// push out a packet
-			if (available_ether_buffer() <= 0) {
-				send_packet(OTF_PARAMS);
-			}
 		}
 	}
 
@@ -1878,11 +1854,6 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 			sensor->emit_extra_json(&bfill);
 			bfill.emit_p(PSTR("}"));
 			sensor_count += 1;
-			// push out a packet if available
-			// buffer size is getting small
-			if (available_ether_buffer() <= 0) {
-				send_packet(OTF_PARAMS);
-			}
 		}
 	}
 
@@ -1894,7 +1865,7 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 void server_json_sensors(OTF_PARAMS_DEF)
 {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{"));
@@ -2259,7 +2230,7 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  */
 void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 
 	char *end;
 
@@ -2326,7 +2297,7 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 	}
 
 	print_header(OTF_PARAMS);
-	res.writeBodyData("", 0);
+	res.writeBodyData("", 0); // ends HTTP headers; body records follow via res.write()
 
 	// Iterate files from oldest to newest
 	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
@@ -2391,8 +2362,10 @@ void server_delete_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
 	long uuid = -1;
+	char *end;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
-		uuid = atol(tmp_buffer);
+		uuid = strtol(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (uuid != -1 && (uuid < 1 || uuid > 0xFFFF)) handle_return(HTML_DATA_OUTOFBOUND);
 	} else {
 		handle_return(HTML_DATA_MISSING);
@@ -2479,9 +2452,6 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 			case SensorType::MAX_VALUE:
 				break;
 		}
-		if (available_ether_buffer() <= 0) {
-			send_packet(OTF_PARAMS);
-		}
 	}
 
 	bfill.emit_p(PSTR("],\"units\":["));
@@ -2489,11 +2459,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 		if (i) bfill.emit_p(PSTR(","));
 		SensorUnit unit = static_cast<SensorUnit>(i);
 		bfill.emit_p(PSTR("{\"name\":\"$S\",\"short\":\"$S\",\"group\":$D,\"index\":$D,\"value\":$D}"), get_sensor_unit_name(unit), get_sensor_unit_short(unit), get_sensor_unit_group(unit), get_sensor_unit_index(unit), i);
-		if (available_ether_buffer() <= 0) {
-			send_packet(OTF_PARAMS);
-		}
 	}
-
 
 	bfill.emit_p(PSTR("],\"enums\":{"));
 	bfill_enum_values<SensorUnitGroup>(PSTR("SensorUnitGroup"));
@@ -2503,22 +2469,10 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill_enum_values<WeatherAction>(PSTR("WeatherAction"));
 	bfill.emit_p(PSTR("}"));
 
-	if (available_ether_buffer() <= 0) {
-		send_packet(OTF_PARAMS);
-	}
-
 	bfill.emit_p(PSTR(",\"base\":[{\"name\":\"Sensor Information\",\"args\":[{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"\",\"extra\":[]},{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"5\",\"extra\":[]},{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"extra\":[]}]},{\"name\":\"Sensor Scaling\",\"args\":[{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"1\",\"extra\":[]},{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"5000\",\"extra\":[]}]},{\"name\":\"Sensor Type\",\"args\":[{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"0\",\"extra\":[]}]}]"));
-
-	if (available_ether_buffer() <= 0) {
-		send_packet(OTF_PARAMS);
-	}
 
 	static_assert(SENSOR_FLAG_COUNT == 2); // If this fails make sure that the json is updated and the count is updated here
 	bfill.emit_p(PSTR(",\"flags\":[[\"Enable Sensor\",\"true\"],[\"Enable Logging\",\"true\"]]"));
-
-	if (available_ether_buffer() <= 0) {
-		send_packet(OTF_PARAMS);
-	}
 
 	bfill.emit_p(PSTR("}"));
 }
@@ -2526,7 +2480,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 void server_json_sen_desc(OTF_PARAMS_DEF)
 {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{"));
@@ -2538,21 +2492,17 @@ void server_json_sen_desc(OTF_PARAMS_DEF)
 /** Output all JSON data, including jc, jp, jo, js, jn */
 void server_json_all(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS,true)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{\"settings\":{"));
 	server_json_controller_main(OTF_PARAMS);
-	send_packet(OTF_PARAMS);
 	bfill.emit_p(PSTR(",\"programs\":{"));
 	server_json_programs_main(OTF_PARAMS);
-	send_packet(OTF_PARAMS);
 	bfill.emit_p(PSTR(",\"options\":{"));
 	server_json_options_main();
-	send_packet(OTF_PARAMS);
 	bfill.emit_p(PSTR(",\"status\":{"));
 	server_json_status_main();
-	send_packet(OTF_PARAMS);
 	bfill.emit_p(PSTR(",\"stations\":{"));
 	server_json_stations_main(OTF_PARAMS);
 #if defined(USE_SENSORS)
@@ -2581,7 +2531,7 @@ static uint32_t freeHeap() {
 #endif
 
 void server_json_debug(OTF_PARAMS_DEF) {
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{\"date\":\"$S\",\"time\":\"$S\",\"heap\":$L"), __DATE__, __TIME__,
@@ -2629,7 +2579,7 @@ void server_json_debug(OTF_PARAMS_DEF) {
 #if defined(ESP8266)
 void server_list_files(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
-	rewind_ether_buffer();
+	begin_response(res);
 	print_header(OTF_PARAMS);
 
 	bfill.emit_p(PSTR("{\"files\":["));
@@ -2642,7 +2592,6 @@ void server_list_files(OTF_PARAMS_DEF) {
 		if (!first) bfill.emit_p(PSTR(","));
 		bfill.emit_p(PSTR("[\"/$S\",$D]"), dir.fileName().c_str(), dir.fileSize());
 		first = false;
-		if (available_ether_buffer() <= 0) send_packet(OTF_PARAMS);
 	}
 	// logs
 	dir = LittleFS.openDir("/logs/");
@@ -2650,7 +2599,6 @@ void server_list_files(OTF_PARAMS_DEF) {
 		if (!first) bfill.emit_p(PSTR(","));
 		bfill.emit_p(PSTR("[\"/logs/$S\",$D]"), dir.fileName().c_str(), dir.fileSize());
 		first = false;
-		if (available_ether_buffer() <= 0) send_packet(OTF_PARAMS);
 	}
 
 	bfill.emit_p(PSTR("]}"));
