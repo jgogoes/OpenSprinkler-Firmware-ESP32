@@ -172,9 +172,16 @@ unsigned char findKeyVal (const char *str,char *strbuf, uint16_t maxlen,const ch
 }
 
 
-void print_header(OTF_PARAMS_DEF, bool isJson=true, int len=0) {
+enum ContentType { CT_JSON, CT_HTML, CT_CSV, CT_BINARY };
+
+void print_header(OTF_PARAMS_DEF, ContentType ct=CT_JSON, int len=0) {
 	res.writeStatus(200, F("OK"));
-	res.writeHeader(F("Content-Type"), isJson?F("application/json"):F("text/html"));
+	switch (ct) {
+		case CT_JSON:   res.writeHeader(F("Content-Type"), F("application/json")); break;
+		case CT_HTML:   res.writeHeader(F("Content-Type"), F("text/html")); break;
+		case CT_CSV:    res.writeHeader(F("Content-Type"), F("text/csv")); break;
+		case CT_BINARY: res.writeHeader(F("Content-Type"), F("application/octet-stream")); break;
+	}
 	if(len>0)
 		res.writeHeader(F("Content-Length"), len);
 	res.writeHeader(F("Access-Control-Allow-Origin"), F("*"));
@@ -218,7 +225,7 @@ void otf_send_result(OTF_PARAMS_DEF, unsigned char code, const char *item = NULL
 	json += item;
 	json += F("\"");
 	json += F("}");
-	print_header(OTF_PARAMS, true, json.length());
+	print_header(OTF_PARAMS, CT_JSON, json.length());
 	res.writeBodyChunk((char *)"%s",json.c_str());
 }
 
@@ -260,7 +267,7 @@ void on_ap_home(OTF_PARAMS_DEF) {
 
 void on_ap_scan(OTF_PARAMS_DEF) {
 	if(os.get_wifi_mode()!=WIFI_MODE_AP) return;
-	print_header(OTF_PARAMS, true, scanned_ssids.length());
+	print_header(OTF_PARAMS, CT_JSON, scanned_ssids.length());
 	res.writeBodyChunk((char *)"%s",scanned_ssids.c_str());
 }
 
@@ -308,7 +315,7 @@ void on_ap_try_connect(OTF_PARAMS_DEF) {
 	json += F("\"ip\":");
 	json += (WiFi.status() == WL_CONNECTED) ? (uint32_t)WiFi.localIP() : 0;
 	json += F("}");
-	print_header(OTF_PARAMS,true,json.length());
+	print_header(OTF_PARAMS, CT_JSON, json.length());
 	res.writeBodyChunk((char *)"%s",json.c_str());
 	if(WiFi.status() == WL_CONNECTED && WiFi.localIP()) {
 		os.iopts[IOPT_WIFI_MODE] = WIFI_MODE_STA;
@@ -338,7 +345,7 @@ boolean process_password(OTF_PARAMS_DEF, boolean fwv_on_fail=false) {
 
 	/* if fwv_on_fail is true, output fwv if password check has failed */
 	if(fwv_on_fail) {
-		print_header(OTF_PARAMS, true);
+		print_header(OTF_PARAMS);
 		begin_response(res);
 		bfill.emit_p(PSTR("{\"$F\":$D}"), iopt_json_names+0, os.iopts[0]);
 	} else {
@@ -1083,7 +1090,7 @@ void server_json_programs(OTF_PARAMS_DEF) {
 /** Output script url form */
 void server_view_scripturl(OTF_PARAMS_DEF) {
 	begin_response(res);
-	print_header(OTF_PARAMS, false);
+	print_header(OTF_PARAMS, CT_HTML);
 	//bfill.emit_p(PSTR("<form name=of action=cu method=get><table cellspacing=12><tr><td><b>JavaScript</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=jsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Weather</b>:</td><td><input type=text size=40 maxlength=$D value='$O' name=wsp></td></tr><tr><td>Default:</td><td>$S</td></tr><tr><td><b>Password</b>:</td><td><input type=password size=32 name=pw> <input type=submit value=Submit></td></tr></table></form><script src=https://ui.opensprinkler.com/js/hasher.js></script>"),
 	bfill.emit_p(PSTR(R"(<form name=of action=cu method=get><table cellspacing=12>
 <tr><td><b>UI Source</b>:</td><td><input type=text size=40 maxlength=$D value='$O' id=jsp name=jsp></td></tr>
@@ -1225,7 +1232,7 @@ void server_json_controller(OTF_PARAMS_DEF) {
 void server_home(OTF_PARAMS_DEF)
 {
 	begin_response(res);
-	print_header(OTF_PARAMS, false);
+	print_header(OTF_PARAMS, CT_HTML);
 	bfill.emit_p(PSTR("<!DOCTYPE html><html><head>$F</head><body><script>"), htmlMobileHeader);
 	// send server variables and javascript packets
 	bfill.emit_p(PSTR("var ver=$D,ipas=$D;</script>"),
@@ -1349,7 +1356,7 @@ void server_change_scripturl(OTF_PARAMS_DEF) {
 		os.sopt_save(SOPT_WEATHERURL, tmp_buffer);
 	}
 	begin_response(res);
-	print_header(OTF_PARAMS, false);
+	print_header(OTF_PARAMS, CT_HTML);
 	bfill.emit_p(PSTR("$F"), htmlReturnHome);
 	handle_return(HTML_OK);
 }
@@ -2217,7 +2224,7 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
 
 /**
  * Get sensor logs
- * Command: /jsl?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx
+ * Command: /jsl?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx&fmt=xxx
  *
  * pw:     password
  * uuid:   sensor stable ID (1-65535; -1 for all)
@@ -2227,6 +2234,10 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  * before: timestamp before which records are returned
  * after:  timestamp after which records are returned
  * cursor: number of records to skip
+ * fmt:    output format: json (default), csv, binary
+ *         json:   [[uuid,ts,value],...] — JSON array of arrays
+ *         csv:    uuid,timestamp,value\n with header row; downloads as sensor_log.csv
+ *         binary: packed SensorLogRecord structs (uint32 ts, float val, uint16 uuid)
  */
 void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
@@ -2296,16 +2307,28 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		}
 	}
 
-	print_header(OTF_PARAMS);
-	res.writeBodyData("", 0); // ends HTTP headers; body records follow via res.write()
+	enum LogFmt { FMT_JSON, FMT_CSV, FMT_BINARY } logfmt = FMT_JSON;
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("fmt"), true)) {
+		if      (strcmp(tmp_buffer, "csv")    == 0) logfmt = FMT_CSV;
+		else if (strcmp(tmp_buffer, "binary") == 0) logfmt = FMT_BINARY;
+		else if (strcmp(tmp_buffer, "json")   != 0) handle_return(HTML_DATA_FORMATERROR);
+	}
+
+	ContentType ct = (logfmt == FMT_BINARY) ? CT_BINARY : (logfmt == FMT_CSV) ? CT_CSV : CT_JSON;
+	print_header(OTF_PARAMS, ct);
+	if (logfmt == FMT_CSV)
+		res.writeHeader(F("Content-Disposition"), F("attachment; filename=\"sensor_log.csv\""));
+	res.writeBodyData("", 0);
+
+	if (logfmt == FMT_JSON) res.write("[", 1);
+	if (logfmt == FMT_CSV)  res.write("uuid,timestamp,value\n", 21);
 
 	// Iterate files from oldest to newest
 	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
 	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
 
 	SensorLogRecord rec;
-	char print_buf[24] = "0000,00000000,00000000\n";
-	uint32_t flat_idx = 0;  // sequential record counter across all files
+	uint32_t flat_idx = 0;
 	uint32_t count = 0;
 
 	for (uint16_t fi = 0; fi < total_files && count < max_count; fi++) {
@@ -2322,37 +2345,29 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 			if (target_uuid > -1 && rec.uuid != (uint16_t)target_uuid) continue;
 			if (rec.timestamp > before || rec.timestamp < after) continue;
 
-			uint32_t raw_value;
-			memcpy(&raw_value, &rec.value, sizeof(raw_value));
-
-			print_buf[0]  = dec2hexchar((rec.uuid >> 12) & 0xF);
-			print_buf[1]  = dec2hexchar((rec.uuid >> 8) & 0xF);
-			print_buf[2]  = dec2hexchar((rec.uuid >> 4) & 0xF);
-			print_buf[3]  = dec2hexchar(rec.uuid & 0xF);
-			// print_buf[4] = ','
-			print_buf[5]  = dec2hexchar((rec.timestamp >> 28) & 0xF);
-			print_buf[6]  = dec2hexchar((rec.timestamp >> 24) & 0xF);
-			print_buf[7]  = dec2hexchar((rec.timestamp >> 20) & 0xF);
-			print_buf[8]  = dec2hexchar((rec.timestamp >> 16) & 0xF);
-			print_buf[9]  = dec2hexchar((rec.timestamp >> 12) & 0xF);
-			print_buf[10] = dec2hexchar((rec.timestamp >> 8) & 0xF);
-			print_buf[11] = dec2hexchar((rec.timestamp >> 4) & 0xF);
-			print_buf[12] = dec2hexchar(rec.timestamp & 0xF);
-			// print_buf[13] = ','
-			print_buf[14] = dec2hexchar((raw_value >> 28) & 0xF);
-			print_buf[15] = dec2hexchar((raw_value >> 24) & 0xF);
-			print_buf[16] = dec2hexchar((raw_value >> 20) & 0xF);
-			print_buf[17] = dec2hexchar((raw_value >> 16) & 0xF);
-			print_buf[18] = dec2hexchar((raw_value >> 12) & 0xF);
-			print_buf[19] = dec2hexchar((raw_value >> 8) & 0xF);
-			print_buf[20] = dec2hexchar((raw_value >> 4) & 0xF);
-			print_buf[21] = dec2hexchar(raw_value & 0xF);
-			// print_buf[22] = '\n'
-			res.write(print_buf, 23);
+			char rec_buf[40];
+			int rec_len;
+			switch (logfmt) {
+			case FMT_JSON:
+				rec_len = snprintf(rec_buf, sizeof(rec_buf), "%s[%u,%u,%g]",
+					count == 0 ? "" : ",", rec.uuid, rec.timestamp, rec.value);
+				res.write(rec_buf, rec_len);
+				break;
+			case FMT_CSV:
+				rec_len = snprintf(rec_buf, sizeof(rec_buf), "%u,%u,%g\n",
+					rec.uuid, rec.timestamp, rec.value);
+				res.write(rec_buf, rec_len);
+				break;
+			case FMT_BINARY:
+				res.write((const char*)&rec, sizeof(rec));
+				break;
+			}
 			count++;
 		}
 		file_close(dfile);
 	}
+
+	if (logfmt == FMT_JSON) res.write("]", 1);
 
 	handle_return(HTML_OK);
 }
