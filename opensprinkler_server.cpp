@@ -1942,16 +1942,16 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	SensorType sensor_type = static_cast<SensorType>(type_raw);
 
 	Sensor *sensor = nullptr;
-	float min = 0;
-	float max = 5000; // default: 5000mV or 5V
-	float scale = 1;
-	float offset = 0;
-	uint32_t interval = 5; // default: 5 minutes
-	SensorUnit unit = SensorUnit::None;
+	float min = SENSOR_DEFAULT_MIN;
+	float max = SENSOR_DEFAULT_MAX;
+	float scale = SENSOR_DEFAULT_SCALE;
+	float offset = SENSOR_DEFAULT_OFFSET;
+	uint32_t interval = SENSOR_DEFAULT_INTERVAL;
+	SensorUnit unit = SENSOR_DEFAULT_UNIT;
 	uint16_t flags = 0;
 
 	char name[SENSOR_NAME_LEN];
-	snprintf(name, SENSOR_NAME_LEN, "Sensor: %d", (int)sid);
+	strncpy(name, SENSOR_DEFAULT_NAME, SENSOR_NAME_LEN);
 
 	SensorType original_sensor_type = SensorType::MAX_VALUE;
 	if (os.sensors[sid].interval) {
@@ -2451,7 +2451,7 @@ void bfill_enum_values(const char *name) {
 }
 
 void server_json_sensor_description_main(OTF_PARAMS_DEF) {
-	bfill.emit_p(PSTR("\"sensor\":["));
+	bfill.emit_p(PSTR("\"sensors\":["));
 	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorType::MAX_VALUE); i++) {
 		if (i) bfill.emit_p(PSTR(","));
 		switch (static_cast<SensorType>(i)) {
@@ -2470,7 +2470,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	}
 
 	bfill.emit_p(PSTR("],\"units\":["));
-	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorUnit::MAX_VALUE)-1; i++) {
+	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorUnit::MAX_VALUE); i++) {
 		if (i) bfill.emit_p(PSTR(","));
 		SensorUnit unit = static_cast<SensorUnit>(i);
 		bfill.emit_p(PSTR("{\"name\":\"$S\",\"short\":\"$S\",\"group\":$D,\"index\":$D,\"value\":$D}"), get_sensor_unit_name(unit), get_sensor_unit_short(unit), get_sensor_unit_group(unit), get_sensor_unit_index(unit), i);
@@ -2484,7 +2484,20 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill_enum_values<WeatherAction>(PSTR("WeatherAction"));
 	bfill.emit_p(PSTR("}"));
 
-	bfill.emit_p(PSTR(",\"base\":[{\"name\":\"Sensor Information\",\"args\":[{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"\",\"extra\":[]},{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"5\",\"extra\":[]},{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"extra\":[]}]},{\"name\":\"Sensor Scaling\",\"args\":[{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"1\",\"extra\":[]},{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"0\",\"extra\":[]},{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"5000\",\"extra\":[]}]},{\"name\":\"Sensor Type\",\"args\":[{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"0\",\"extra\":[]}]}]"));
+	bfill.emit_p(PSTR(
+		",\"args\":["
+		"{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"" SENSOR_DEFAULT_NAME "\"},"
+		"{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\"},"
+	));
+	bfill.emit_p(PSTR("{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"default\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
+	bfill.emit_p(PSTR(
+		"{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_SCALE) "\"},"
+		"{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_OFFSET) "\"},"
+		"{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
+		"{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
+		"{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
+		"]"
+	));
 
 	static_assert(SENSOR_FLAG_COUNT == 2); // If this fails make sure that the json is updated and the count is updated here
 	bfill.emit_p(PSTR(",\"flags\":[[\"Enable Sensor\",\"true\"],[\"Enable Logging\",\"true\"]]"));
@@ -2492,7 +2505,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("}"));
 }
 
-void server_json_sen_desc(OTF_PARAMS_DEF)
+void server_json_sensor_desc(OTF_PARAMS_DEF)
 {
 	if(!process_password(OTF_PARAMS)) return;
 	begin_response(res);
@@ -2742,7 +2755,7 @@ URLHandler urls[] = {
 	server_delete_sensor,     // dsn
 	server_json_sensor_log,   // jsl
 	server_delete_sensor_log, // dsl
-	server_json_sen_desc,     // jsd
+	server_json_sensor_desc,     // jsd
 	#endif
 };
 

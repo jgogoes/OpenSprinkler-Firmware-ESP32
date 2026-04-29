@@ -68,11 +68,14 @@
 #endif
 
 #if defined(USE_SENSORS)
-#include "sensor.h"
+#include "sensors/sensor.h"
+#include "sensors/ensemble_sensor.h"
+#include "sensors/weather_sensor.h"
 #endif
 
 #if defined(USE_ADS1115)
-	#include "ads1115.h"
+#include "ads1115.h"
+#include "sensors/ads1115_sensor.h"
 #endif
 
 #if defined(ESP8266)

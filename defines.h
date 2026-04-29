@@ -359,7 +359,7 @@ enum {
 	#define PIN_CURR_SENSE    A0    // current sensing pin
 	#define PIN_LATCH_VOLT_SENSE A0 // latch voltage sensing pin
 	#define PIN_FREE_LIST     {} // no free GPIO pin at the moment
-	#define ETHER_BUFFER_SIZE   1024
+	#define ETHER_BUFFER_SIZE   2048
 	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE
 
 	#define PIN_ETHER_CS       16 // Ethernet CS (chip select pin) is 16 on OS 3.2 and above
