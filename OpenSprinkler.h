@@ -69,7 +69,7 @@
 
 #if defined(USE_SENSORS)
 #include "sensors/sensor.h"
-#include "sensors/ensemble_sensor.h"
+#include "sensors/aggregate_sensor.h"
 #include "sensors/weather_sensor.h"
 #endif
 
@@ -250,7 +250,7 @@ public:
 #if defined(USE_SENSORS)
 	union SensorUnion {
 		ADS1115Sensor ads1115;
-		EnsembleSensor ensemble;
+		AggregateSensor aggregate;
 		WeatherSensor weather;
 	};
 	static sensor_memory_t sensors[MAX_SENSORS];

@@ -26,14 +26,10 @@
 #define SENSOR_DEFAULT_NAME             "New Sensor"
 #define SENSOR_DEFAULT_INTERVAL         15
 #define SENSOR_DEFAULT_UNIT             SensorUnit::Millivolt
-#define SENSOR_DEFAULT_SCALE            1
-#define SENSOR_DEFAULT_OFFSET           0
 #define SENSOR_DEFAULT_MIN              0
 #define SENSOR_DEFAULT_MAX              5000
 #define SENSOR_DEFAULT_TYPE             1  // SensorType::ADS1115
-#define SENSOR_DEFAULT_FLAGS            (1 << SENSOR_FLAG_ENABLE)
-#define SENSOR_DEFAULT_FLAG_ENABLE_STR  "true"   // for JSON flags array in /jsd
-#define SENSOR_DEFAULT_FLAG_LOG_STR     "false"  // for JSON flags array in /jsd
+#define SENSOR_DEFAULT_FLAG            (1 << SENSOR_FLAG_ENABLE)
 
 // Two-level stringify so macro values expand before quoting (for use inside PSTR())
 #define _SENSOR_DEFAULT_STR(x)   #x
@@ -44,7 +40,7 @@ typedef struct {
 	uint32_t next_update;
 	float    value;
 	uint16_t uuid;   // stable sensor identifier (0 = empty slot)
-	uint16_t flags;  // was uint32_t; only 2 bits used, uint16_t keeps struct at 16 bytes
+	uint16_t flag;   // was uint32_t; only 2 bits used, uint16_t keeps struct at 16 bytes
 } sensor_memory_t;
 
 // Sensor log file format — both structs are tightly packed (no padding) so
@@ -66,7 +62,7 @@ struct __attribute__((packed)) SensorLogRecord {
 };
 
 enum class SensorType : uint8_t {
-	Ensemble = 0,
+	Aggregate = 0,
 	ADS1115,
 	Weather,
 	MAX_VALUE,
@@ -137,11 +133,11 @@ typedef enum {
 	SENSOR_FLAG_ENABLE = 0,
 	SENSOR_FLAG_LOG,
 	SENSOR_FLAG_COUNT
-} sensor_flags;
+} sensor_flag;
 
 class Sensor {
 public:
-	Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags);
+	Sensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint16_t flag);
 	Sensor();
 	virtual ~Sensor() {}
 
@@ -165,9 +161,7 @@ public:
 	uint32_t interval = 1;
 	float min = 0.f;
 	float max = 0.f;
-	float scale = 0.f;
-	float offset = 0.f;
-	uint16_t flags = 0;
+	uint16_t flag = 0;
 	uint16_t uuid = 0;   // assigned by write_sensor on creation; 0 = not yet assigned
 	SensorUnit unit = SensorUnit::None;
 	char name[SENSOR_NAME_LEN] = {0};
@@ -183,16 +177,17 @@ public:
 };
 
 // X(id, display_name)
-#define ENSEMBLE_ACTION_LIST(X) \
+#define AGGREGATE_ACTION_LIST(X) \
 	X(Min,     "Min")     \
 	X(Max,     "Max")     \
 	X(Average, "Average") \
 	X(Sum,     "Sum")     \
-	X(Product, "Product")
+	X(Median,  "Median")  \
+	X(Range,   "Range")
 
-enum class EnsembleAction : uint8_t {
+enum class AggregateAction : uint8_t {
 #define X(id, name) id,
-	ENSEMBLE_ACTION_LIST(X)
+	AGGREGATE_ACTION_LIST(X)
 #undef X
 	MAX_VALUE,
 };
@@ -214,11 +209,11 @@ typedef struct {
 
 typedef enum {
 	SENADJ_FLAG_ENABLE = 0,
-} senadj_flags;
+} senadj_flag;
 
 class SensorAdjustment {
 public:
-	SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t *points);
+	SensorAdjustment(uint8_t flag, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t *points);
 
 	static SensorAdjustment *read(uint8_t index, uint8_t nprograms); // returns statically allocated object, do not delete
 	static void              write(SensorAdjustment *adj, uint8_t index);
@@ -227,7 +222,7 @@ public:
 
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS];
 	uint16_t uuid;        // sensor UUID (SENSOR_UUID_NONE = adjustment disabled)
-	uint8_t  flags;
+	uint8_t  flag;
 	uint8_t  point_count;
 };
 
@@ -249,7 +244,7 @@ inline T read_buf(char* buf, uint32_t* i) {
 }
 
 const char *enum_string(SensorUnitGroup group);
-const char *enum_string(EnsembleAction action);
+const char *enum_string(AggregateAction action);
 const char *enum_string(WeatherAction action);
 
 const char* get_sensor_unit_name(SensorUnit unit);

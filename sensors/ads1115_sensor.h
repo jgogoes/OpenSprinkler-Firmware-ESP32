@@ -7,9 +7,12 @@
 #include "sensor.h"
 #include "../ads1115.h"
 
+#define ADS1115_DEFAULT_SCALE   1
+#define ADS1115_DEFAULT_OFFSET  0
+
 class ADS1115Sensor : public Sensor {
 	public:
-	ADS1115Sensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags, ADS1115 **sensors, uint8_t sensor_index, uint8_t pin);
+	ADS1115Sensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint16_t flag, ADS1115 **sensors, uint8_t sensor_index, uint8_t pin, float scale, float offset);
 	ADS1115Sensor(ADS1115 **sensors, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
@@ -21,6 +24,8 @@ class ADS1115Sensor : public Sensor {
 
 	uint8_t sensor_index;
 	uint8_t pin;
+	float scale;
+	float offset;
 
 	float get_initial_value();
 

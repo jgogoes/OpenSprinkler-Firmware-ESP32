@@ -79,7 +79,7 @@ public:
 	unsigned char en_daterange:1;
 
 	// weekly:    days[0][0..6] correspond to Monday till Sunday
-	// single-run:days[0] and [1] store the epoch time in days of the start 
+	// single-run:days[0] and [1] store the epoch time in days of the start
 	// monthly:   days[0][0..5] stores the day of the month (32 means last day of month)
 	// interval:  days[1] stores the interval (0 to 255), days[0] stores the starting day remainder (0 to 254)
 	unsigned char days[2];

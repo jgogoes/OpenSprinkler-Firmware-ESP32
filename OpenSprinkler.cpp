@@ -2593,13 +2593,13 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 
 void OpenSprinkler::poll_sensors() {
 	for (uint8_t i = 0; i < nsensors; i++) {
-		if (sensors[i].interval && (sensors[i].flags & (1 << SENSOR_FLAG_ENABLE))) {
+		if (sensors[i].interval && (sensors[i].flag & (1 << SENSOR_FLAG_ENABLE))) {
 			if ((long)(millis() - sensors[i].next_update) > 0) {
 				Sensor *sensor = Sensor::get(i);
 				if (sensor) {
 					sensors[i].value = sensor->get_new_value();
 					sensors[i].next_update = millis() + (sensors[i].interval * 1000 * 60);
-					if (sensors[i].flags & (1 << SENSOR_FLAG_LOG)) {
+					if (sensors[i].flag & (1 << SENSOR_FLAG_LOG)) {
 						os.log_sensor(i, sensors[i].value);
 					}
 				}

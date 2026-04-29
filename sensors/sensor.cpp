@@ -14,12 +14,12 @@ const char *enum_string(SensorUnitGroup group) {
 	return nullptr;
 }
 
-const char *enum_string(EnsembleAction action) {
+const char *enum_string(AggregateAction action) {
 	switch (action) {
-	#define X(id, name) case EnsembleAction::id: return PSTR(name);
-	ENSEMBLE_ACTION_LIST(X)
+	#define X(id, name) case AggregateAction::id: return PSTR(name);
+	AGGREGATE_ACTION_LIST(X)
 	#undef X
-	case EnsembleAction::MAX_VALUE: return nullptr;
+	case AggregateAction::MAX_VALUE: return nullptr;
 	}
 	return nullptr;
 }
@@ -65,8 +65,8 @@ const uint32_t get_sensor_unit_index(SensorUnit unit) {
 	return static_cast<uint32_t>(unit);
 }
 
-Sensor::Sensor(uint32_t interval, float min, float max, float scale, float offset, const char* name, SensorUnit unit, uint16_t flags) :
-	interval(interval), min(min), max(max), scale(scale), offset(offset), flags(flags), unit(unit) {
+Sensor::Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint16_t flag) :
+	interval(interval), min(min), max(max), flag(flag), unit(unit) {
 	strncpy(this->name, name, SENSOR_NAME_LEN);
 	this->name[SENSOR_NAME_LEN - 1] = 0;
 }
@@ -75,7 +75,6 @@ Sensor::Sensor() {}
 
 float Sensor::get_new_value() {
 	float value = this->_get_raw_value();
-	value = (value * this->scale) + this->offset;
 	if (value < this->min) value = this->min;
 	if (value > this->max) value = this->max;
 
@@ -90,9 +89,7 @@ uint32_t Sensor::serialize(char* buf) {
 	i += SENSOR_NAME_LEN;
 	buf[i++] = static_cast<uint8_t>(this->unit);
 	i += write_buf<uint32_t>(buf + i, this->interval);
-	i += write_buf<uint16_t>(buf + i, this->flags);
-	i += write_buf<float>(buf + i, this->scale);
-	i += write_buf<float>(buf + i, this->offset);
+	i += write_buf<uint16_t>(buf + i, this->flag);
 	i += write_buf<float>(buf + i, this->min);
 	i += write_buf<float>(buf + i, this->max);
 	i += write_buf<uint16_t>(buf + i, this->uuid);
@@ -108,9 +105,7 @@ uint32_t Sensor::_deserialize(char* buf) {
 	i += SENSOR_NAME_LEN;
 	this->unit = static_cast<SensorUnit>(buf[i++]);
 	this->interval = read_buf<uint32_t>(buf, &i);
-	this->flags = read_buf<uint16_t>(buf, &i);
-	this->scale = read_buf<float>(buf, &i);
-	this->offset = read_buf<float>(buf, &i);
+	this->flag = read_buf<uint16_t>(buf, &i);
 	this->min = read_buf<float>(buf, &i);
 	this->max = read_buf<float>(buf, &i);
 	this->uuid = read_buf<uint16_t>(buf, &i);
@@ -118,8 +113,8 @@ uint32_t Sensor::_deserialize(char* buf) {
 	return i;
 }
 
-SensorAdjustment::SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t* points) {
-	this->flags = flags;
+SensorAdjustment::SensorAdjustment(uint8_t flag, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t* points) {
+	this->flag = flag;
 	this->uuid = uuid;
 	if (point_count > SENSOR_ADJUSTMENT_POINTS) point_count = SENSOR_ADJUSTMENT_POINTS;
 	this->point_count = point_count;
@@ -129,7 +124,7 @@ SensorAdjustment::SensorAdjustment(uint8_t flags, uint16_t uuid, uint8_t point_c
 }
 
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
-	if (this->flags & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
+	if (this->flag & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
 		uint8_t idx = Sensor::find_index(this->uuid);
 		if (idx < MAX_SENSORS && sensors[idx].interval) {
 			float value = sensors[idx].value;
@@ -210,13 +205,13 @@ void SensorAdjustment::write(SensorAdjustment *adj, uint8_t index) {
 // Sensor file I/O
 // ---------------------------------------------------------------------------
 
-#include "ensemble_sensor.h"
+#include "aggregate_sensor.h"
 #include "weather_sensor.h"
 #include "ads1115_sensor.h"
 
 static void sensor_memory_init(sensor_memory_t &m, Sensor *sensor) {
 	m.interval = sensor->interval;
-	m.flags = sensor->flags;
+	m.flag = sensor->flag;
 	m.uuid = sensor->uuid;
 	m.next_update = 0;
 	m.value = sensor->get_initial_value();
@@ -242,8 +237,8 @@ Sensor *Sensor::parse(os_file_type file) {
 
 	SensorType sensor_type = static_cast<SensorType>(*tmp_buffer);
 	switch (sensor_type) {
-		case SensorType::Ensemble:
-			active_sensor = new (sensor_scratchpad) EnsembleSensor(os.sensors, (char*)tmp_buffer);
+		case SensorType::Aggregate:
+			active_sensor = new (sensor_scratchpad) AggregateSensor(os.sensors, (char*)tmp_buffer);
 			break;
 		case SensorType::ADS1115:
 			active_sensor = new (sensor_scratchpad) ADS1115Sensor(os.ads1115_devices, (char*)tmp_buffer);

@@ -845,13 +845,13 @@ void server_change_program(OTF_PARAMS_DEF) {
 	char *end;
 
 	SensorAdjustment *adj = nullptr;
-	uint32_t flags = 0;
+	uint32_t flag = 0;
 	uint32_t adj_uuid = SENSOR_UUID_NONE;
 	uint32_t point_count = 0;
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
 
 	if ((adj = SensorAdjustment::read(pid, pd.nprograms))) {
-		flags = adj->flags;
+		flag = adj->flag;
 		adj_uuid = adj->uuid;
 		point_count = adj->point_count;
 
@@ -860,8 +860,8 @@ void server_change_program(OTF_PARAMS_DEF) {
 		}
 	}
 
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flags"), true)) {
-		flags=strtoul(tmp_buffer, &end, 10);
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flag"), true)) {
+		flag=strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 }
 
@@ -891,7 +891,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 		point_count = i;
 	}
 
-	SensorAdjustment snadj(flags, (uint16_t)adj_uuid, point_count, points);
+	SensorAdjustment snadj(flag, (uint16_t)adj_uuid, point_count, points);
 	snadj_ptr = &snadj;
 	#endif
 
@@ -1056,7 +1056,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		{
 			SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 			if (adj) {
-				bfill.emit_p(PSTR("{\"flags\":$D,\"uuid\":$D,\"splits\":["), adj->flags, adj->uuid);
+				bfill.emit_p(PSTR("{\"flag\":$D,\"uuid\":$D,\"splits\":["), adj->flag, adj->uuid);
 				for (int j = 0; j < adj->point_count; j++) {
 					if (j) bfill.emit_p(PSTR(","));
 					bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
@@ -1857,7 +1857,7 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 	for (size_t i = 0; i < os.nsensors; i++) {
 		if (os.sensors[i].interval && (sensor = Sensor::get(i))) {
 			if (sensor_count) bfill.emit_p(PSTR(","));
-			bfill.emit_p(PSTR("{\"uuid\":$D,\"name\":\"$S\",\"unit\":$D,\"flags\":$D,\"interval\":$L,\"max\":$E,\"min\":$E,\"scale\":$E,\"offset\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flags, sensor->interval, sensor->max, sensor->min, sensor->scale, sensor->offset, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
+			bfill.emit_p(PSTR("{\"uuid\":$D,\"name\":\"$S\",\"unit\":$D,\"flag\":$D,\"interval\":$L,\"min\":$E,\"max\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flag, sensor->interval, sensor->min, sensor->max, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
 			sensor->emit_extra_json(&bfill);
 			bfill.emit_p(PSTR("}"));
 			sensor_count += 1;
@@ -1888,14 +1888,14 @@ void server_json_sensors(OTF_PARAMS_DEF)
  * uuid: sensor stable ID (1-65535; -1 to add new)
  * sid:  sensor positional index (0-based; -1 to add new)
  *       (uuid takes precedence if both are provided)
- * type: sensor type (0: Ensemble, 1: ADS1115, 2: Weather)
+ * type: sensor type (0: Aggregate, 1: ADS1115, 2: Weather)
  * name: sensor name
- * min/max/scale/offset: calibration values
+ * min/max: output clamping range
  * interval: sampling interval in minutes
  * unit: sensor unit index
- * flags: bitmask (bit 0: enable, bit 1: log)
- * [Ensemble] children: semicolon separated list of "uuid,min,max,scale,offset;"
- * [Ensemble] action: ensemble action index (0: Min, 1: Max, 2: Average, 3: Sum, 4: Product)
+ * flag: bitmask (bit 0: enable, bit 1: log)
+ * [Aggregate] children: semicolon separated list of "uuid,min,max;"
+ * [Aggregate] action: aggregate action index (0: Min, 1: Max, 2: Average, 3: Sum, 4: Median, 5: Range)
  * [ADS1115]  pin: pin number (1-16)
  * [Weather]  action: weather information index
  */
@@ -1944,11 +1944,9 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	Sensor *sensor = nullptr;
 	float min = SENSOR_DEFAULT_MIN;
 	float max = SENSOR_DEFAULT_MAX;
-	float scale = SENSOR_DEFAULT_SCALE;
-	float offset = SENSOR_DEFAULT_OFFSET;
 	uint32_t interval = SENSOR_DEFAULT_INTERVAL;
 	SensorUnit unit = SENSOR_DEFAULT_UNIT;
-	uint16_t flags = 0;
+	uint16_t flag = SENSOR_DEFAULT_FLAG;
 
 	char name[SENSOR_NAME_LEN];
 	strncpy(name, SENSOR_DEFAULT_NAME, SENSOR_NAME_LEN);
@@ -1960,11 +1958,9 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			strncpy(name, sensor->name, SENSOR_NAME_LEN);
 			min = sensor->min;
 			max = sensor->max;
-			scale = sensor->scale;
-			offset = sensor->offset;
 			interval = sensor->interval;
 			unit = sensor->unit;
-			flags = sensor->flags;
+			flag = sensor->flag;
 		}
 	}
 
@@ -1984,16 +1980,6 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 	}
 
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("scale"), true)) {
-		scale=strtod(tmp_buffer, &end);
-		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-	}
-
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("offset"), true)) {
-		offset=strtod(tmp_buffer, &end);
-		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-	}
-
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("interval"), true)) {
 		interval=strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
@@ -2008,26 +1994,26 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 		unit = static_cast<SensorUnit>(unit_raw);
 	}
 
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("flags"), true)) {
-		flags = (uint16_t)strtoul(tmp_buffer, &end, 10);
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("flag"), true)) {
+		flag = (uint16_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 	}
 
 	Sensor *result_sensor;
 	switch (sensor_type) {
-		case SensorType::Ensemble: {
+		case SensorType::Aggregate: {
 			uint8_t children_count = 0;
-			ensemble_children_t children[ENSEMBLE_SENSOR_CHILDREN_COUNT];
-			for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
+			aggregate_children_t children[AGGREGATE_SENSOR_CHILDREN_COUNT];
+			for (size_t i = 0; i < AGGREGATE_SENSOR_CHILDREN_COUNT; i++) {
 				children[i].uuid = SENSOR_UUID_NONE;
 			}
 
-			EnsembleAction action = EnsembleAction::Min;
+			AggregateAction action = AggregateAction::Min;
 
 			if (sensor_type == original_sensor_type) {
 				if ((sensor = Sensor::get(sid))) {
-					EnsembleSensor* e = static_cast<EnsembleSensor*>(sensor);
-					for (size_t i = 0; i < ENSEMBLE_SENSOR_CHILDREN_COUNT; i++) {
+					AggregateSensor* e = static_cast<AggregateSensor*>(sensor);
+					for (size_t i = 0; i < AGGREGATE_SENSOR_CHILDREN_COUNT; i++) {
 						children[i] = e->children[i];
 					}
 
@@ -2038,23 +2024,23 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("children"), true)) {
 				unsigned int i = 0;
 				int d;
-				float d1, d2, d3, d4;
+				float d1, d2;
 				const char *ptr = tmp_buffer;
 				int result;
 
 				while (*ptr != '\0') {
-					if (i >= ENSEMBLE_SENSOR_CHILDREN_COUNT) handle_return(HTML_DATA_FORMATERROR);
+					if (i >= AGGREGATE_SENSOR_CHILDREN_COUNT) handle_return(HTML_DATA_FORMATERROR);
 
-					result = sscanf(ptr, "%d,%f,%f,%f,%f;", &d, &d1, &d2, &d3, &d4);
+					result = sscanf(ptr, "%d,%f,%f;", &d, &d1, &d2);
 
-					if (result != 5) {
+					if (result != 3) {
 						handle_return(HTML_DATA_FORMATERROR);
 					}
 
 					// d is the child sensor's UUID; out-of-range values map to disabled
 					uint16_t child_uuid = (d >= 1 && d <= 0xFFFF) ? (uint16_t)d : SENSOR_UUID_NONE;
 
-					children[i++] = ensemble_children_t {d1, d2, d3, d4, child_uuid};
+					children[i++] = aggregate_children_t {d1, d2, child_uuid};
 
 					while (*ptr != '\0' && *(ptr++) != ';') {}
 				}
@@ -2065,22 +2051,26 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("action"), true)) {
 				uint32_t action_raw = strtol(tmp_buffer, &end, 10);
 				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-				if (action_raw >= (uint32_t)EnsembleAction::MAX_VALUE) handle_return(HTML_DATA_OUTOFBOUND);
-				action = static_cast<EnsembleAction>(action_raw);
+				if (action_raw >= (uint32_t)AggregateAction::MAX_VALUE) handle_return(HTML_DATA_OUTOFBOUND);
+				action = static_cast<AggregateAction>(action_raw);
 			}
 
-			result_sensor = new EnsembleSensor(interval, min, max, scale, offset, (const char*)&name, unit, flags, os.sensors, children, children_count, action);
+			result_sensor = new AggregateSensor(interval, min, max, (const char*)&name, unit, flag, os.sensors, children, children_count, action);
 			break;
 		}
 		case SensorType::ADS1115: {
 			uint32_t sensor_index = 0;
 			uint32_t sensor_pin = 0;
+			float scale = ADS1115_DEFAULT_SCALE;
+			float offset = ADS1115_DEFAULT_OFFSET;
 
 			if (sensor_type == original_sensor_type) {
 				if ((sensor = Sensor::get(sid))) {
 					ADS1115Sensor* e = static_cast<ADS1115Sensor*>(sensor);
 					sensor_index = e->sensor_index;
 					sensor_pin = e->pin;
+					scale = e->scale;
+					offset = e->offset;
 				}
 			}
 
@@ -2093,7 +2083,17 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 				sensor_pin = raw_sensor_pin & 0b11;
 			}
 
-			result_sensor = new ADS1115Sensor(interval, min, max, scale, offset, (const char*)&name, unit, flags, os.ads1115_devices, sensor_index, sensor_pin);
+			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("scale"), true)) {
+				scale = strtod(tmp_buffer, &end);
+				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+			}
+
+			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("offset"), true)) {
+				offset = strtod(tmp_buffer, &end);
+				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+			}
+
+			result_sensor = new ADS1115Sensor(interval, min, max, (const char*)&name, unit, flag, os.ads1115_devices, sensor_index, sensor_pin, scale, offset);
 			break;
 		}
 		case SensorType::Weather: {
@@ -2113,7 +2113,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 				action = static_cast<WeatherAction>(action_raw);
 			}
 
-			result_sensor = new WeatherSensor(interval, min, max, scale, offset, (const char*)&name, unit, flags, os.get_sensor_weather_data, action);
+			result_sensor = new WeatherSensor(interval, min, max, (const char*)&name, unit, flag, os.get_sensor_weather_data, action);
 
 			break;
 		}
@@ -2124,7 +2124,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	}
 
 	os.sensors[sid].interval = interval;
-	os.sensors[sid].flags = flags;
+	os.sensors[sid].flag = flag;
 	os.sensors[sid].next_update = 0;
 	os.sensors[sid].value = result_sensor->get_initial_value();
 
@@ -2455,8 +2455,8 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorType::MAX_VALUE); i++) {
 		if (i) bfill.emit_p(PSTR(","));
 		switch (static_cast<SensorType>(i)) {
-			case SensorType::Ensemble:
-				EnsembleSensor::emit_description_json(&bfill);
+			case SensorType::Aggregate:
+				AggregateSensor::emit_description_json(&bfill);
 				break;
 			case SensorType::ADS1115:
 				ADS1115Sensor::emit_description_json(&bfill);
@@ -2479,7 +2479,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("],\"enums\":{"));
 	bfill_enum_values<SensorUnitGroup>(PSTR("SensorUnitGroup"));
 	bfill.emit_p(PSTR(","));
-	bfill_enum_values<EnsembleAction>(PSTR("EnsembleAction"));
+	bfill_enum_values<AggregateAction>(PSTR("AggregateAction"));
 	bfill.emit_p(PSTR(","));
 	bfill_enum_values<WeatherAction>(PSTR("WeatherAction"));
 	bfill.emit_p(PSTR("}"));
@@ -2491,16 +2491,16 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	));
 	bfill.emit_p(PSTR("{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"default\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
 	bfill.emit_p(PSTR(
-		"{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_SCALE) "\"},"
-		"{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_OFFSET) "\"},"
 		"{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
 		"{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
 		"{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
 		"]"
 	));
 
-	static_assert(SENSOR_FLAG_COUNT == 2); // If this fails make sure that the json is updated and the count is updated here
-	bfill.emit_p(PSTR(",\"flags\":[[\"Enable Sensor\",\"true\"],[\"Enable Logging\",\"true\"]]"));
+	static_assert(SENSOR_FLAG_COUNT == 2); // If this fails, update the flags array below
+	bfill.emit_p(PSTR(",\"flags\":[{\"name\":\"Enabled\",\"default\":$D},{\"name\":\"Logging\",\"default\":$D}]"),
+		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_ENABLE) & 1,
+		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_LOG) & 1);
 
 	bfill.emit_p(PSTR("}"));
 }

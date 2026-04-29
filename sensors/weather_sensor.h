@@ -4,7 +4,7 @@
 
 class WeatherSensor : public Sensor {
 	public:
-	WeatherSensor(uint32_t interval, float min, float max, float scale, float offset, const char *name, SensorUnit unit, uint16_t flags, WeatherGetter weather_getter, WeatherAction action);
+	WeatherSensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint16_t flag, WeatherGetter weather_getter, WeatherAction action);
 	WeatherSensor(WeatherGetter weather_getter, char *buf);
 
 	void emit_extra_json(BufferFiller *bfill);
