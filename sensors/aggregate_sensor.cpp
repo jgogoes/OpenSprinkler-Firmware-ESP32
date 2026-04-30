@@ -11,7 +11,7 @@ AggregateSensor::AggregateSensor(uint32_t interval, float min, float max, const 
 		if (i < children_count) {
 			this->children[i] = children[i];
 		} else {
-			this->children[i] = aggregate_children_t{ AGGREGATE_CHILD_DEFAULT_MIN, AGGREGATE_CHILD_DEFAULT_MAX, SENSOR_UUID_NONE };
+			this->children[i] = aggregate_children_t{ AGGREGATE_CHILD_DEFAULT_SCALE, AGGREGATE_CHILD_DEFAULT_OFFSET, SENSOR_UUID_NONE };
 		}
 	}
 }
@@ -21,7 +21,7 @@ void AggregateSensor::emit_extra_json(BufferFiller* bfill) {
 	for (size_t i = 0; i < AGGREGATE_SENSOR_CHILDREN_COUNT; i++) {
 		if (i) bfill->emit_p(PSTR(","));
 		aggregate_children_t* child = &this->children[i];
-		bfill->emit_p(PSTR("{\"uuid\":$D,\"min\":$E,\"max\":$E}"), child->uuid, child->min, child->max);
+		bfill->emit_p(PSTR("{\"uuid\":$D,\"scale\":$E,\"offset\":$E}"), child->uuid, child->scale, child->offset);
 	}
 	bfill->emit_p(PSTR("]}"));
 }
@@ -34,14 +34,14 @@ void AggregateSensor::emit_description_json(BufferFiller* bfill) {
 			 "\"arg\":\"children\","
 			 "\"type\":\"array::" SENSOR_DEFAULT_STR(AGGREGATE_SENSOR_CHILDREN_COUNT) "\","
 			 "\"extra\":["
-				"{\"name\":\"Sensor UUID\",\"arg\":\"uuid\",\"type\":\"sensor\",\"default\":\"0\"},"
-				"{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"-3.4e+38\"},"
-				"{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"3.4e+38\"}"
+				"{\"name\":\"Sensor UUID\",\"arg\":\"uuid\",\"type\":\"sensor\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_UUID_NONE) "\",\"indicator\":true},"
+				"{\"name\":\"Linear Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_SCALE) "\"},"
+				"{\"name\":\"Value Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_OFFSET) "\"}"
 			"]},"
 			"{\"name\":\"Aggregate Action\","
 			 "\"arg\":\"action\","
 			 "\"type\":\"enum::AggregateAction\","
-			 "\"default\":\"0\"}"
+			 "\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_DEFAULT_ACTION) "\"}"
 		"]}"
 	));
 }
@@ -59,10 +59,7 @@ float AggregateSensor::_get_raw_value() {
 		uint8_t idx = Sensor::find_index(this->children[i].uuid);
 		if (idx >= OpenSprinkler::nsensors || !sensors[idx].interval) continue;
 
-		float value = sensors[idx].value;
-		if (value < this->children[i].min) value = this->children[i].min;
-		if (value > this->children[i].max) value = this->children[i].max;
-		values[count++] = value;
+		values[count++] = sensors[idx].value * this->children[i].scale + this->children[i].offset;
 	}
 
 	if (count == 0) return 0.0f;
@@ -115,9 +112,9 @@ float AggregateSensor::_get_raw_value() {
 uint32_t AggregateSensor::_serialize_internal(char* buf) {
 	uint32_t i = 0;
 	for (size_t j = 0; j < AGGREGATE_SENSOR_CHILDREN_COUNT; j++) {
+		i += write_buf<float>(buf + i, this->children[j].scale);
+		i += write_buf<float>(buf + i, this->children[j].offset);
 		i += write_buf<uint16_t>(buf + i, this->children[j].uuid);
-		i += write_buf<float>(buf + i, this->children[j].min);
-		i += write_buf<float>(buf + i, this->children[j].max);
 	}
 	buf[i++] = static_cast<uint8_t>(this->action);
 	return i;
@@ -126,9 +123,9 @@ uint32_t AggregateSensor::_serialize_internal(char* buf) {
 AggregateSensor::AggregateSensor(sensor_memory_t* sensors, char* buf) {
 	uint32_t i = Sensor::_deserialize(buf);
 	for (size_t j = 0; j < AGGREGATE_SENSOR_CHILDREN_COUNT; j++) {
-		this->children[j].uuid = read_buf<uint16_t>(buf, &i);
-		this->children[j].min  = read_buf<float>(buf, &i);
-		this->children[j].max  = read_buf<float>(buf, &i);
+		this->children[j].scale  = read_buf<float>(buf, &i);
+		this->children[j].offset = read_buf<float>(buf, &i);
+		this->children[j].uuid   = read_buf<uint16_t>(buf, &i);
 	}
 	this->action = static_cast<AggregateAction>(buf[i++]);
 	this->sensors = sensors;

@@ -1894,7 +1894,7 @@ void server_json_sensors(OTF_PARAMS_DEF)
  * interval: sampling interval in minutes
  * unit: sensor unit index
  * flag: bitmask (bit 0: enable, bit 1: log)
- * [Aggregate] children: semicolon separated list of "uuid,min,max;"
+ * [Aggregate] children: semicolon separated list of "uuid,scale,offset;"
  * [Aggregate] action: aggregate action index (0: Min, 1: Max, 2: Average, 3: Sum, 4: Median, 5: Range)
  * [ADS1115]  pin: pin number (1-16)
  * [Weather]  action: weather information index
@@ -2487,13 +2487,13 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR(
 		",\"args\":["
 		"{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"" SENSOR_DEFAULT_NAME "\"},"
-		"{\"name\":\"Update Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\"},"
+		"{\"name\":\"Read Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\"},"
 	));
 	bfill.emit_p(PSTR("{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"default\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
 	bfill.emit_p(PSTR(
-		"{\"name\":\"Minimum Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
-		"{\"name\":\"Maximum Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
-		"{\"name\":\"Sensor Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
+		"{\"name\":\"Min. Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
+		"{\"name\":\"Max. Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
+		"{\"name\":\"Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
 		"]"
 	));
 

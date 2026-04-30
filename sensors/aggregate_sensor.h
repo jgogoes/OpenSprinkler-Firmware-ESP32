@@ -1,19 +1,18 @@
 #pragma once
 
-#include <float.h>
 #include "sensor.h"
 
 typedef struct {
-	float min;
-	float max;
+	float scale;     // multiplier applied to child value
+	float offset;    // added after scale
 	uint16_t uuid;   // UUID of child sensor (SENSOR_UUID_NONE = unused slot)
 } aggregate_children_t;
 
 #define AGGREGATE_SENSOR_CHILDREN_COUNT 8
 
-// Defaults for newly-initialized child slots
-#define AGGREGATE_CHILD_DEFAULT_MIN  (-FLT_MAX)
-#define AGGREGATE_CHILD_DEFAULT_MAX  (FLT_MAX)
+#define AGGREGATE_CHILD_DEFAULT_SCALE   1
+#define AGGREGATE_CHILD_DEFAULT_OFFSET  0
+#define AGGREGATE_DEFAULT_ACTION        2  // AggregateAction::Average
 
 class AggregateSensor : public Sensor {
 	public:
