@@ -26,6 +26,10 @@
 
 #pragma once
 
+struct ProgramStruct;
+uint8_t get_program_water_percent(const ProgramStruct &prog);
+float   get_program_sensor_adj(uint8_t pid);
+
 void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shift=0);
 void turn_off_running_station_immediate(unsigned char sid, time_os_t curr_time, unsigned char shift=0);
 void schedule_all_stations(time_os_t curr_time, unsigned char qo=0);

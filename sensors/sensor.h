@@ -49,9 +49,17 @@ typedef struct {
 	uint32_t interval;
 	uint32_t next_update;
 	float    value;
-	uint16_t uuid;   // stable sensor identifier (0 = empty slot)
-	uint16_t flag;   // was uint32_t; only 2 bits used, uint16_t keeps struct at 16 bytes
-} sensor_memory_t;
+	uint16_t uuid;    // stable sensor identifier (0 = empty slot)
+	uint8_t  flag;    // persistent config bits — synced from sens.dat on load
+	uint8_t  status;  // runtime state bits    — never persisted, cleared on load
+} sensor_memory_t;   // 16 bytes
+
+// Runtime status bits (sensor_memory_t::status) — never persisted
+#define SENSOR_STATUS_VALID        (1 << 0)  // has had at least one successful read
+#define SENSOR_STATUS_ERROR        (1 << 1)  // last read attempt failed (hardware fault)
+#define SENSOR_STATUS_STALE        (1 << 2)  // update window passed but read could not complete
+#define SENSOR_STATUS_CLAMPED_HIGH (1 << 3)  // last value was clamped to max
+#define SENSOR_STATUS_CLAMPED_LOW  (1 << 4)  // last value was clamped to min
 
 // Sensor log file format — both structs are tightly packed (no padding) so
 // sizeof() gives the exact on-disk byte count and offsetof() gives exact field offsets.
@@ -163,8 +171,9 @@ enum class SensorUnit : uint8_t {
 };
 
 typedef enum {
-	SENSOR_FLAG_ENABLE = 0,
-	SENSOR_FLAG_LOG,
+	SENSOR_FLAG_ENABLE = 0,  // sensor is active
+	SENSOR_FLAG_LOG,         // write readings to log file
+	SENSOR_FLAG_SHOW,        // show on homepage
 	SENSOR_FLAG_COUNT
 } sensor_flag;
 
@@ -174,7 +183,7 @@ public:
 	Sensor();
 	virtual ~Sensor() {}
 
-	float get_new_value();
+	float get_new_value(uint8_t *status_out = nullptr);
 	uint32_t serialize(char *buf);
 
 	static Sensor *parse(os_file_type file);         // statically allocated, do not delete
@@ -200,7 +209,6 @@ public:
 	char name[SENSOR_NAME_LEN] = {0};
 
 	SensorType virtual get_sensor_type() = 0;
-	float virtual get_initial_value() = 0;
 
 	private:
 	float virtual _get_raw_value() = 0;

@@ -101,10 +101,18 @@ Sensor::Sensor(uint32_t interval, float min, float max, const char* name, Sensor
 
 Sensor::Sensor() {}
 
-float Sensor::get_new_value() {
+float Sensor::get_new_value(uint8_t *status_out) {
 	float value = this->_get_raw_value();
-	if (value < this->min) value = this->min;
-	if (value > this->max) value = this->max;
+
+	if (isnan(value)) {
+		if (status_out) *status_out = SENSOR_STATUS_ERROR;
+		return value;
+	}
+
+	uint8_t status = SENSOR_STATUS_VALID;
+	if (value < this->min) { value = this->min; status |= SENSOR_STATUS_CLAMPED_LOW; }
+	if (value > this->max) { value = this->max; status |= SENSOR_STATUS_CLAMPED_HIGH; }
+	if (status_out) *status_out = status;
 
 	return value;
 }
@@ -277,10 +285,11 @@ void SensorAdjustment::write(SensorAdjustment *adj, uint8_t index) {
 
 static void sensor_memory_init(sensor_memory_t &m, Sensor *sensor) {
 	m.interval = sensor->interval;
-	m.flag = sensor->flag;
+	m.flag = static_cast<uint8_t>(sensor->flag);
 	m.uuid = sensor->uuid;
 	m.next_update = 0;
-	m.value = sensor->get_initial_value();
+	m.value = 0.f;
+	m.status = 0;
 }
 
 Sensor *Sensor::parse(os_file_type file) {

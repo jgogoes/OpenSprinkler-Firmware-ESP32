@@ -2593,17 +2593,32 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 
 void OpenSprinkler::poll_sensors() {
 	for (uint8_t i = 0; i < nsensors; i++) {
-		if (sensors[i].interval && (sensors[i].flag & (1 << SENSOR_FLAG_ENABLE))) {
-			if ((long)(millis() - sensors[i].next_update) > 0) {
-				Sensor *sensor = Sensor::get(i);
-				if (sensor) {
-					sensors[i].value = sensor->get_new_value();
-					sensors[i].next_update = millis() + (sensors[i].interval * 1000 * 60);
-					if (sensors[i].flag & (1 << SENSOR_FLAG_LOG)) {
-						os.log_sensor(i, sensors[i].value);
-					}
-				}
-			}
+		sensor_memory_t &mem = sensors[i];
+		if (!mem.interval || !(mem.flag & (1 << SENSOR_FLAG_ENABLE))) continue;
+
+		if ((long)(millis() - mem.next_update) <= 0) continue;
+
+		Sensor *sensor = Sensor::get(i);
+		if (!sensor) {
+			// Can't load sensor from disk — value is now stale
+			mem.status |= SENSOR_STATUS_STALE;
+			continue;
+		}
+
+		uint8_t new_status = 0;
+		float new_value = sensor->get_new_value(&new_status);
+
+		if (new_status & SENSOR_STATUS_ERROR) {
+			// Hardware fault — preserve last good value but flag error; clear stale
+			mem.status = (mem.status & SENSOR_STATUS_VALID) | SENSOR_STATUS_ERROR;
+		} else {
+			mem.value = new_value;
+			mem.status = new_status; // VALID + CLAMPED_* as appropriate; clears ERROR/STALE
+		}
+		mem.next_update = millis() + (mem.interval * 1000 * 60);
+
+		if (mem.flag & (1 << SENSOR_FLAG_LOG)) {
+			os.log_sensor(i, mem.value);
 		}
 	}
 }

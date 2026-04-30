@@ -27,8 +27,6 @@ class ADS1115Sensor : public Sensor {
 	float scale;
 	float offset;
 
-	float get_initial_value();
-
 	private:
 	float _get_raw_value();
 	uint32_t _serialize_internal(char *buf);

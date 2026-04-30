@@ -37,16 +37,14 @@ void ADS1115Sensor::emit_description_json(BufferFiller* bfill) {
 	));
 }
 
-float ADS1115Sensor::get_initial_value() {
-	return 0.0;
-}
 
 float ADS1115Sensor::_get_raw_value() {
 	if (this->sensors[sensor_index] == nullptr) {
-		return 0.0;
+		return NAN;
 	}
-	float raw = ((float)this->sensors[sensor_index]->get_pin_value(this->pin)) * ADS1115_SCALE_FACTOR;
-	return raw * this->scale + this->offset;
+	int16_t counts = this->sensors[sensor_index]->get_pin_value(this->pin);
+	if (counts < 0) return NAN;
+	return (float)counts * ADS1115_SCALE_FACTOR * this->scale + this->offset;
 }
 
 uint32_t ADS1115Sensor::_serialize_internal(char *buf) {

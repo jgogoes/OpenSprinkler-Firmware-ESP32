@@ -66,7 +66,7 @@ int16_t ADS1115::get_pin_value(uint8_t pin) {
 	while (this->is_busy()) {
 		// if ((millis() - start) > 11) {
 		if ((millis() - start) > 18) {
-			return 0;
+			return -1;
 		}
 
 #if defined(ESP8266)

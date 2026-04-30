@@ -22,9 +22,6 @@ void WeatherSensor::emit_description_json(BufferFiller* bfill) {
 	));
 }
 
-float WeatherSensor::get_initial_value() {
-	return 0.f;
-}
 
 float WeatherSensor::_get_raw_value() {
 	return this->weather_getter(this->action);

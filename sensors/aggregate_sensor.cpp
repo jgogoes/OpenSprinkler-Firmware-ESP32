@@ -46,9 +46,6 @@ void AggregateSensor::emit_description_json(BufferFiller* bfill) {
 	));
 }
 
-float AggregateSensor::get_initial_value() {
-	return 0.0f;
-}
 
 float AggregateSensor::_get_raw_value() {
 	float values[AGGREGATE_SENSOR_CHILDREN_COUNT];
@@ -58,11 +55,12 @@ float AggregateSensor::_get_raw_value() {
 		if (this->children[i].uuid == SENSOR_UUID_NONE) continue;
 		uint8_t idx = Sensor::find_index(this->children[i].uuid);
 		if (idx >= OpenSprinkler::nsensors || !sensors[idx].interval) continue;
+		if (!(sensors[idx].status & SENSOR_STATUS_VALID)) continue;
 
 		values[count++] = sensors[idx].value * this->children[i].scale + this->children[i].offset;
 	}
 
-	if (count == 0) return 0.0f;
+	if (count == 0) return NAN;
 
 	switch (this->action) {
 	case AggregateAction::Min: {
@@ -105,7 +103,7 @@ float AggregateSensor::_get_raw_value() {
 		return hi - lo;
 	}
 	default:
-		return 0.0f;
+		return NAN;
 	}
 }
 

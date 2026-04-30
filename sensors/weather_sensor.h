@@ -16,8 +16,6 @@ class WeatherSensor : public Sensor {
 
 	WeatherAction action;
 
-	float get_initial_value();
-
 	private:
 	float _get_raw_value();
 	uint32_t _serialize_internal(char *buf);

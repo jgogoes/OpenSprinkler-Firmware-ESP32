@@ -1087,6 +1087,24 @@ void server_json_programs(OTF_PARAMS_DEF) {
 	handle_return(HTML_OK);
 }
 
+/** Output per-program adjustment factors: water percent (wa), sensor adj (sa), total adj (ta) */
+void server_json_program_adj(OTF_PARAMS_DEF) {
+	if(!process_password(OTF_PARAMS)) return;
+	begin_response(res);
+	print_header(OTF_PARAMS);
+	bfill.emit_p(PSTR("{\"jpa\":["));
+	ProgramStruct prog;
+	for(uint8_t pid=0; pid<pd.nprograms; pid++) {
+		pd.read(pid, &prog);
+		uint8_t wa = get_program_water_percent(prog);
+		float sa = get_program_sensor_adj(pid);
+		if(pid) bfill.emit_p(PSTR(","));
+		bfill.emit_p(PSTR("{\"wa\":$D,\"sa\":$E,\"ta\":$E}"), wa, sa, wa / 100.f * sa);
+	}
+	bfill.emit_p(PSTR("]}"));
+	handle_return(HTML_OK);
+}
+
 /** Output script url form */
 void server_view_scripturl(OTF_PARAMS_DEF) {
 	begin_response(res);
@@ -1857,7 +1875,7 @@ void server_json_sensors_main(OTF_PARAMS_DEF) {
 	for (size_t i = 0; i < os.nsensors; i++) {
 		if (os.sensors[i].interval && (sensor = Sensor::get(i))) {
 			if (sensor_count) bfill.emit_p(PSTR(","));
-			bfill.emit_p(PSTR("{\"uuid\":$D,\"name\":\"$S\",\"unit\":$D,\"flag\":$D,\"interval\":$L,\"min\":$E,\"max\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flag, sensor->interval, sensor->min, sensor->max, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
+			bfill.emit_p(PSTR("{\"uuid\":$D,\"name\":\"$S\",\"unit\":$D,\"flag\":$D,\"status\":$D,\"interval\":$L,\"min\":$E,\"max\":$E,\"value\":$E,\"type\":$D,\"extra\":"), sensor->uuid, sensor->name, static_cast<uint8_t>(sensor->unit), sensor->flag, os.sensors[i].status, sensor->interval, sensor->min, sensor->max, os.sensors[i].value, static_cast<uint8_t>(sensor->get_sensor_type()));
 			sensor->emit_extra_json(&bfill);
 			bfill.emit_p(PSTR("}"));
 			sensor_count += 1;
@@ -2124,9 +2142,9 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	}
 
 	os.sensors[sid].interval = interval;
-	os.sensors[sid].flag = flag;
+	os.sensors[sid].flag = static_cast<uint8_t>(flag);
 	os.sensors[sid].next_update = 0;
-	os.sensors[sid].value = result_sensor->get_initial_value();
+	os.sensors[sid].value = 0.f;
 
 	if (is_new) {
 		// Assign a new UUID for this sensor
@@ -2497,10 +2515,11 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 		"]"
 	));
 
-	static_assert(SENSOR_FLAG_COUNT == 2); // If this fails, update the flags array below
-	bfill.emit_p(PSTR(",\"flags\":[{\"name\":\"Enabled\",\"default\":$D},{\"name\":\"Logging\",\"default\":$D}]"),
+	static_assert(SENSOR_FLAG_COUNT == 3); // If this fails, update the flags array below
+	bfill.emit_p(PSTR(",\"flags\":[{\"name\":\"Enabled\",\"default\":$D},{\"name\":\"Logging\",\"default\":$D},{\"name\":\"Show on Home\",\"default\":$D}]"),
 		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_ENABLE) & 1,
-		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_LOG) & 1);
+		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_LOG) & 1,
+		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_SHOW) & 1);
 
 	bfill.emit_p(PSTR("}"));
 }
@@ -2691,6 +2710,7 @@ const char *uris[] PROGMEM = {
 	"mp",
 	"up",
 	"jp",
+	"jpa",
 	"co",
 	"jo",
 	"sp",
@@ -2730,6 +2750,7 @@ URLHandler urls[] = {
 	server_manual_program,  // mp
 	server_moveup_program,  // up
 	server_json_programs,   // jp
+	server_json_program_adj,// jpa
 	server_change_options,  // co
 	server_json_options,    // jo
 	server_change_password, // sp

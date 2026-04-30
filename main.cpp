@@ -789,13 +789,8 @@ void do_loop()
 				unsigned char runcount = prog.check_match(curr_time, &will_delete);
 				if(runcount>0) {
 					// program match found
-					float sensor_adj = 1.f;
-					#if defined(USE_SENSORS)
-					SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
-					if (adj) {
-						sensor_adj = adj->get_adjustment_factor(os.sensors);
-					}
-					#endif
+					unsigned char wl = get_program_water_percent(prog);
+					float sensor_adj = get_program_sensor_adj(pid);
 
 					// check and process special program command
 					if(process_special_program_command(prog.name, curr_time))	continue;
@@ -803,24 +798,6 @@ void do_loop()
 					// get station ordering
 					unsigned char order[os.nstations];
 					prog.gen_station_runorder(runcount, order);
-
-					// prepare watering level
-					unsigned char wl = 100; // default 100%
-					if (prog.use_weather) { 							// if program is set to use weather scaling
-						if (wt_restricted > 0) wl = 0; // if watering restriction is active
-						else {
-							wl = os.iopts[IOPT_WATER_PERCENTAGE];
-							// If historical data is enabled and interval program, overwrite watering percentage with historical one.
-							if (mda == 100 && prog.type == PROGRAM_TYPE_INTERVAL && md_N > 0) {
-								// Use interval length unless longer than available data
-								if ((unsigned int)prog.days[1]-1 < md_N){
-									wl = md_scales[prog.days[1]-1];
-								} else {
-									wl = md_scales[md_N-1];
-								}
-							}
-						}
-					}
 
 					// process all selected stations
 					for(unsigned char oi=0;oi<os.nstations;oi++) {
@@ -1613,6 +1590,25 @@ void reset_all_stations(bool running_ones_only) {
  * If pid==255, this is a short test program (2 second per station)
  * If pid > 0. run program pid-1
  */
+
+uint8_t get_program_water_percent(const ProgramStruct &prog) {
+	if (!prog.use_weather) return 100;
+	if (wt_restricted > 0) return 0;
+	uint8_t wl = os.iopts[IOPT_WATER_PERCENTAGE];
+	if (mda == 100 && prog.type == PROGRAM_TYPE_INTERVAL && md_N > 0) {
+		wl = ((unsigned int)prog.days[1] - 1 < md_N) ? md_scales[prog.days[1] - 1] : md_scales[md_N - 1];
+	}
+	return wl;
+}
+
+float get_program_sensor_adj(uint8_t pid) {
+#if defined(USE_SENSORS)
+	SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
+	if (adj) return adj->get_adjustment_factor(os.sensors);
+#endif
+	return 1.f;
+}
+
 void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo) {
 	boolean match_found = false;
 	ProgramStruct prog;
@@ -1629,13 +1625,8 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 	unsigned char wl = 100;
 	if ((pid>0)&&(pid<255)) {
 		pd.read(pid-1, &prog);
-		#if defined(USE_SENSORS)
-		SensorAdjustment *adj = SensorAdjustment::read(pid-1, pd.nprograms);
-		if (adj) {
-			sensor_adj = adj->get_adjustment_factor(os.sensors);
-		}
-		#endif
-		if(uwt) wl = os.iopts[IOPT_WATER_PERCENTAGE];
+		sensor_adj = get_program_sensor_adj(pid-1);
+		if(uwt) wl = get_program_water_percent(prog);
 		notif.add(NOTIFY_PROGRAM_SCHED, pid-1, wl, 1, sensor_adj);
 		// get station ordering from program name
 		prog.gen_station_runorder(1, order);
