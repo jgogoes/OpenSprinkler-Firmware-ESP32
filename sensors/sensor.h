@@ -20,6 +20,16 @@
 #define SENSOR_NAME_LEN 33
 #define SENSOR_CUSTOM_UNIT_LEN 9
 
+// Serialized sensor records are: type, common length, subclass length,
+// common payload, subclass payload. Payloads are append-only.
+#define SENSOR_RECORD_HEADER_LEN 3
+
+// Common payload length for legacy records that predate length bytes:
+// name[33] + unit[1] + interval[4] + flag[2] + min[4] + max[4] + uuid[2].
+// Do not change this when appending new common fields; new records carry their
+// own common_len byte, while this constant is only for reading old sens.dat.
+#define SENSOR_COMMON_PAYLOAD_LEN 50
+
 #define SENSOR_UUID_NONE 0  // sentinel: "no sensor assigned" (0 = uninitialized/disabled)
 
 // New-sensor defaults — single source of truth for both server_change_sensor and /jsd
@@ -70,7 +80,7 @@ enum class SensorType : uint8_t {
 
 // X(id, display_name)
 #define SENSOR_UNIT_GROUP_LIST(X) \
-	X(None,        "No Group")    \
+	X(None,        "No Unit")    \
 	X(Energy,      "Energy")      \
 	X(Flow,        "Flow")        \
 	X(Pressure,    "Pressure")    \
@@ -78,11 +88,14 @@ enum class SensorType : uint8_t {
 	X(Light,       "Light")       \
 	X(Length,      "Length")      \
 	X(Velocity,    "Velocity")    \
-	X(Volume,      "Volume")
+	X(Volume,      "Volume")      \
+	X(Salinity,    "Salinity")    \
+	X(Angle,       "Angle")       \
+	X(Precipitation, "Precipitation")
 
 // X(id, display_name, short_symbol, group_id)
 #define SENSOR_UNIT_LIST(X) \
-	X(None,              "None",               "",      None)        \
+	X(None,              "None",               " ",     None)        \
 	X(Percent,           "Percent",            "%",     None)        \
 	X(PartsPerMillion,   "Parts Per Million",  "ppm",   None)        \
 	X(Millivolt,         "Millivolt",          "mV",    Energy)      \
@@ -92,7 +105,7 @@ enum class SensorType : uint8_t {
 	X(Ohm,               "Ohm",                "Ω",     Energy)      \
 	X(Milliohm,          "Milliohm",           "mΩ",    Energy)      \
 	X(Kiloohm,           "Kiloohm",            "kΩ",    Energy)      \
-	X(DielectricConstant,"Dielectric Constant","-",     Energy)      \
+	X(DielectricConstant,"Dielectric Constant"," ",     Energy)      \
 	X(LitersPerSecond,   "Liters Per Second",  "L/s",   Flow)        \
 	X(GallonsPerSecond,  "Gallons Per Second", "gal/s", Flow)        \
 	X(Kilopascal,        "Kilopascal",         "kPa",   Pressure)    \
@@ -113,7 +126,27 @@ enum class SensorType : uint8_t {
 	X(Mile,              "Mile",               "mi",    Length)      \
 	X(MetersPerSecond,   "Meters Per Second",  "m/s",   Velocity)    \
 	X(KilometersPerHour, "Kilometers Per Hour","km/h",  Velocity)    \
-	X(MilesPerHour,      "Miles Per Hour",     "mph",   Velocity)
+	X(MilesPerHour,      "Miles Per Hour",     "mph",   Velocity)    \
+	X(Milliliter,        "Milliliter",         "mL",    Volume)      \
+	X(Liter,             "Liter",              "L",     Volume)      \
+	X(CubicMeter,        "Cubic Meter",        "m³",    Volume)      \
+	X(Gallon,            "Gallon",             "gal",   Volume)      \
+	X(CubicFoot,         "Cubic Foot",         "ft³",   Volume)      \
+	X(LitersPerMinute,   "Liters Per Minute",  "L/min", Flow)        \
+	X(GallonsPerMinute,  "Gallons Per Minute", "gpm",   Flow)        \
+	X(PoundsPerSquareInch, "Pounds Per Square Inch", "psi", Pressure) \
+	X(VolumetricMoistureContent, "Volumetric Moisture Content", "%VMC", None) \
+	X(Watt,              "Watt",               "W",     Energy)      \
+	X(Milliwatt,         "Milliwatt",          "mW",    Energy)      \
+	X(WattHour,          "Watt Hour",          "Wh",    Energy)      \
+	X(KilowattHour,      "Kilowatt Hour",      "kWh",   Energy)      \
+	X(MicrosiemensPerCentimeter, "Microsiemens Per Centimeter", "uS/cm", Salinity) \
+	X(MillisiemensPerCentimeter, "Millisiemens Per Centimeter", "mS/cm", Salinity) \
+	X(Ph,                "pH",                 "pH",    Salinity)    \
+	X(Degree,            "Degree",             "deg",   Angle)       \
+	X(Radian,            "Radian",             "rad",   Angle)       \
+	X(MillimetersPerHour, "Millimeters Per Hour", "mm/h", Precipitation) \
+	X(InchesPerHour,     "Inches Per Hour",    "in/h",  Precipitation)
 
 enum class SensorUnitGroup : uint8_t {
 #define X(id, name) id,
@@ -172,7 +205,7 @@ public:
 	private:
 	float virtual _get_raw_value() = 0;
 	protected:
-	uint32_t _deserialize(char *buf);
+	uint32_t _deserialize(char *buf, uint32_t len, uint8_t *subclass_len);
 	uint32_t virtual _serialize_internal(char *buf) = 0;
 };
 

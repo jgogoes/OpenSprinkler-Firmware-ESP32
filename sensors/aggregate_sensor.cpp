@@ -120,13 +120,18 @@ uint32_t AggregateSensor::_serialize_internal(char* buf) {
 	return i;
 }
 
-AggregateSensor::AggregateSensor(sensor_memory_t* sensors, char* buf) {
-	uint32_t i = Sensor::_deserialize(buf);
+AggregateSensor::AggregateSensor(sensor_memory_t* sensors, char* buf, uint32_t len) {
+	uint8_t subclass_len = 0;
+	uint32_t i = Sensor::_deserialize(buf, len, &subclass_len);
+	uint32_t end = i + subclass_len;
+
 	for (size_t j = 0; j < AGGREGATE_SENSOR_CHILDREN_COUNT; j++) {
-		this->children[j].scale  = read_buf<float>(buf, &i);
-		this->children[j].offset = read_buf<float>(buf, &i);
-		this->children[j].uuid   = read_buf<uint16_t>(buf, &i);
+		this->children[j] = aggregate_children_t{ AGGREGATE_CHILD_DEFAULT_SCALE, AGGREGATE_CHILD_DEFAULT_OFFSET, SENSOR_UUID_NONE };
+		if (i + sizeof(float) <= end) this->children[j].scale = read_buf<float>(buf, &i);
+		if (i + sizeof(float) <= end) this->children[j].offset = read_buf<float>(buf, &i);
+		if (i + sizeof(uint16_t) <= end) this->children[j].uuid = read_buf<uint16_t>(buf, &i);
 	}
-	this->action = static_cast<AggregateAction>(buf[i++]);
+	this->action = static_cast<AggregateAction>(AGGREGATE_DEFAULT_ACTION);
+	if (i + 1 <= end) this->action = static_cast<AggregateAction>(buf[i]);
 	this->sensors = sensors;
 }

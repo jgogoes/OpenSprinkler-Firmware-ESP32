@@ -58,12 +58,22 @@ uint32_t ADS1115Sensor::_serialize_internal(char *buf) {
 	return i;
 }
 
-ADS1115Sensor::ADS1115Sensor(ADS1115 **sensors, char *buf) {
-	uint32_t i = Sensor::_deserialize(buf);
-	this->sensor_index = static_cast<uint8_t>(buf[i++]);
-	this->pin          = static_cast<uint8_t>(buf[i++]);
-	this->scale        = read_buf<float>(buf, &i);
-	this->offset       = read_buf<float>(buf, &i);
+ADS1115Sensor::ADS1115Sensor(ADS1115 **sensors, char *buf, uint32_t len) {
+	uint8_t subclass_len = 0;
+	uint32_t i = Sensor::_deserialize(buf, len, &subclass_len);
+	uint32_t end = i + subclass_len;
+
+	this->sensor_index = 0;
+	this->pin = 0;
+	this->scale = ADS1115_DEFAULT_SCALE;
+	this->offset = ADS1115_DEFAULT_OFFSET;
+
+	if (i + 1 <= end) this->sensor_index = static_cast<uint8_t>(buf[i]);
+	i++;
+	if (i + 1 <= end) this->pin = static_cast<uint8_t>(buf[i]);
+	i++;
+	if (i + sizeof(float) <= end) this->scale = read_buf<float>(buf, &i);
+	if (i + sizeof(float) <= end) this->offset = read_buf<float>(buf, &i);
 	this->sensors = sensors;
 }
 

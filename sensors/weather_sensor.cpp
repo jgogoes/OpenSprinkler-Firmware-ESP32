@@ -36,8 +36,12 @@ uint32_t WeatherSensor::_serialize_internal(char* buf) {
 	return i;
 }
 
-WeatherSensor::WeatherSensor(WeatherGetter weather_getter, char* buf) {
-	uint32_t i = Sensor::_deserialize(buf);
-	this->action = static_cast<WeatherAction>(buf[i++]);
+WeatherSensor::WeatherSensor(WeatherGetter weather_getter, char* buf, uint32_t len) {
+	uint8_t subclass_len = 0;
+	uint32_t i = Sensor::_deserialize(buf, len, &subclass_len);
+	uint32_t end = i + subclass_len;
+
+	this->action = WeatherAction::MAX_VALUE;
+	if (i + 1 <= end) this->action = static_cast<WeatherAction>(buf[i]);
 	this->weather_getter = weather_getter;
 }
