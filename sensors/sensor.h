@@ -248,9 +248,14 @@ typedef struct {
 
 #define SENSOR_ADJUSTMENT_POINTS 8
 
+typedef enum {
+	SENADJ_FLAG_ENABLE = 0,
+	SENADJ_FLAG_COUNT
+} senadj_flag;
+
 class SensorAdjustment {
 public:
-	SensorAdjustment(uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t *points);
+	SensorAdjustment(uint16_t uuid, uint8_t point_count, uint8_t flag, sensor_adjustment_point_t *points);
 
 	static SensorAdjustment *read(uint8_t index, uint8_t nprograms); // returns statically allocated object, do not delete
 	static void              write(SensorAdjustment *adj, uint8_t index);
@@ -259,7 +264,7 @@ public:
 
 	uint16_t uuid;        // sensor UUID (SENSOR_UUID_NONE = adjustment disabled)
 	uint8_t  point_count;
-	uint8_t  reserved;   // reserved for future use (e.g. REQUIRE_VALID, CLAMP_OUTPUT)
+	uint8_t  flag;        // bit 0 (SENADJ_FLAG_ENABLE): enable sensor adjustment
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS];
 };
 

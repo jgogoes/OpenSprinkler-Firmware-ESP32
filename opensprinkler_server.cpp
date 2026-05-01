@@ -783,16 +783,18 @@ void server_moveup_program(OTF_PARAMS_DEF) {
 /**
  * Change a program
  * Command: /cp?pw=xxx&pid=x&v=[flag,days0,days1,[start0,start1,start2,start3],[dur0,dur1,dur2..]]
- *              &name=x&from=x&to=x
+ *              &name=x&from=x&to=x&snadj=flag,uuid,x0,y0,x1,y1,...
  *
- * pw:		password
- * pid:		program index
- * flag:	program flag
- * start?:up to 4 start times
- * dur?:	station water time
- * name:	program name
- * from:  start date of the program: an integer that's (month*32+day)
- * to:    end date of the program, same format as from
+ * pw:    password
+ * pid:   program index (-1 to add new)
+ * v:     packed program data: flag, days0, days1, start times, durations
+ * name:  program name
+ * from:  start date (month*32+day); 0 = no restriction
+ * to:    end date, same format as from; 0 = no restriction
+ * snadj: (optional) sensor adjustment — comma-separated: enable flag (uint8), sensor UUID (uint16),
+ *        then x,y point pairs (floats). Omit to preserve existing adjustment.
+ *        e.g. snadj=1,5,0.0,1.0,500.0,0.5 — enabled, sensor uuid=5, two interpolation points.
+ *        snadj=0,0 — disabled with no sensor assigned.
 */
 const char _str_program[] PROGMEM = "Program ";
 void server_change_program(OTF_PARAMS_DEF) {
@@ -847,50 +849,48 @@ void server_change_program(OTF_PARAMS_DEF) {
 
 	SensorAdjustment *snadj_ptr = nullptr;
 	#if defined(USE_SENSORS)
-	char *end;
+	SensorAdjustment snadj(SENSOR_UUID_NONE, 0, 0, nullptr);
+	// snadj=flag,uuid,x0,y0,x1,y1,... — if absent, existing adjustment is left untouched
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("snadj"), true)) {
+		char *ptr = tmp_buffer;
+		char *end;
+		uint8_t  adj_flag  = 0;
+		uint16_t adj_uuid  = SENSOR_UUID_NONE;
+		uint32_t point_count = 0;
+		sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
+		uint32_t v;
 
-	SensorAdjustment *adj = nullptr;
-	uint32_t adj_uuid = SENSOR_UUID_NONE;
-	uint32_t point_count = 0;
-	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
+		v = strtoul(ptr, &end, 10);
+		if (end == ptr || (*end != ',' && *end != '\0') || v > 0xFF) handle_return(HTML_DATA_FORMATERROR);
+		adj_flag = (uint8_t)v;
 
-	if ((adj = SensorAdjustment::read(pid, pd.nprograms))) {
-		adj_uuid = adj->uuid;
-		point_count = adj->point_count;
+		if (*end == ',') {
+			ptr = end + 1;
+			v = strtoul(ptr, &end, 10);
+			if (end == ptr || (*end != ',' && *end != '\0') || v > 0xFFFF) handle_return(HTML_DATA_FORMATERROR);
+			adj_uuid = (uint16_t)v;
 
-		for (size_t i = 0; i < point_count; i++) {
-			points[i] = adj->points[i];
-		}
-	}
-
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_uuid"), true)) {
-		adj_uuid=strtoul(tmp_buffer, &end, 10);
-		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (adj_uuid > 0xFFFF) handle_return(HTML_DATA_OUTOFBOUND);
-}
-
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_points"), true)) {
-		uint32_t i = 0;
-		float x, y;
-		const char *ptr = tmp_buffer;
-		int result;
-		float last_x = -std::numeric_limits<float>::infinity();;
-
-		while (*ptr != '\0') {
-			if (i >= SENSOR_ADJUSTMENT_POINTS) handle_return(HTML_DATA_FORMATERROR);
-			result = sscanf(ptr, "%f,%f;", &x, &y);
-			if (result != 2 || !isfinite(x) || !isfinite(y) || y < 0 || x < last_x) {
-				handle_return(HTML_DATA_FORMATERROR);
+			if (*end == ',') {
+				ptr = end + 1;
+				float last_x = -std::numeric_limits<float>::infinity();
+				while (*ptr != '\0') {
+					if (point_count >= SENSOR_ADJUSTMENT_POINTS) handle_return(HTML_DATA_FORMATERROR);
+					float x = strtof(ptr, &end);
+					if (end == ptr || *end != ',') handle_return(HTML_DATA_FORMATERROR);
+					ptr = end + 1;
+					float y = strtof(ptr, &end);
+					if (end == ptr || (*end != ',' && *end != '\0')) handle_return(HTML_DATA_FORMATERROR);
+					if (!isfinite(x) || !isfinite(y) || y < 0 || x < last_x) handle_return(HTML_DATA_FORMATERROR);
+					points[point_count++] = {x, y};
+					last_x = x;
+					ptr = (*end == ',') ? end + 1 : end;
+				}
 			}
-			points[i++] = sensor_adjustment_point_t {x, y};
-			last_x = x;
-			while (*ptr != '\0' && *(ptr++) != ';') {}
 		}
-		point_count = i;
-	}
 
-	SensorAdjustment snadj((uint16_t)adj_uuid, point_count, points);
-	snadj_ptr = &snadj;
+		snadj = SensorAdjustment(adj_uuid, point_count, adj_flag, points);
+		snadj_ptr = &snadj;
+	}
 	#endif
 
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "v",false)) handle_return(HTML_DATA_MISSING);
@@ -1054,7 +1054,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		{
 			SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 			if (adj) {
-				bfill.emit_p(PSTR("{\"uuid\":$D,\"splits\":["), adj->uuid);
+				bfill.emit_p(PSTR("{\"flag\":$D,\"uuid\":$D,\"splits\":["), adj->flag, adj->uuid);
 				for (int j = 0; j < adj->point_count; j++) {
 					if (j) bfill.emit_p(PSTR(","));
 					bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);
