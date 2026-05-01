@@ -850,13 +850,11 @@ void server_change_program(OTF_PARAMS_DEF) {
 	char *end;
 
 	SensorAdjustment *adj = nullptr;
-	uint32_t flag = 0;
 	uint32_t adj_uuid = SENSOR_UUID_NONE;
 	uint32_t point_count = 0;
 	sensor_adjustment_point_t points[SENSOR_ADJUSTMENT_POINTS] = {0.0, 0.0};
 
 	if ((adj = SensorAdjustment::read(pid, pd.nprograms))) {
-		flag = adj->flag;
 		adj_uuid = adj->uuid;
 		point_count = adj->point_count;
 
@@ -864,12 +862,6 @@ void server_change_program(OTF_PARAMS_DEF) {
 			points[i] = adj->points[i];
 		}
 	}
-
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flag"), true)) {
-		flag=strtoul(tmp_buffer, &end, 10);
-		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (flag > 0xFF) handle_return(HTML_DATA_OUTOFBOUND);
-}
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_uuid"), true)) {
 		adj_uuid=strtoul(tmp_buffer, &end, 10);
@@ -897,7 +889,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 		point_count = i;
 	}
 
-	SensorAdjustment snadj(flag, (uint16_t)adj_uuid, point_count, points);
+	SensorAdjustment snadj((uint16_t)adj_uuid, point_count, points);
 	snadj_ptr = &snadj;
 	#endif
 
@@ -1062,7 +1054,7 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		{
 			SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 			if (adj) {
-				bfill.emit_p(PSTR("{\"flag\":$D,\"uuid\":$D,\"splits\":["), adj->flag, adj->uuid);
+				bfill.emit_p(PSTR("{\"uuid\":$D,\"splits\":["), adj->uuid);
 				for (int j = 0; j < adj->point_count; j++) {
 					if (j) bfill.emit_p(PSTR(","));
 					bfill.emit_p(PSTR("{\"x\":$E,\"y\":$E}"), adj->points[j].x, adj->points[j].y);

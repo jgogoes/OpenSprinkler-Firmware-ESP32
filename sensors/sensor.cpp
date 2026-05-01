@@ -146,9 +146,9 @@ uint32_t Sensor::_deserialize(char* buf, uint32_t len, uint8_t *subclass_len) {
 	return common_end;
 }
 
-SensorAdjustment::SensorAdjustment(uint8_t flag, uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t* points) {
-	this->flag = flag;
+SensorAdjustment::SensorAdjustment(uint16_t uuid, uint8_t point_count, sensor_adjustment_point_t* points) {
 	this->uuid = uuid;
+	this->reserved = 0;
 	if (point_count > SENSOR_ADJUSTMENT_POINTS) point_count = SENSOR_ADJUSTMENT_POINTS;
 	this->point_count = point_count;
 	for (size_t i = 0; i < point_count; i++) {
@@ -157,7 +157,7 @@ SensorAdjustment::SensorAdjustment(uint8_t flag, uint16_t uuid, uint8_t point_co
 }
 
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
-	if (this->flag & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
+	if (this->uuid != SENSOR_UUID_NONE) {
 		uint8_t idx = Sensor::find_index(this->uuid);
 		if (idx < MAX_SENSORS && sensors[idx].interval) {
 			if (this->point_count == 0) return 1.f;
@@ -188,7 +188,7 @@ float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 }
 
 SensorAdjustment *SensorAdjustment::read(uint8_t index, uint8_t nprograms) {
-	static SensorAdjustment result(0, SENSOR_UUID_NONE, 0, nullptr);
+	static SensorAdjustment result(SENSOR_UUID_NONE, 0, nullptr);
 
 	if (index >= nprograms) return nullptr;
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::Read);
@@ -213,7 +213,7 @@ void SensorAdjustment::write(SensorAdjustment *adj, uint8_t index) {
 
 	os_file_type file = file_open(SENADJ_FILENAME, FileOpenMode::ReadWrite);
 	if (file) {
-		SensorAdjustment disabled(0, SENSOR_UUID_NONE, 0, nullptr);
+		SensorAdjustment disabled(SENSOR_UUID_NONE, 0, nullptr);
 
 		uint32_t cur_size = file_size(file);
 		if (cur_size < pos) {
