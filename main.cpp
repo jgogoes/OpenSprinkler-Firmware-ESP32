@@ -59,7 +59,7 @@ static uint16_t led_blink_ms = 0;
 
 const char *user_agent_string = "OpenSprinkler/" TOSTRING(OS_FW_VERSION) "#" TOSTRING(OS_FW_MINOR);
 
-void manual_start_program(unsigned char, unsigned char, unsigned char);
+void manual_start_program(unsigned char, unsigned char, unsigned char, unsigned char usa=0);
 
 // Small variations have been added to the timing values below
 // to minimize conflicting events
@@ -1609,7 +1609,7 @@ float get_program_sensor_adj(uint8_t pid) {
 	return 1.f;
 }
 
-void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo) {
+void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo, unsigned char usa) {
 	boolean match_found = false;
 	ProgramStruct prog;
 	uint32_t dur;
@@ -1625,7 +1625,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 	unsigned char wl = 100;
 	if ((pid>0)&&(pid<255)) {
 		pd.read(pid-1, &prog);
-		sensor_adj = get_program_sensor_adj(pid-1);
+		if(usa) sensor_adj = get_program_sensor_adj(pid-1);
 		if(uwt) wl = get_program_water_percent(prog);
 		notif.add(NOTIFY_PROGRAM_SCHED, pid-1, wl, 1, sensor_adj);
 		// get station ordering from program name

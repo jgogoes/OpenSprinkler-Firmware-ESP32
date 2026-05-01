@@ -65,35 +65,15 @@ const uint32_t get_sensor_unit_index(SensorUnit unit) {
 	return static_cast<uint32_t>(unit);
 }
 
-static uint32_t sensor_legacy_len(SensorType type) {
-	// Legacy records did not store section lengths, so derive their total size
-	// from the fixed common payload plus each subclass' original payload.
-	const uint32_t legacy_header_len = 1; // sensor type only
-	const uint32_t legacy_ads1115_len = 1 + 1 + sizeof(float) + sizeof(float);
-	const uint32_t legacy_aggregate_len =
-		AGGREGATE_SENSOR_CHILDREN_COUNT * (sizeof(float) + sizeof(float) + sizeof(uint16_t)) + 1;
-	const uint32_t legacy_weather_len = 1;
-
-	switch (type) {
-	case SensorType::Aggregate:
-		return legacy_header_len + SENSOR_COMMON_PAYLOAD_LEN + legacy_aggregate_len;
-	case SensorType::ADS1115:
-		return legacy_header_len + SENSOR_COMMON_PAYLOAD_LEN + legacy_ads1115_len;
-	case SensorType::Weather:
-		return legacy_header_len + SENSOR_COMMON_PAYLOAD_LEN + legacy_weather_len;
-	case SensorType::MAX_VALUE:
-		return 0;
-	}
-	return 0;
+static bool sensor_has_valid_layout(char *buf, uint32_t slot_size, uint32_t *len_out) {
+	if ((uint8_t)buf[0] >= (uint8_t)SensorType::MAX_VALUE) return false;
+	uint32_t len = SENSOR_RECORD_HEADER_LEN + (uint8_t)buf[1] + (uint8_t)buf[2];
+	if (len < SENSOR_RECORD_HEADER_LEN || len > slot_size) return false;
+	if (len_out) *len_out = len;
+	return true;
 }
 
-static bool sensor_has_valid_layout(SensorType type, char *buf, uint32_t len) {
-	if (len == sensor_legacy_len(type)) return true;
-	if (len < SENSOR_RECORD_HEADER_LEN) return false;
-	return (uint32_t)SENSOR_RECORD_HEADER_LEN + (uint8_t)buf[1] + (uint8_t)buf[2] == len;
-}
-
-Sensor::Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint16_t flag) :
+Sensor::Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint8_t flag) :
 	interval(interval), min(min), max(max), flag(flag), unit(unit) {
 	strncpy(this->name, name, SENSOR_NAME_LEN);
 	this->name[SENSOR_NAME_LEN - 1] = 0;
@@ -128,11 +108,11 @@ uint32_t Sensor::serialize(char* buf) {
 	memcpy(buf + i, this->name, SENSOR_NAME_LEN);
 	i += SENSOR_NAME_LEN;
 	buf[i++] = static_cast<uint8_t>(this->unit);
-	i += write_buf<uint32_t>(buf + i, this->interval);
-	i += write_buf<uint16_t>(buf + i, this->flag);
-	i += write_buf<float>(buf + i, this->min);
-	i += write_buf<float>(buf + i, this->max);
-	i += write_buf<uint16_t>(buf + i, this->uuid);
+	i += write_buf(buf + i, this->interval);
+	i += write_buf(buf + i, this->flag);
+	i += write_buf(buf + i, this->min);
+	i += write_buf(buf + i, this->max);
+	i += write_buf(buf + i, this->uuid);
 	buf[common_len_pos] = static_cast<uint8_t>(i - common_start);
 
 	uint32_t subclass_start = i;
@@ -142,24 +122,13 @@ uint32_t Sensor::serialize(char* buf) {
 }
 
 uint32_t Sensor::_deserialize(char* buf, uint32_t len, uint8_t *subclass_len) {
-	SensorType type = static_cast<SensorType>(buf[0]);
-	uint32_t legacy_len = sensor_legacy_len(type);
-	uint32_t i = 1; // Skip sensor type
-	uint8_t common_len = SENSOR_COMMON_PAYLOAD_LEN;
-	*subclass_len = 0;
+	uint8_t common_len = static_cast<uint8_t>(buf[1]);
+	*subclass_len     = static_cast<uint8_t>(buf[2]);
 
-	if (len != legacy_len) {
-		if (len < SENSOR_RECORD_HEADER_LEN) return len;
-		common_len = static_cast<uint8_t>(buf[1]);
-		*subclass_len = static_cast<uint8_t>(buf[2]);
-		if ((uint32_t)SENSOR_RECORD_HEADER_LEN + common_len + *subclass_len != len) return len;
-		i = SENSOR_RECORD_HEADER_LEN;
-	} else {
-		*subclass_len = static_cast<uint8_t>(legacy_len - 1 - SENSOR_COMMON_PAYLOAD_LEN);
-	}
+	if ((uint32_t)SENSOR_RECORD_HEADER_LEN + common_len + *subclass_len != len) return len;
 
-	uint32_t common_start = i;
-	uint32_t common_end = common_start + common_len;
+	uint32_t i = SENSOR_RECORD_HEADER_LEN;
+	uint32_t common_end = i + common_len;
 
 	if (i + SENSOR_NAME_LEN <= common_end) {
 		memcpy(this->name, buf + i, SENSOR_NAME_LEN);
@@ -170,19 +139,11 @@ uint32_t Sensor::_deserialize(char* buf, uint32_t len, uint8_t *subclass_len) {
 	if (i + 1 <= common_end) this->unit = static_cast<SensorUnit>(buf[i]);
 	i++;
 
-	if (i + sizeof(uint32_t) <= common_end) this->interval = read_buf<uint32_t>(buf, &i);
-	else i += sizeof(uint32_t);
-
-	if (i + sizeof(uint16_t) <= common_end) this->flag = read_buf<uint16_t>(buf, &i);
-	else i += sizeof(uint16_t);
-
-	if (i + sizeof(float) <= common_end) this->min = read_buf<float>(buf, &i);
-	else i += sizeof(float);
-
-	if (i + sizeof(float) <= common_end) this->max = read_buf<float>(buf, &i);
-	else i += sizeof(float);
-
-	if (i + sizeof(uint16_t) <= common_end) this->uuid = read_buf<uint16_t>(buf, &i);
+	read_buf(buf, &i, common_end, this->interval);
+	read_buf(buf, &i, common_end, this->flag);
+	read_buf(buf, &i, common_end, this->min);
+	read_buf(buf, &i, common_end, this->max);
+	read_buf(buf, &i, common_end, this->uuid);
 
 	return common_end;
 }
@@ -201,6 +162,7 @@ float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 	if (this->flag & (1 << SENADJ_FLAG_ENABLE) && this->uuid != SENSOR_UUID_NONE) {
 		uint8_t idx = Sensor::find_index(this->uuid);
 		if (idx < MAX_SENSORS && sensors[idx].interval) {
+			if (this->point_count == 0) return 1.f;
 			float value = sensors[idx].value;
 			if (value <= this->points[0].x) return this->points[0].y;
 			if (value >= this->points[this->point_count - 1].x) return this->points[this->point_count - 1].y;
@@ -300,18 +262,13 @@ Sensor *Sensor::parse(os_file_type file) {
 		active_sensor->~Sensor();
 		active_sensor = nullptr;
 	}
+	const uint32_t slot_size = TMP_BUFFER_SIZE;
+	file_read(file, tmp_buffer, slot_size);
+
 	uint32_t len = 0;
-	file_read(file, &len, sizeof(len));
+	if (!sensor_has_valid_layout((char*)tmp_buffer, slot_size, &len)) return nullptr;
 
-	if (len == 0 || len > (TMP_BUFFER_SIZE - sizeof(uint32_t))) return nullptr;
-
-	file_read(file, tmp_buffer, len);
-	file_seek(file, TMP_BUFFER_SIZE - sizeof(uint32_t) - len, FileSeekMode::Current);
-
-	if ((uint8_t)(tmp_buffer[0]) >= (uint8_t)SensorType::MAX_VALUE) return nullptr;
-
-	SensorType sensor_type = static_cast<SensorType>(*tmp_buffer);
-	if (!sensor_has_valid_layout(sensor_type, (char*)tmp_buffer, len)) return nullptr;
+	SensorType sensor_type = static_cast<SensorType>(tmp_buffer[0]);
 
 	switch (sensor_type) {
 		case SensorType::Aggregate:
@@ -330,7 +287,8 @@ Sensor *Sensor::parse(os_file_type file) {
 }
 
 Sensor *Sensor::get(uint8_t index) {
-	uint32_t pos = 1 + (uint32_t)TMP_BUFFER_SIZE * index;
+	const uint32_t slot_size = TMP_BUFFER_SIZE;
+	uint32_t pos = 1 + slot_size * index;
 
 	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
 	if (file) {
@@ -346,22 +304,16 @@ Sensor *Sensor::get(uint8_t index) {
 }
 
 void Sensor::write(Sensor *sensor, uint8_t index) {
-	uint32_t pos = 1 + (uint32_t)TMP_BUFFER_SIZE * index;
-	uint32_t len = 0;
+	const uint32_t slot_size = TMP_BUFFER_SIZE;
+	uint32_t pos = 1 + slot_size * index;
 
-	// Zero data area before serializing so the full TMP_BUFFER_SIZE slot is clean.
-	memset(tmp_buffer, 0, TMP_BUFFER_SIZE - sizeof(uint32_t));
-	if (sensor) {
-		len = sensor->serialize(tmp_buffer);
-		if (len > (TMP_BUFFER_SIZE - sizeof(uint32_t)))
-			len = TMP_BUFFER_SIZE - sizeof(uint32_t);
-	}
+	memset(tmp_buffer, 0, slot_size);
+	if (sensor) sensor->serialize(tmp_buffer);
 
 	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::ReadWrite);
 	if (file) {
 		file_seek(file, pos, FileSeekMode::Set);
-		file_write(file, &len, sizeof(len));
-		file_write(file, tmp_buffer, TMP_BUFFER_SIZE - sizeof(uint32_t));  // always write full slot
+		file_write(file, tmp_buffer, slot_size);
 		file_close(file);
 	} else {
 		DEBUG_PRINT("Failed to open file: ");
@@ -399,9 +351,10 @@ unsigned char Sensor::del(uint8_t index) {
 	if (index >= OpenSprinkler::nsensors) return 0;
 	if (OpenSprinkler::nsensors == 0) return 0;
 
+	const uint32_t slot_size = TMP_BUFFER_SIZE;
 	// erase by copying backward
 	for (uint8_t i = index; i < OpenSprinkler::nsensors - 1; i++) {
-		file_copy_block(SENSORS_FILENAME, 1 + (uint32_t)(i + 1) * TMP_BUFFER_SIZE, 1 + (uint32_t)i * TMP_BUFFER_SIZE, TMP_BUFFER_SIZE, tmp_buffer);
+		file_copy_block(SENSORS_FILENAME, 1 + (uint32_t)(i + 1) * slot_size, 1 + (uint32_t)i * slot_size, slot_size, tmp_buffer);
 		// also shift in-memory state
 		OpenSprinkler::sensors[i] = OpenSprinkler::sensors[i + 1];
 	}

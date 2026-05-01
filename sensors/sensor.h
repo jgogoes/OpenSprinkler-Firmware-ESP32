@@ -13,6 +13,7 @@
 // No types from this file are involved in the onboard sensor logic.
 
 #include <stdint.h>
+#include <cmath>
 #include "../utils.h"
 #include "../defines.h"
 #include "../bfiller.h"
@@ -24,11 +25,10 @@
 // common payload, subclass payload. Payloads are append-only.
 #define SENSOR_RECORD_HEADER_LEN 3
 
-// Common payload length for legacy records that predate length bytes:
-// name[33] + unit[1] + interval[4] + flag[2] + min[4] + max[4] + uuid[2].
-// Do not change this when appending new common fields; new records carry their
-// own common_len byte, while this constant is only for reading old sens.dat.
-#define SENSOR_COMMON_PAYLOAD_LEN 50
+// Current common payload length:
+// name[33] + unit[1] + interval[4] + flag[1] + min[4] + max[4] + uuid[2].
+// Future common fields should be appended; new records carry their own common_len byte.
+#define SENSOR_COMMON_PAYLOAD_LEN 49
 
 #define SENSOR_UUID_NONE 0  // sentinel: "no sensor assigned" (0 = uninitialized/disabled)
 
@@ -179,7 +179,7 @@ typedef enum {
 
 class Sensor {
 public:
-	Sensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint16_t flag);
+	Sensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint8_t flag);
 	Sensor();
 	virtual ~Sensor() {}
 
@@ -203,7 +203,7 @@ public:
 	uint32_t interval = 1;
 	float min = 0.f;
 	float max = 0.f;
-	uint16_t flag = 0;
+	uint8_t flag = 0;
 	uint16_t uuid = 0;   // assigned by write_sensor on creation; 0 = not yet assigned
 	SensorUnit unit = SensorUnit::None;
 	char name[SENSOR_NAME_LEN] = {0};
@@ -235,7 +235,7 @@ enum class AggregateAction : uint8_t {
 
 typedef Sensor* (*SensorGetter)(uint8_t);
 
-enum class WeatherAction {
+enum class WeatherAction : uint8_t {
 	MAX_VALUE,
 };
 
@@ -277,11 +277,11 @@ inline uint32_t write_buf(char* buf, T val) {
 }
 
 template <typename T>
-inline T read_buf(char* buf, uint32_t* i) {
-	T val;
-	memcpy(&val, buf + (*i), sizeof(T));
+inline bool read_buf(char* buf, uint32_t* i, uint32_t end, T& out) {
+	bool ok = (*i + sizeof(T) <= end);
+	if (ok) memcpy(&out, buf + *i, sizeof(T));
 	*i += sizeof(T);
-	return val;
+	return ok;
 }
 
 const char *enum_string(SensorUnitGroup group);

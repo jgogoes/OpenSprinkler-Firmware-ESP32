@@ -16,7 +16,7 @@ typedef struct {
 
 class AggregateSensor : public Sensor {
 	public:
-	AggregateSensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint16_t flag, sensor_memory_t *sensors, aggregate_children_t *children, uint8_t children_count, AggregateAction action);
+	AggregateSensor(uint32_t interval, float min, float max, const char *name, SensorUnit unit, uint8_t flag, sensor_memory_t *sensors, aggregate_children_t *children, uint8_t children_count, AggregateAction action);
 	AggregateSensor(sensor_memory_t *sensors, char *buf, uint32_t len);
 
 	void emit_extra_json(BufferFiller *bfill);

@@ -3,7 +3,7 @@
 
 extern OpenSprinkler os;
 
-AggregateSensor::AggregateSensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint16_t flag, sensor_memory_t* sensors, aggregate_children_t* children, uint8_t children_count, AggregateAction action) :
+AggregateSensor::AggregateSensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint8_t flag, sensor_memory_t* sensors, aggregate_children_t* children, uint8_t children_count, AggregateAction action) :
 	Sensor(interval, min, max, name, unit, flag),
 	action(action),
 	sensors(sensors) {
@@ -110,9 +110,9 @@ float AggregateSensor::_get_raw_value() {
 uint32_t AggregateSensor::_serialize_internal(char* buf) {
 	uint32_t i = 0;
 	for (size_t j = 0; j < AGGREGATE_SENSOR_CHILDREN_COUNT; j++) {
-		i += write_buf<float>(buf + i, this->children[j].scale);
-		i += write_buf<float>(buf + i, this->children[j].offset);
-		i += write_buf<uint16_t>(buf + i, this->children[j].uuid);
+		i += write_buf(buf + i, this->children[j].scale);
+		i += write_buf(buf + i, this->children[j].offset);
+		i += write_buf(buf + i, this->children[j].uuid);
 	}
 	buf[i++] = static_cast<uint8_t>(this->action);
 	return i;
@@ -125,9 +125,9 @@ AggregateSensor::AggregateSensor(sensor_memory_t* sensors, char* buf, uint32_t l
 
 	for (size_t j = 0; j < AGGREGATE_SENSOR_CHILDREN_COUNT; j++) {
 		this->children[j] = aggregate_children_t{ AGGREGATE_CHILD_DEFAULT_SCALE, AGGREGATE_CHILD_DEFAULT_OFFSET, SENSOR_UUID_NONE };
-		if (i + sizeof(float) <= end) this->children[j].scale = read_buf<float>(buf, &i);
-		if (i + sizeof(float) <= end) this->children[j].offset = read_buf<float>(buf, &i);
-		if (i + sizeof(uint16_t) <= end) this->children[j].uuid = read_buf<uint16_t>(buf, &i);
+		read_buf(buf, &i, end, this->children[j].scale);
+		read_buf(buf, &i, end, this->children[j].offset);
+		read_buf(buf, &i, end, this->children[j].uuid);
 	}
 	this->action = static_cast<AggregateAction>(AGGREGATE_DEFAULT_ACTION);
 	if (i + 1 <= end) this->action = static_cast<AggregateAction>(buf[i]);

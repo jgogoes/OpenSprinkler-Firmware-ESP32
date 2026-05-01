@@ -564,7 +564,7 @@ uint16_t parse_listdata(char **p) {
 	return (uint16_t)atol(tmp_buffer);
 }
 
-void manual_start_program(unsigned char, unsigned char, unsigned char);
+void manual_start_program(unsigned char, unsigned char, unsigned char, unsigned char usa=0);
 /** Manual start program
  * Command: /mp?pw=xxx&pid=xx&uwt=x&qo=x
  *
@@ -589,6 +589,11 @@ void server_manual_program(OTF_PARAMS_DEF) {
 		if(tmp_buffer[0]=='1') uwt = 1;
 	}
 
+	unsigned char usa = 0;
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("usa"), true)) {
+		if(tmp_buffer[0]=='1') usa = 1;
+	}
+
 	unsigned char qo = QUEUE_OPTION_REPLACE;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("qo"), true)) {
 		qo=(unsigned char)atoi(tmp_buffer);
@@ -598,7 +603,7 @@ void server_manual_program(OTF_PARAMS_DEF) {
 		reset_all_stations_immediate();
 	}
 
-	manual_start_program(pid+1, uwt, qo);
+	manual_start_program(pid+1, uwt, qo, usa);
 
 	handle_return(HTML_SUCCESS);
 }
@@ -863,6 +868,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_flag"), true)) {
 		flag=strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (flag > 0xFF) handle_return(HTML_DATA_OUTOFBOUND);
 }
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("adj_uuid"), true)) {
@@ -881,7 +887,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 		while (*ptr != '\0') {
 			if (i >= SENSOR_ADJUSTMENT_POINTS) handle_return(HTML_DATA_FORMATERROR);
 			result = sscanf(ptr, "%f,%f;", &x, &y);
-			if (result != 2 || x <= last_x) {
+			if (result != 2 || !isfinite(x) || !isfinite(y) || y < 0 || x < last_x) {
 				handle_return(HTML_DATA_FORMATERROR);
 			}
 			points[i++] = sensor_adjustment_point_t {x, y};
@@ -1096,10 +1102,10 @@ void server_json_program_adj(OTF_PARAMS_DEF) {
 	ProgramStruct prog;
 	for(uint8_t pid=0; pid<pd.nprograms; pid++) {
 		pd.read(pid, &prog);
-		uint8_t wa = get_program_water_percent(prog);
+		float wa = get_program_water_percent(prog) / 100.f;
 		float sa = get_program_sensor_adj(pid);
 		if(pid) bfill.emit_p(PSTR(","));
-		bfill.emit_p(PSTR("{\"wa\":$D,\"sa\":$E,\"ta\":$E}"), wa, sa, wa / 100.f * sa);
+		bfill.emit_p(PSTR("{\"wa\":$E,\"sa\":$E,\"ta\":$E}"), wa, sa, wa * sa);
 	}
 	bfill.emit_p(PSTR("]}"));
 	handle_return(HTML_OK);
@@ -1964,7 +1970,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	float max = SENSOR_DEFAULT_MAX;
 	uint32_t interval = SENSOR_DEFAULT_INTERVAL;
 	SensorUnit unit = SENSOR_DEFAULT_UNIT;
-	uint16_t flag = SENSOR_DEFAULT_FLAG;
+	uint8_t flag = SENSOR_DEFAULT_FLAG;
 
 	char name[SENSOR_NAME_LEN];
 	strncpy(name, SENSOR_DEFAULT_NAME, SENSOR_NAME_LEN);
@@ -2013,7 +2019,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	}
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("flag"), true)) {
-		flag = (uint16_t)strtoul(tmp_buffer, &end, 10);
+		flag = (uint8_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 	}
 

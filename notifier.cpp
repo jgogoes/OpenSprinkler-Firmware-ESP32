@@ -343,9 +343,8 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 					strcat_P(payload, PSTR("{\"state\":\"skipped\",\"wtrestr\":"));
 					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR("%d"), (int)bval); // if a program is skipped, also output the wt_restricted variable
 				} else {
-					strcat_P(payload, PSTR("{\"state\":1,\"wl\":"));
-					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR("%d"), (int)fval);
-					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR(",\"snadj\":%.2f"), fval2*100.f);
+					snprintf_P(payload+strlen(payload), PUSH_PAYLOAD_LEN, PSTR("{\"state\":1,\"wl\":%d,\"wa\":%.4g,\"sa\":%.4g,\"ta\":%.4g"),
+						(int)fval, fval/100.f, fval2, fval/100.f*fval2);
 				}
 				strcat_P(payload, PSTR("}"));
 			}
@@ -365,7 +364,7 @@ void push_message(uint16_t type, uint32_t lval, float fval, uint8_t bval, float 
 					if(lval<pd.nprograms) strcat(postval, prog.name);
 				}
 				if(fval>0) {
-					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(". Water level: %d%%. Sensor adjustment: %.2f%%."), (int)fval, fval2*100.f);
+					snprintf_P(postval+strlen(postval), TMP_BUFFER_SIZE, PSTR(". Adjustments: Weather->%d%%, Sensor->%.2f%%, Total->%.2f%%."), (int)fval, fval2*100.f, fval*fval2);
 				}
 
 				if(email_enabled) { email_message.subject += PSTR("program event"); }

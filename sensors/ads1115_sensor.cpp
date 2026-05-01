@@ -2,7 +2,7 @@
 
 #if defined(USE_SENSORS)
 
-ADS1115Sensor::ADS1115Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint16_t flag, ADS1115** sensors, uint8_t sensor_index, uint8_t pin, float scale, float offset) :
+ADS1115Sensor::ADS1115Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint8_t flag, ADS1115** sensors, uint8_t sensor_index, uint8_t pin, float scale, float offset) :
 	Sensor(interval, min, max, name, unit, flag),
 	sensor_index(sensor_index),
 	pin(pin),
@@ -51,8 +51,8 @@ uint32_t ADS1115Sensor::_serialize_internal(char *buf) {
 	uint32_t i = 0;
 	buf[i++] = static_cast<uint8_t>(this->sensor_index);
 	buf[i++] = static_cast<uint8_t>(this->pin);
-	i += write_buf<float>(buf + i, this->scale);
-	i += write_buf<float>(buf + i, this->offset);
+	i += write_buf(buf + i, this->scale);
+	i += write_buf(buf + i, this->offset);
 	return i;
 }
 
@@ -70,8 +70,8 @@ ADS1115Sensor::ADS1115Sensor(ADS1115 **sensors, char *buf, uint32_t len) {
 	i++;
 	if (i + 1 <= end) this->pin = static_cast<uint8_t>(buf[i]);
 	i++;
-	if (i + sizeof(float) <= end) this->scale = read_buf<float>(buf, &i);
-	if (i + sizeof(float) <= end) this->offset = read_buf<float>(buf, &i);
+	read_buf(buf, &i, end, this->scale);
+	read_buf(buf, &i, end, this->offset);
 	this->sensors = sensors;
 }
 

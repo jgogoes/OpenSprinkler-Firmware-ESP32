@@ -1,6 +1,6 @@
 #include "weather_sensor.h"
 
-WeatherSensor::WeatherSensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint16_t flag, WeatherGetter weather_getter, WeatherAction action) :
+WeatherSensor::WeatherSensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint8_t flag, WeatherGetter weather_getter, WeatherAction action) :
 	Sensor(interval, min, max, name, unit, flag),
 	action(action),
 	weather_getter(weather_getter) {
