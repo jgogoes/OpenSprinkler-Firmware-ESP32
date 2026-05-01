@@ -125,8 +125,6 @@ uint32_t Sensor::_deserialize(char* buf, uint32_t len, uint8_t *subclass_len) {
 	uint8_t common_len = static_cast<uint8_t>(buf[1]);
 	*subclass_len     = static_cast<uint8_t>(buf[2]);
 
-	if ((uint32_t)SENSOR_RECORD_HEADER_LEN + common_len + *subclass_len != len) return len;
-
 	uint32_t i = SENSOR_RECORD_HEADER_LEN;
 	uint32_t common_end = i + common_len;
 
