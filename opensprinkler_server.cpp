@@ -2496,7 +2496,7 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR(
 		",\"args\":["
 		"{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"" SENSOR_DEFAULT_NAME "\"},"
-		"{\"name\":\"Read Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\"},"
+		"{\"name\":\"Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\",\"hint\":\"Sensor's update interval (in minutes)\"},"
 	));
 	bfill.emit_p(PSTR("{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"default\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
 	bfill.emit_p(PSTR(

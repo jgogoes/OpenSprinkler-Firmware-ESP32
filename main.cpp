@@ -443,6 +443,8 @@ void do_setup() {
 	os.begin();          // OpenSprinkler init
 	os.options_setup();  // Setup options
 
+	Sensor::load_all();
+
 	pd.init();           // ProgramData init
 
 	if (os.start_network()) {  // initialize network
