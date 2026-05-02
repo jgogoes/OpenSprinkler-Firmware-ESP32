@@ -848,7 +848,6 @@ void server_change_program(OTF_PARAMS_DEF) {
 	}
 
 	SensorAdjustment *snadj_ptr = nullptr;
-	#if defined(USE_SENSORS)
 	SensorAdjustment snadj(SENSOR_UUID_NONE, 0, 0, nullptr);
 	// snadj=flag,uuid,x0,y0,x1,y1,... — if absent, existing adjustment is left untouched
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("snadj"), true)) {
@@ -891,7 +890,6 @@ void server_change_program(OTF_PARAMS_DEF) {
 		snadj = SensorAdjustment(adj_uuid, point_count, adj_flag, points);
 		snadj_ptr = &snadj;
 	}
-	#endif
 
 	if(!findKeyVal(FKV_SOURCE,tmp_buffer,TMP_BUFFER_SIZE, "v",false)) handle_return(HTML_DATA_MISSING);
 	char *pv = tmp_buffer+1;
@@ -1050,7 +1048,6 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 		tmp_buffer[PROGRAM_NAME_SIZE] = 0;	// make sure the string ends
 		bfill.emit_p(PSTR("$S\",[$D,$D,$D],"), tmp_buffer,prog.en_daterange,prog.daterange[0],prog.daterange[1]);
 		// sensor adjustment embedded in each program entry
-		#if defined(USE_SENSORS)
 		{
 			SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 			if (adj) {
@@ -1064,9 +1061,6 @@ void server_json_programs_main(OTF_PARAMS_DEF) {
 				bfill.emit_p(PSTR("{}"));
 			}
 		}
-		#else
-		bfill.emit_p(PSTR("{}"));
-		#endif
 		bfill.emit_p(PSTR("]"));
 		if(pid!=pd.nprograms-1) {
 			bfill.emit_p(PSTR(","));
@@ -1864,7 +1858,6 @@ void server_pause_queue(OTF_PARAMS_DEF) {
 	handle_return(HTML_SUCCESS);
 }
 
-#if defined(USE_SENSORS)
 void server_json_sensors_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("\"sn\":["));
 	uint8_t sensor_count = 0;
@@ -2532,7 +2525,6 @@ void server_json_sensor_desc(OTF_PARAMS_DEF)
 	server_json_sensor_description_main(OTF_PARAMS);
 	handle_return(HTML_OK);
 }
-#endif
 
 /** Output all JSON data, including jc, jp, jo, js, jn */
 void server_json_all(OTF_PARAMS_DEF) {
@@ -2550,12 +2542,10 @@ void server_json_all(OTF_PARAMS_DEF) {
 	server_json_status_main();
 	bfill.emit_p(PSTR(",\"stations\":{"));
 	server_json_stations_main(OTF_PARAMS);
-#if defined(USE_SENSORS)
 	bfill.emit_p(PSTR(",\"sensors\":{"));
 	server_json_sensors_main(OTF_PARAMS);
 	//bfill.emit_p(PSTR(",\"sensor_desc\":{"));
 	//server_json_sensor_description_main(OTF_PARAMS);
-#endif
 	bfill.emit_p(PSTR("}"));
 	handle_return(HTML_OK);
 }
@@ -2728,14 +2718,12 @@ const char *uris[] PROGMEM = {
 	"lf",
 	"df",
 #endif
-#if defined(USE_SENSORS)
 	"jsn",
 	"csn",
 	"dsn",
 	"jsl",
 	"dsl",
 	"jsd",
-#endif
 };
 
 // Server function handlers
@@ -2768,14 +2756,12 @@ URLHandler urls[] = {
 	server_list_files,      // lf
 	server_delete_file,     // df
 #endif
-	#if defined(USE_SENSORS)
 	server_json_sensors,      // jsn
 	server_change_sensor,     // csn
 	server_delete_sensor,     // dsn
 	server_json_sensor_log,   // jsl
 	server_delete_sensor_log, // dsl
 	server_json_sensor_desc,     // jsd
-	#endif
 };
 
 // handle Ethernet request

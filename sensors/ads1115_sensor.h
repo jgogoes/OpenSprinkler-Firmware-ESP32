@@ -1,14 +1,12 @@
 #pragma once
 
 #include "../defines.h"
-
-#if defined(USE_SENSORS)
-
 #include "sensor.h"
 #include "../ads1115.h"
 
 #define ADS1115_DEFAULT_SCALE   1
 #define ADS1115_DEFAULT_OFFSET  0
+#define ADS1115_VOLTS_PER_COUNT (ADS1115_SCALE_FACTOR / 1000.0f)
 
 class ADS1115Sensor : public Sensor {
 	public:
@@ -33,5 +31,3 @@ class ADS1115Sensor : public Sensor {
 
 	ADS1115 **sensors;
 };
-
-#endif

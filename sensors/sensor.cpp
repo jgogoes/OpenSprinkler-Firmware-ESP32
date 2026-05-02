@@ -359,10 +359,6 @@ unsigned char Sensor::del(uint8_t index) {
 }
 
 void Sensor::load_all() {
-	OpenSprinkler::lcd.clear();
-	OpenSprinkler::lcd.setCursor(0, 0);
-	OpenSprinkler::lcd_print_pgm(PSTR("Init sensors..."));
-
 	if (!file_exists(SENSORS_FILENAME)) {
 		DEBUG_PRINTLN(F("Sensor files missing. Initializing..."));
 		OpenSprinkler::nsensors = 0;

@@ -67,16 +67,11 @@
 	#include "SSD1306Display.h"
 #endif
 
-#if defined(USE_SENSORS)
 #include "sensors/sensor.h"
 #include "sensors/aggregate_sensor.h"
 #include "sensors/weather_sensor.h"
-#endif
-
-#if defined(USE_ADS1115)
 #include "ads1115.h"
 #include "sensors/ads1115_sensor.h"
-#endif
 
 #if defined(ESP8266)
 	extern ESP8266WebServer *update_server;
@@ -243,19 +238,14 @@ public:
 	static SSD1306Display lcd;  // 128x64 OLED display
 #endif
 
-#if defined(USE_ADS1115)
 	static ADS1115 *ads1115_devices[4];
-#endif
 
-#if defined(USE_SENSORS)
 	union SensorUnion {
 		ADS1115Sensor ads1115;
 		AggregateSensor aggregate;
 		WeatherSensor weather;
 	};
 	static sensor_memory_t sensors[MAX_SENSORS];
-
-#endif
 
 #if defined(OSPI)
 	static unsigned char pin_sr_data;  // RPi shift register data pin to handle RPi rev. 1
@@ -387,11 +377,9 @@ public:
 	static OTCConfig otc;
 
 	// -- Sensor functions
-#if defined(USE_SENSORS)
     void log_sensor(uint8_t sid, float value);
     static void poll_sensors();
     static float get_sensor_weather_data(WeatherAction action);
-#endif
 	// -- LCD functions
 #if defined(USE_DISPLAY)
 	static void lcd_print_time(time_os_t t);  // print current time

@@ -136,18 +136,24 @@ void initialiseEpoch()
 	epochMicro = (uint64_t)tv.tv_sec * (uint64_t)1000000 + (uint64_t)(tv.tv_usec) ;
 }
 
+// millis() lives in external/OpenThings-Framework-Firmware-Library/Websocket.cpp
+// so OTF stays self-contained when used as a standalone library. Reference
+// implementation kept here for clarity:
 // uint32_t millis (void)
 // {
 // 	struct timeval tv ;
 // 	uint64_t now ;
-
+//
 // 	gettimeofday (&tv, NULL) ;
 // 	now  = (uint64_t)tv.tv_sec * (uint64_t)1000 + (uint64_t)(tv.tv_usec / 1000) ;
-
+//
 // 	return (uint32_t)(now - epochMilli) ;
 // }
 
-unsigned long micros (void)
+// Arduino-compatible: us since initialiseEpoch(), wraps every ~71 minutes.
+// Returns uint32_t explicitly so the 32-bit semantics are part of the API on
+// every target (matches Arduino, where unsigned long is also 32-bit).
+uint32_t micros (void)
 {
 	struct timeval tv ;
 	uint64_t now ;
@@ -155,7 +161,7 @@ unsigned long micros (void)
 	gettimeofday (&tv, NULL) ;
 	now  = (uint64_t)tv.tv_sec * (uint64_t)1000000 + (uint64_t)tv.tv_usec ;
 
-	return (unsigned long)(now - epochMicro) ;
+	return (uint32_t)(now - epochMicro) ;
 }
 
 #if defined(OSPI)

@@ -1,7 +1,5 @@
 #include "ads1115_sensor.h"
 
-#if defined(USE_SENSORS)
-
 ADS1115Sensor::ADS1115Sensor(uint32_t interval, float min, float max, const char* name, SensorUnit unit, uint8_t flag, ADS1115** sensors, uint8_t sensor_index, uint8_t pin, float scale, float offset) :
 	Sensor(interval, min, max, name, unit, flag),
 	sensor_index(sensor_index),
@@ -19,7 +17,11 @@ void ADS1115Sensor::emit_extra_json(BufferFiller *bfill) {
 
 void ADS1115Sensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR(
+#if defined(ESP8266) || defined(OSPI)
 		"{\"name\":\"ADS1115 Sensor\","
+#else
+		"{\"name\":\"ADS1115 Sensor (simulated)\","
+#endif
 		"\"args\":["
 			"{\"name\":\"Pin Number\","
 			 "\"arg\":\"pin\","
@@ -44,7 +46,7 @@ float ADS1115Sensor::_get_raw_value() {
 	}
 	int16_t counts = this->sensors[sensor_index]->get_pin_value(this->pin);
 	if (counts < 0) return NAN;
-	return (float)counts * ADS1115_SCALE_FACTOR * this->scale + this->offset;
+	return (float)counts * ADS1115_VOLTS_PER_COUNT * this->scale + this->offset;
 }
 
 uint32_t ADS1115Sensor::_serialize_internal(char *buf) {
@@ -74,5 +76,3 @@ ADS1115Sensor::ADS1115Sensor(ADS1115 **sensors, char *buf, uint32_t len) {
 	read_buf(buf, &i, end, this->offset);
 	this->sensors = sensors;
 }
-
-#endif

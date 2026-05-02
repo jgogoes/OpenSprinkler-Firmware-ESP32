@@ -398,9 +398,12 @@ void do_setup() {
 	os.setup_pd_voltage();
 #endif
 
-#if defined(USE_SENSORS)
-	Sensor::load_all();
+#if defined(USE_DISPLAY)
+	os.lcd.clear();
+	os.lcd.setCursor(0, 0);
+	os.lcd_print_pgm(PSTR("Init sensors..."));
 #endif
+	Sensor::load_all();
 
 	pd.init();           // ProgramData init
 
@@ -525,27 +528,25 @@ void do_loop()
 	// handle flow sensor using polling. Maximum freq is 1/(2*FLOWPOLL_INTERVAL)
 	// e.g. if FLOWPOLL_INTERVAL is 3ms, maximum freq is 166Hz
 		uint32_t tm = millis();
-		if((long)(tm-flowpoll_timeout) > 0) { // overflow proof timeout
+		if((int32_t)(tm-flowpoll_timeout) > 0) { // overflow proof timeout
 			flowpoll_timeout = tm+FLOWPOLL_INTERVAL;
 			flow_poll();
 		}
 	}
 
-#if defined(USE_SENSORS)
 	{
 		static uint32_t sensorpoll_timeout = 0;
 		uint32_t tm = millis();
-		if((long)(tm-sensorpoll_timeout) > 0) {
+		if((int32_t)(tm-sensorpoll_timeout) > 0) {
 			sensorpoll_timeout = tm + SENSORPOLL_INTERVAL;
 			os.poll_sensors();
 		}
 	}
-#endif
 
 #if defined(ESP8266)
 	{
 		uint32_t tn = millis();
-		if((long)(tn-currpoll_timeout) > 0) { // overflow proof timeout
+		if((int32_t)(tn-currpoll_timeout) > 0) { // overflow proof timeout
 			int16_t curr = (int16_t)os.read_current();
 			int16_t imax = os.get_imax();
 			if((imax > 0) && (curr > imax)) {
@@ -629,7 +630,7 @@ void do_loop()
 			os.state = OS_STATE_CONNECTED;
 			connecting_timeout = 0;
 		} else {
-			if((long)(millis()-connecting_timeout)>0) {
+			if((int32_t)((uint32_t)millis()-connecting_timeout)>0) {
 				os.state = OS_STATE_INITIAL;
 				WiFi.disconnect(true);
 				DEBUG_PRINTLN(F("timeout"));
@@ -1602,10 +1603,8 @@ uint8_t get_program_water_percent(const ProgramStruct &prog) {
 }
 
 float get_program_sensor_adj(uint8_t pid) {
-#if defined(USE_SENSORS)
 	SensorAdjustment *adj = SensorAdjustment::read(pid, pd.nprograms);
 	if (adj) return adj->get_adjustment_factor(os.sensors);
-#endif
 	return 1.f;
 }
 

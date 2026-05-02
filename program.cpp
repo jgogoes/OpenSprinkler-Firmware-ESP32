@@ -108,9 +108,7 @@ void ProgramData::read(unsigned char pid, ProgramStruct *buf) {
 unsigned char ProgramData::add(ProgramStruct *buf, SensorAdjustment *adj) {
 	if (nprograms >= MAX_NUM_PROGRAMS)	return 0;
 	file_write_block(PROG_FILENAME, buf, 1+(uint32_t)nprograms*PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE);
-#if defined(USE_SENSORS)
 	if (adj) SensorAdjustment::write(adj, nprograms);
-#endif
 	nprograms++;
 	save_count();
 	return 1;
@@ -127,14 +125,12 @@ void ProgramData::moveup(unsigned char pid) {
 	file_read_block(PROG_FILENAME, buf2, next, PROGRAMSTRUCT_SIZE);
 	file_write_block(PROG_FILENAME, tmp_buffer, next, PROGRAMSTRUCT_SIZE);
 	file_write_block(PROG_FILENAME, buf2, pos, PROGRAMSTRUCT_SIZE);
-#if defined(USE_SENSORS)
 	// swap senadj entries for pid-1 and pid to match the program swap
 	char buf3[SENSOR_ADJUSTMENT_SIZE];
 	file_read_block(SENADJ_FILENAME, tmp_buffer, SENSOR_ADJUSTMENT_SIZE * (pid-1), SENSOR_ADJUSTMENT_SIZE);
 	file_read_block(SENADJ_FILENAME, buf3, SENSOR_ADJUSTMENT_SIZE * pid, SENSOR_ADJUSTMENT_SIZE);
 	file_write_block(SENADJ_FILENAME, buf3, SENSOR_ADJUSTMENT_SIZE * (pid-1), SENSOR_ADJUSTMENT_SIZE);
 	file_write_block(SENADJ_FILENAME, tmp_buffer, SENSOR_ADJUSTMENT_SIZE * pid, SENSOR_ADJUSTMENT_SIZE);
-#endif
 }
 
 void ProgramData::toggle_pause(uint32_t delay) {
@@ -193,9 +189,7 @@ unsigned char ProgramData::modify(unsigned char pid, ProgramStruct *buf, SensorA
 	if (pid >= nprograms)  return 0;
 	uint32_t pos = 1+(uint32_t)pid*PROGRAMSTRUCT_SIZE;
 	file_write_block(PROG_FILENAME, buf, pos, PROGRAMSTRUCT_SIZE);
-#if defined(USE_SENSORS)
 	if (adj) SensorAdjustment::write(adj, pid);
-#endif
 	return 1;
 }
 
@@ -208,11 +202,9 @@ unsigned char ProgramData::del(unsigned char pid) {
 	for (; pos < 1+(uint32_t)nprograms*PROGRAMSTRUCT_SIZE; pos+=PROGRAMSTRUCT_SIZE) {
 		file_copy_block(PROG_FILENAME, pos, pos-PROGRAMSTRUCT_SIZE, PROGRAMSTRUCT_SIZE, tmp_buffer);
 	}
-#if defined(USE_SENSORS)
 	for (int i = pid; i < nprograms-1; i++) {
 		file_copy_block(SENADJ_FILENAME, SENSOR_ADJUSTMENT_SIZE * (i+1), SENSOR_ADJUSTMENT_SIZE * i, SENSOR_ADJUSTMENT_SIZE, tmp_buffer);
 	}
-#endif
 	nprograms --;
 	save_count();
 	return 1;

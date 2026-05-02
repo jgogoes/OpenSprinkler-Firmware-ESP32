@@ -31,7 +31,7 @@
 #include "OpenSprinkler.h"
 #include "types.h"
 
-class SensorAdjustment; // forward declaration for platforms where USE_SENSORS is not defined
+class SensorAdjustment; // forward declaration to avoid pulling sensors/sensor.h into this header
 
 /** Log data structure */
 struct LogStruct {

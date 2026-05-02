@@ -2,16 +2,22 @@
 
 #include "defines.h"
 
-#if defined(USE_SENSORS)
-
 #include <stdint.h>
 
 #define ADS1115_SCALE_FACTOR (6144.0 / 32768.0)
 
+// Hardware ADS1115 chip is wired up on ESP8266 (Arduino I2C via Wire) and OSPi
+// (Linux I2C via libi2c). Other targets (DEMO/SIM) use a mock backend that
+// produces synthetic counts so the sensor pipeline is exercisable end-to-end
+// without real hardware.
+#if defined(ESP8266) || defined(OSPI)
+#define ADS1115_HARDWARE
+#endif
+
 #if defined(ESP8266)
 #include <Arduino.h>
 #include <Wire.h>
-#else
+#elif defined(OSPI)
 #include "i2cd.h"
 #endif
 
@@ -19,7 +25,7 @@ class ADS1115 {
 public:
 #if defined(ESP8266)
 	ADS1115(uint8_t address, TwoWire& wire);
-#else
+#elif defined(OSPI)
 	ADS1115(uint8_t address, I2CBus& bus);
 #endif
 	ADS1115(uint8_t address);
@@ -40,7 +46,7 @@ public:
 	uint8_t _address;
 #if defined(ESP8266)
 	TwoWire *_wire;
-#else
+#elif defined(OSPI)
 	I2CDevice _i2c;
 	uint16_t swap_reg(uint16_t val) {
 		return (val << 8) | (val >> 8);
@@ -50,6 +56,3 @@ public:
 	void _write_register(uint8_t reg, uint16_t value);
 	uint16_t _read_register(uint8_t reg);
 };
-
-
-#endif

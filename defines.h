@@ -165,8 +165,14 @@ enum {
 #define MAX_SENSORS 64
 #define SENSOR_LOG_MAGIC            0x55
 #define SENSOR_LOG_VERSION          0x01
-#define SENSOR_LOG_MAX_FILES        50   // number of data files in the rotation
-#define SENSOR_LOG_RECORDS_PER_FILE 819  // records per file; 819×10 B = 8 190 B fits in one 8 KB LittleFS block
+#define SENSOR_LOG_MAX_FILES        50    // number of data files in the rotation
+#if defined(ESP8266)
+	#define SENSOR_LOG_RECORDS_PER_FILE 819    // records per file; 819×10 B = 8 190 B fits in one 8 KB LittleFS block
+#else
+	// Linux/OSPi/DEMO: filesystem doesn't penalize large appends, so a much bigger
+	// per-file count is cheap. 50 × 65 535 ≈ 3.3 M records ≈ 33 MB.
+	#define SENSOR_LOG_RECORDS_PER_FILE 65535
+#endif
 
 #define STATION_SPECIAL_DATA_SIZE  (TMP_BUFFER_SIZE - STATION_NAME_SIZE - 12)
 
@@ -431,8 +437,6 @@ enum {
 	#define V2_PIN_BOOST_SEL     IOEXP_PIN+8
 
 	#define USE_DISPLAY
-	#define USE_ADS1115
-	#define USE_SENSORS     // enable external analog sensor board (ADS1115); distinct from onboard SENSOR1/SENSOR2 GPIO inputs
 
 #elif defined(OSPI) // for OSPi
 
@@ -457,8 +461,6 @@ enum {
 	#define SCL 0
 
 	#define USE_DISPLAY
-	#define USE_ADS1115
-	#define USE_SENSORS     // enable external analog sensor board (ADS1115); distinct from onboard SENSOR1/SENSOR2 GPIO inputs
 
 #else // for demo / simulation
 	// use fake hardware pins

@@ -29,9 +29,7 @@
 #include "ArduinoJson.hpp"
 
 /** Declare static data members */
-#if defined(USE_SENSORS)
 sensor_memory_t OpenSprinkler::sensors[64] = {0};
-#endif
 OSMqtt OpenSprinkler::mqtt;
 NVConData OpenSprinkler::nvdata;
 ConStatus OpenSprinkler::status;
@@ -89,9 +87,7 @@ extern unsigned char curr_alert_sid;
 SSD1306Display OpenSprinkler::lcd(0x3c, SDA, SCL);
 #endif
 
-#if defined(USE_ADS1115)
-	ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
-#endif
+ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
 
 #if defined(ESP8266)
 	unsigned char OpenSprinkler::state = OS_STATE_INITIAL;
@@ -641,7 +637,7 @@ unsigned char OpenSprinkler::start_ether() {
 
 	uint32_t timeout = millis()+60000; // 60 seconds time out
 	unsigned char timecount = 1;
-	while (!eth.connected() && (long)(millis()-timeout)<0) { // overflow proof
+	while (!eth.connected() && (int32_t)((uint32_t)millis()-timeout)<0) { // overflow proof
 		DEBUG_PRINT(".");
 		lcd.setCursor(13, 2);
 		lcd.print(timecount);
@@ -1018,14 +1014,17 @@ void OpenSprinkler::begin() {
 	//DEBUG_PRINTLN(get_runtime_path());
 #endif
 
-#if defined(USE_ADS1115)
 	for (size_t i = 0; i < 4; i++) {
 		uint8_t address = 0x48 + i;
+#if defined(ADS1115_HARDWARE)
 		if (detect_i2c(address)) {
 			ads1115_devices[i] = new ADS1115(address);
 		}
-	}
+#else
+		// DEMO/SIM: instantiate all four mock chips so all 16 channels are available
+		ads1115_devices[i] = new ADS1115(address);
 #endif
+	}
 }
 
 #if defined(ESP8266)
@@ -1063,7 +1062,7 @@ void OpenSprinkler::latch_boost(int8_t volt) {
 		uint32_t boost_timeout = millis() + (iopts[IOPT_BOOST_TIME]<<2);
 		digitalWriteExt(PIN_BOOST, HIGH);
 		// boost until either top voltage is reached or boost timeout is reached
-		while((long)(millis()-boost_timeout)<0 && analogRead(PIN_CURR_SENSE)<top) { // overflow proof
+		while((int32_t)((uint32_t)millis()-boost_timeout)<0 && analogRead(PIN_CURR_SENSE)<top) { // overflow proof
 			delay(5);
 		}
 		digitalWriteExt(PIN_BOOST, LOW);
@@ -1934,7 +1933,7 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 			client->read((uint8_t*)ether_buffer+pos, nbytes);
 			pos+=nbytes;
 		}
-		if((long)(millis()-stoptime)>0) { // overflow proof
+		if((int32_t)((uint32_t)millis()-stoptime)>0) { // overflow proof
 			DEBUG_PRINTLN(F("host timeout occured"));
 			//return HTTP_RQT_TIMEOUT; // instead of returning with timeout, we'll work with data received so far
 			break;
@@ -2154,12 +2153,10 @@ void OpenSprinkler::factory_reset() {
 	// 4. write program data: just need to write a program counter: 0
 	file_write_byte(PROG_FILENAME, 0, 0);
 
-#if defined(USE_SENSORS)
 	// remove all sensor files, so they will be re-created during loading
 	remove_file(SENSORS_FILENAME);
 	remove_sensor_log();
 	remove_file(SENADJ_FILENAME);
-#endif
 
 	// 5. write 'done' file
 	file_write_byte(DONE_FILENAME, 0, 1);
@@ -2470,7 +2467,6 @@ void OpenSprinkler::raindelay_stop() {
 	nvdata_save();
 }
 
-#if defined(USE_SENSORS)
 /** Sensor functions */
 
 void list_all_files() {
@@ -2596,7 +2592,7 @@ void OpenSprinkler::poll_sensors() {
 		sensor_memory_t &mem = sensors[i];
 		if (!mem.interval || !(mem.flag & (1 << SENSOR_FLAG_ENABLE))) continue;
 
-		if ((long)(millis() - mem.next_update) <= 0) continue;
+		if ((int32_t)((uint32_t)millis() - mem.next_update) <= 0) continue;
 
 		Sensor *sensor = Sensor::get(i);
 		if (!sensor) {
@@ -2626,7 +2622,6 @@ void OpenSprinkler::poll_sensors() {
 float OpenSprinkler::get_sensor_weather_data(WeatherAction action) {
 	return NAN; // TODO make function for WeatherSensor
 }
-#endif
 
 /** LCD and button functions */
 #if defined(USE_DISPLAY)

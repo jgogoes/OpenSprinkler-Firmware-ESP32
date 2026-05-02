@@ -116,8 +116,8 @@ void str2mac(const char *_str, unsigned char mac[]);
 	void delay(uint32_t ms);
 	void delayMicroseconds(uint32_t us);
 	void delayMicrosecondsHard(uint32_t us);
-	unsigned long millis();
-	unsigned long micros();
+	uint32_t millis();
+	uint32_t micros();
 	void initialiseEpoch();
 	#if defined(OSPI)
 	unsigned int detect_rpi_rev();

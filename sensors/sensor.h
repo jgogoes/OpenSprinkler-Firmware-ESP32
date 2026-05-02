@@ -1,16 +1,12 @@
 #pragma once
 
-// External / analog sensor subsystem
+// Sensor subsystem.
 //
-// The types in this file (Sensor, SensorAdjustment, etc.) model the *external*
-// sensor board — an ADS1115-based I2C ADC add-on that reads analog probes
-// (soil moisture, temperature, etc.).  It is enabled by the USE_SENSORS guard.
-//
-// These are DISTINCT from the two onboard digital sensor inputs (SENSOR1 /
-// SENSOR2) that are wired directly to GPIO pins.  Those are simple binary
-// (open/closed) or pulse inputs handled entirely in OpenSprinkler.h/.cpp via
-// os.sensor1_status / os.sensor2_status and related IOPT_SENSOR* options.
-// No types from this file are involved in the onboard sensor logic.
+// Sensor is the abstract base for any periodic data source surfaced through
+// the firmware's sensor list and adjustment pipeline. Concrete subclasses
+// today include analog probes via ADS1115, weather-service inputs, and
+// aggregates over other sensors; future ones may wrap GPIO inputs or
+// system-internal signals (board temperature, RAM, etc.).
 
 #include <stdint.h>
 #include <cmath>
@@ -35,9 +31,9 @@
 // New-sensor defaults — single source of truth for both server_change_sensor and /jsd
 #define SENSOR_DEFAULT_NAME             "New Sensor"
 #define SENSOR_DEFAULT_INTERVAL         15
-#define SENSOR_DEFAULT_UNIT             SensorUnit::Millivolt
+#define SENSOR_DEFAULT_UNIT             SensorUnit::Volt
 #define SENSOR_DEFAULT_MIN              0
-#define SENSOR_DEFAULT_MAX              5000
+#define SENSOR_DEFAULT_MAX              5
 #define SENSOR_DEFAULT_TYPE             1  // SensorType::ADS1115
 #define SENSOR_DEFAULT_FLAG            (1 << SENSOR_FLAG_ENABLE)
 
