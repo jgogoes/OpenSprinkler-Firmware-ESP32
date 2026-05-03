@@ -2214,6 +2214,28 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			result_sensor = new SystemInternalSensor(interval, min, max, (const char*)&name, unit, flag, metric);
 			break;
 		}
+		case SensorType::OnboardDigital: {
+			OnboardInput input = OnboardInput::MAX_VALUE;
+
+			if (sensor_type == original_sensor_type) {
+				if ((sensor = Sensor::get(sid))) {
+					OnboardDigitalSensor* e = static_cast<OnboardDigitalSensor*>(sensor);
+					input = e->input;
+				}
+			}
+
+			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("input"), true)) {
+				uint32_t v = strtoul(tmp_buffer, &end, 10);
+				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+				if (v >= (uint32_t)OnboardInput::MAX_VALUE) handle_return(HTML_DATA_OUTOFBOUND);
+				input = static_cast<OnboardInput>(v);
+			}
+
+			if (input == OnboardInput::MAX_VALUE) handle_return(HTML_DATA_MISSING);
+
+			result_sensor = new OnboardDigitalSensor(interval, min, max, (const char*)&name, unit, flag, input);
+			break;
+		}
 		default: {
 			handle_return(HTML_DATA_OUTOFBOUND)
 			break;
@@ -2564,6 +2586,9 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 			case SensorType::SystemInternal:
 				SystemInternalSensor::emit_description_json(&bfill);
 				break;
+			case SensorType::OnboardDigital:
+				OnboardDigitalSensor::emit_description_json(&bfill);
+				break;
 			case SensorType::MAX_VALUE:
 				break;
 		}
@@ -2666,6 +2691,9 @@ void server_json_debug(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("{\"date\":\"$S\",\"time\":\"$S\",\"heap\":$L"), __DATE__, __TIME__,
 #if defined(ESP8266)
 	ESP.getFreeHeap());
+	bfill.emit_p(PSTR(",\"maxblock\":$L,\"frag\":$D"),
+		(uint32_t)ESP.getMaxFreeBlockSize(),
+		(uint8_t)ESP.getHeapFragmentation());
 	FSInfo fs_info;
 	LittleFS.info(fs_info);
 	bfill.emit_p(PSTR(",\"flash\":$D,\"used\":$D,\"devip\":\"$S\","), fs_info.totalBytes, fs_info.usedBytes, (useEth?eth.localIP():WiFi.localIP()).toString().c_str());

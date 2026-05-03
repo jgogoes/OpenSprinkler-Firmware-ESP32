@@ -15,6 +15,7 @@ bool system_metric_is_supported(SystemMetric metric) {
 		case SystemMetric::FREE_HEAP:
 		case SystemMetric::FREE_FLASH:
 		case SystemMetric::WIFI_RSSI:
+		case SystemMetric::HEAP_FRAGMENTATION:
 			return true;
 #else
 		case SystemMetric::CPU_TEMPERATURE:
@@ -32,6 +33,8 @@ SensorUnit system_metric_native_unit(SystemMetric metric) {
 		case SystemMetric::FREE_HEAP:
 		case SystemMetric::FREE_FLASH:
 			return SensorUnit::Kilobyte;
+		case SystemMetric::HEAP_FRAGMENTATION:
+			return SensorUnit::Percent;
 		// WIFI_RSSI is in dBm — no SensorUnit fits, reported as unitless.
 		default:
 			return SensorUnit::None;
@@ -76,6 +79,10 @@ void SystemInternalSensor::emit_description_json(BufferFiller* bfill) {
 	                    "\"dfl\":{\"unit\":$D,\"min\":\"-100\",\"max\":\"-30\"},"
 	                    "\"lk\":[\"unit\"]}"),
 	              static_cast<uint8_t>(SensorUnit::None));
+	bfill->emit_p(PSTR(",{\"id\":4,\"l\":\"Heap Fragmentation\","
+	                    "\"dfl\":{\"unit\":$D,\"max\":\"100\"},"
+	                    "\"lk\":[\"unit\"]}"),
+	              static_cast<uint8_t>(SensorUnit::Percent));
 #else
 	bfill->emit_p(PSTR("{\"id\":3,\"l\":\"CPU Temperature\","
 	                    "\"dfl\":{\"unit\":$D,\"min\":\"-40\",\"max\":\"185\"},"
@@ -109,6 +116,9 @@ float SystemInternalSensor::_get_raw_value() {
 		}
 		case SystemMetric::WIFI_RSSI:
 			raw = (float)WiFi.RSSI();
+			break;
+		case SystemMetric::HEAP_FRAGMENTATION:
+			raw = (float)ESP.getHeapFragmentation();
 			break;
 		default:
 			break;

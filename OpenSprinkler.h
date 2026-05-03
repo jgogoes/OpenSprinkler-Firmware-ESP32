@@ -71,6 +71,7 @@
 #include "sensors/aggregate_sensor.h"
 #include "sensors/weather_sensor.h"
 #include "sensors/system_internal_sensor.h"
+#include "sensors/onboard_digital_sensor.h"
 #include "ads1115.h"
 #include "sensors/ads1115_sensor.h"
 
@@ -246,6 +247,7 @@ public:
 		AggregateSensor aggregate;
 		WeatherSensor weather;
 		SystemInternalSensor system_internal;
+		OnboardDigitalSensor onboard_digital;
 	};
 	static sensor_memory_t sensors[MAX_SENSORS];
 

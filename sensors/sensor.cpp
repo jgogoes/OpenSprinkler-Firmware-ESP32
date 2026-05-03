@@ -302,6 +302,9 @@ Sensor *Sensor::parse(os_file_type file) {
 		case SensorType::SystemInternal:
 			active_sensor = new (sensor_scratchpad) SystemInternalSensor((char*)tmp_buffer, len);
 			break;
+		case SensorType::OnboardDigital:
+			active_sensor = new (sensor_scratchpad) OnboardDigitalSensor((char*)tmp_buffer, len);
+			break;
 		default:
 			return nullptr;
 	}

@@ -80,6 +80,7 @@ enum class SensorType : uint8_t {
 	ADS1115,
 	Weather,
 	SystemInternal,
+	OnboardDigital,
 	MAX_VALUE,
 };
 

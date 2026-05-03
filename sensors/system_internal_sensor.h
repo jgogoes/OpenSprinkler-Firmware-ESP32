@@ -12,10 +12,11 @@
 // build remains parseable on another, even if the metric isn't supported
 // there — it just produces NAN at runtime).
 enum class SystemMetric : uint8_t {
-	FREE_HEAP        = 0,    // ESP8266 only      — bytes
-	FREE_FLASH       = 1,    // ESP8266 only      — bytes
-	WIFI_RSSI        = 2,    // ESP8266 only      — dBm
-	CPU_TEMPERATURE  = 3,    // OSPi/Linux only   — °C
+	FREE_HEAP          = 0,  // ESP8266 only      — KB
+	FREE_FLASH         = 1,  // ESP8266 only      — KB
+	WIFI_RSSI          = 2,  // ESP8266 only      — dBm
+	CPU_TEMPERATURE    = 3,  // OSPi/Linux only   — °C
+	HEAP_FRAGMENTATION = 4,  // ESP8266 only      — %
 	MAX_VALUE,
 };
 
