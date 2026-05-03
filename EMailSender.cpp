@@ -107,9 +107,16 @@ const char* encode64_f(char* input, uint8_t len) {
 	EMAIL_DEBUG_PRINTLN(input);
 	EMAIL_DEBUG_PRINTLN(len);
 
-  //int encodedLen =
- base64_enc_length(len);
   static char encoded[256];
+
+  // Guard: refuse inputs whose encoded form (plus null terminator) wouldn't
+  // fit in our static buffer. Base64 expands 3 bytes -> 4 chars, so the safe
+  // input cap is roughly len*4/3 < 256 (i.e., len <= 189).
+  if (base64_enc_length(len) >= sizeof(encoded)) {
+    encoded[0] = '\0';
+    return encoded;
+  }
+
   // note input is consumed in this step: it will be empty afterwards
   base64_encode(encoded, input, len);
   return encoded;
@@ -143,7 +150,6 @@ EMailSender::EMailSender(const char* email_login, const char* email_password, co
 	this->setEMailFrom(email_from);
 	this->setEMailPassword(email_password);
 	this->setNameFrom(name_from);
-	this->setNameFrom(name_from);
 
 //	this->isSecure = isSecure;
 }
@@ -163,34 +169,40 @@ EMailSender::EMailSender(const char* email_login, const char* email_password){
 //	this->isSecure = isSecure;
 }
 
+EMailSender::~EMailSender() {
+	free(this->smtp_server);
+	free(this->email_login);
+	free(this->email_from);
+	free(this->name_from);
+	free(this->email_password);
+}
+
 void EMailSender::setSMTPPort(uint16_t smtp_port){
 	this->smtp_port = smtp_port;
 };
+// Setters use strdup()/free() consistently with the header's initial value
+// (smtp_server = strdup("smtp.gmail.com")). Mixing strdup() with delete[] is
+// undefined behavior — pair the same allocator on both sides of the lifetime.
 void EMailSender::setSMTPServer(const char* smtp_server){
-	delete [] this->smtp_server;
-	this->smtp_server = new char[strlen(smtp_server)+1];
-	strcpy(this->smtp_server, smtp_server);
+	free(this->smtp_server);
+	this->smtp_server = strdup(smtp_server);
 };
 
 void EMailSender::setEMailLogin(const char* email_login){
-	delete [] this->email_login;
-	this->email_login = new char[strlen(email_login)+1];
-	strcpy(this->email_login, email_login);
+	free(this->email_login);
+	this->email_login = strdup(email_login);
 };
 void EMailSender::setEMailFrom(const char* email_from){
-	delete [] this->email_from;
-	this->email_from = new char[strlen(email_from)+1];
-	strcpy(this->email_from, email_from);
+	free(this->email_from);
+	this->email_from = strdup(email_from);
 };
 void EMailSender::setNameFrom(const char* name_from){
-	delete [] this->name_from;
-	this->name_from = new char[strlen(name_from)+1];
-	strcpy(this->name_from, name_from);
+	free(this->name_from);
+	this->name_from = strdup(name_from);
 };
 void EMailSender::setEMailPassword(const char* email_password){
-	delete [] this->email_password;
-	this->email_password = new char[strlen(email_password)+1];
-	strcpy(this->email_password, email_password);
+	free(this->email_password);
+	this->email_password = strdup(email_password);
 };
 
 void EMailSender::setIsSecure(bool isSecure) {
@@ -377,35 +389,32 @@ void encodeblock(unsigned char in[3],unsigned char out[4],int len) {
 	#endif
 #endif
 
-const char** toCharArray(String arr[], int num) {
-    // If we ever alloc with new with have to delete
-    const char** buffer = new const char*[num];
+// Maximum total recipients (To + Cc + Bcc) supported by the array-form send()
+// wrappers. Used to size a stack buffer that holds the per-recipient pointers
+// during the call. 16 is generous for irrigation notification use cases (which
+// typically send to one address); raise if a real use case needs more.
+#define EMAIL_MAX_RECIPIENTS 16
 
-    for(int i = 0; i < num; i++) {
-        buffer[i] = arr[i].c_str();
-    }
-
-    return buffer;
-}
-const char** toCharArray(char* arr[], int num) {
-    // If we ever alloc with new with have to delete
-    const char** buffer = new const char*[num];
-
-    for(int i = 0; i < num; i++) {
-        buffer[i] = arr[i];
-    }
-
-    return buffer;
+static EMailSender::Response tooManyRecipientsResponse() {
+	EMailSender::Response response;
+	response.code = F("400");
+	response.desc = F("Too many recipients");
+	response.status = false;
+	return response;
 }
 
 EMailSender::Response EMailSender::send(char* tos[], byte sizeOfTo, EMailMessage &email, Attachments attachments) {
-	return send(toCharArray(tos, sizeOfTo), sizeOfTo, 0, 0, email, attachments);
+	return send(tos, sizeOfTo, 0, 0, email, attachments);
 }
 EMailSender::Response EMailSender::send(char* tos[], byte sizeOfTo,  byte sizeOfCc,  EMailMessage &email, Attachments attachments) {
-	return send(toCharArray(tos, sizeOfTo+sizeOfCc), sizeOfTo, sizeOfCc, 0, email, attachments);
+	return send(tos, sizeOfTo, sizeOfCc, 0, email, attachments);
 }
 EMailSender::Response EMailSender::send(char* tos[], byte sizeOfTo,  byte sizeOfCc,byte sizeOfCCn, EMailMessage &email, Attachments attachments){
-	return send(toCharArray(tos, sizeOfTo+sizeOfCc+sizeOfCCn), sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
+	uint8_t total = sizeOfTo + sizeOfCc + sizeOfCCn;
+	if (total > EMAIL_MAX_RECIPIENTS) return tooManyRecipientsResponse();
+	const char* tmp[EMAIL_MAX_RECIPIENTS];
+	for (uint8_t i = 0; i < total; i++) tmp[i] = tos[i];
+	return send(tmp, sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
 }
 
 
@@ -417,15 +426,19 @@ EMailSender::Response EMailSender::send(String to, EMailMessage &email, Attachme
 }
 
 EMailSender::Response EMailSender::send(String tos[], byte sizeOfTo, EMailMessage &email, Attachments attachments) {
-	return send(toCharArray(tos, sizeOfTo), sizeOfTo, 0, 0, email, attachments);
+	return send(tos, sizeOfTo, 0, 0, email, attachments);
 }
 
 EMailSender::Response EMailSender::send(String tos[], byte sizeOfTo,  byte sizeOfCc,  EMailMessage &email, Attachments attachments) {
-	return send(toCharArray(tos, sizeOfTo+sizeOfCc), sizeOfTo, sizeOfCc, 0, email, attachments);
+	return send(tos, sizeOfTo, sizeOfCc, 0, email, attachments);
 }
 
 EMailSender::Response EMailSender::send(String tos[], byte sizeOfTo,  byte sizeOfCc,byte sizeOfCCn, EMailMessage &email, Attachments attachments){
-	return send(toCharArray(tos, sizeOfTo+sizeOfCc+sizeOfCCn), sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
+	uint8_t total = sizeOfTo + sizeOfCc + sizeOfCCn;
+	if (total > EMAIL_MAX_RECIPIENTS) return tooManyRecipientsResponse();
+	const char* tmp[EMAIL_MAX_RECIPIENTS];
+	for (uint8_t i = 0; i < total; i++) tmp[i] = tos[i].c_str();
+	return send(tmp, sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
 }
 
 EMailSender::Response EMailSender::send(const char* to, EMailMessage &email, Attachments attachments){
@@ -599,6 +612,14 @@ EMailSender::Response EMailSender::send(const char* to[], byte sizeOfTo,  byte s
 
 		  int size = 1 + strlen(this->email_login)+ strlen(this->email_password)+2;
 	      char * logPass = (char *) malloc(size);
+	      if (!logPass) {
+			  response.code = F("500");
+			  response.desc = F("Out of memory");
+			  response.status = false;
+			  client.flush();
+			  client.stop();
+			  return response;
+	      }
 
 //	      strcpy(logPass, " ");
 //	      strcat(logPass, this->email_login);
@@ -629,6 +650,7 @@ EMailSender::Response EMailSender::send(const char* to[], byte sizeOfTo,  byte s
 //		  String auth = "AUTH PLAIN "+String(encode64(logPass));
 		  EMAIL_DEBUG_PRINTLN(auth);
 		  client.println(auth);
+		  free(logPass);
           }
 #if defined(ESP32)
 	  else if (this->isCramMD5Login == true) {
@@ -1110,4 +1132,3 @@ EMailSender::Response EMailSender::send(const char* to[], byte sizeOfTo,  byte s
 
   return response;
 }
-
