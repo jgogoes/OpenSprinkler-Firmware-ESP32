@@ -415,6 +415,17 @@ void Sensor::load_all() {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENSORS_FILENAME);
 	}
+
+	// Stagger initial poll times by 1 second per sensor so that on first boot
+	// we don't fire all sensor reads simultaneously. Sensor i first polls at
+	// ~i seconds after this point; subsequent polls follow each sensor's own
+	// interval, preserving the offset across cycles.
+	uint32_t now_ms = millis();
+	for (uint8_t i = 0; i < OpenSprinkler::nsensors; i++) {
+		if (OpenSprinkler::sensors[i].interval) {
+			OpenSprinkler::sensors[i].next_update = now_ms + (uint32_t)i * 1000;
+		}
+	}
 }
 
 uint8_t Sensor::find_index(uint16_t uuid) {

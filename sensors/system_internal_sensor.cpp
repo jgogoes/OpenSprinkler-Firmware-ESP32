@@ -5,6 +5,7 @@
 #if defined(ESP8266)
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
+extern bool useEth;   // declared in OpenSprinkler.h; for the RSSI guard
 #else
 #include <cstdio>
 #endif
@@ -115,7 +116,12 @@ float SystemInternalSensor::_get_raw_value() {
 			break;
 		}
 		case SystemMetric::WIFI_RSSI:
-			raw = (float)WiFi.RSSI();
+			// RSSI is only meaningful when the WiFi station is connected.
+			// Disconnected / Ethernet-mode → return NAN so the sensor surfaces
+			// as STATUS_ERROR rather than reporting a clamped sentinel value.
+			if (!useEth && WiFi.status() == WL_CONNECTED) {
+				raw = (float)WiFi.RSSI();
+			}
 			break;
 		case SystemMetric::HEAP_FRAGMENTATION:
 			raw = (float)ESP.getHeapFragmentation();
