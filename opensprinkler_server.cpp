@@ -2072,6 +2072,9 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			uint32_t sensor_pin = 0;
 			float scale = ADS1115_DEFAULT_SCALE;
 			float offset = ADS1115_DEFAULT_OFFSET;
+			ADS1115Subtype subtype = ADS1115Subtype::LINEAR;
+			uint8_t num_points = 0;
+			sensor_adjustment_point_t points[ADS1115_PIECEWISE_POINTS] = {};
 
 			if (sensor_type == original_sensor_type) {
 				if ((sensor = Sensor::get(sid))) {
@@ -2080,6 +2083,9 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 					sensor_pin = e->pin;
 					scale = e->scale;
 					offset = e->offset;
+					subtype = e->subtype;
+					num_points = e->num_points;
+					for (uint8_t p = 0; p < num_points; p++) points[p] = e->points[p];
 				}
 			}
 
@@ -2102,7 +2108,58 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 			}
 
-			result_sensor = new ADS1115Sensor(interval, min, max, (const char*)&name, unit, flag, os.ads1115_devices, sensor_index, sensor_pin, scale, offset);
+			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("subtype"), true)) {
+				uint32_t st = strtoul(tmp_buffer, &end, 10);
+				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+				if (st >= static_cast<uint32_t>(ADS1115Subtype::MAX_VALUE)) handle_return(HTML_DATA_OUTOFBOUND);
+				ADS1115Subtype new_subtype = static_cast<ADS1115Subtype>(st);
+				if (!ads1115_subtype_is_supported(new_subtype)) handle_return(HTML_DATA_OUTOFBOUND);
+				if (new_subtype != subtype) {
+					subtype = new_subtype;
+					// Drop carried-over points when leaving PIECEWISE_LINEAR.
+					if (subtype != ADS1115Subtype::PIECEWISE_LINEAR) {
+						num_points = 0;
+					}
+				}
+			}
+
+			// points=x0,y0,x1,y1,... — only meaningful for PIECEWISE_LINEAR.
+			if (subtype == ADS1115Subtype::PIECEWISE_LINEAR &&
+			    findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("points"), true)) {
+				char *ptr = tmp_buffer;
+				uint8_t n = 0;
+				sensor_adjustment_point_t parsed[ADS1115_PIECEWISE_POINTS] = {};
+				float last_x = -std::numeric_limits<float>::infinity();
+				while (*ptr != '\0') {
+					if (n >= ADS1115_PIECEWISE_POINTS) handle_return(HTML_DATA_FORMATERROR);
+					float x = strtof(ptr, &end);
+					if (end == ptr || *end != ',') handle_return(HTML_DATA_FORMATERROR);
+					ptr = end + 1;
+					float y = strtof(ptr, &end);
+					if (end == ptr || (*end != ',' && *end != '\0')) handle_return(HTML_DATA_FORMATERROR);
+					if (!isfinite(x) || !isfinite(y) || x < last_x) handle_return(HTML_DATA_FORMATERROR);
+					parsed[n++] = {x, y};
+					last_x = x;
+					ptr = (*end == ',') ? end + 1 : end;
+				}
+				num_points = n;
+				for (uint8_t p = 0; p < n; p++) points[p] = parsed[p];
+			}
+
+			if (subtype == ADS1115Subtype::PIECEWISE_LINEAR && num_points < 2) {
+				handle_return(HTML_DATA_MISSING);
+			}
+
+			// Baked subtypes constrain the unit to the same group as the formula's native unit.
+			SensorUnit native_unit = ads1115_subtype_native_unit(subtype);
+			if (native_unit != SensorUnit::None &&
+			    get_sensor_unit_group(unit) != get_sensor_unit_group(native_unit)) {
+				handle_return(HTML_DATA_OUTOFBOUND);
+			}
+
+			result_sensor = new ADS1115Sensor(interval, min, max, (const char*)&name, unit, flag,
+			                                  os.ads1115_devices, sensor_index, sensor_pin,
+			                                  scale, offset, subtype, num_points, points);
 			break;
 		}
 		case SensorType::Weather: {
@@ -2124,6 +2181,37 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 
 			result_sensor = new WeatherSensor(interval, min, max, (const char*)&name, unit, flag, os.get_sensor_weather_data, action);
 
+			break;
+		}
+		case SensorType::SystemInternal: {
+			SystemMetric metric = SystemMetric::MAX_VALUE;
+
+			if (sensor_type == original_sensor_type) {
+				if ((sensor = Sensor::get(sid))) {
+					SystemInternalSensor* e = static_cast<SystemInternalSensor*>(sensor);
+					metric = e->metric;
+				}
+			}
+
+			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("metric"), true)) {
+				uint32_t m = strtoul(tmp_buffer, &end, 10);
+				if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+				if (m >= (uint32_t)SystemMetric::MAX_VALUE) handle_return(HTML_DATA_OUTOFBOUND);
+				SystemMetric new_metric = static_cast<SystemMetric>(m);
+				if (!system_metric_is_supported(new_metric)) handle_return(HTML_DATA_OUTOFBOUND);
+				metric = new_metric;
+			}
+
+			if (metric == SystemMetric::MAX_VALUE) handle_return(HTML_DATA_MISSING);
+
+			// Unit constraint: same group as the metric's native unit (Temperature for CPU temp).
+			SensorUnit native_unit = system_metric_native_unit(metric);
+			if (native_unit != SensorUnit::None &&
+			    get_sensor_unit_group(unit) != get_sensor_unit_group(native_unit)) {
+				handle_return(HTML_DATA_OUTOFBOUND);
+			}
+
+			result_sensor = new SystemInternalSensor(interval, min, max, (const char*)&name, unit, flag, metric);
 			break;
 		}
 		default: {
@@ -2473,16 +2561,22 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 			case SensorType::Weather:
 				WeatherSensor::emit_description_json(&bfill);
 				break;
+			case SensorType::SystemInternal:
+				SystemInternalSensor::emit_description_json(&bfill);
+				break;
 			case SensorType::MAX_VALUE:
 				break;
 		}
 	}
 
+	// units: compact array form [id, name, short, group]. Index/value were duplicates of id; dropped.
 	bfill.emit_p(PSTR("],\"units\":["));
 	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorUnit::MAX_VALUE); i++) {
 		if (i) bfill.emit_p(PSTR(","));
 		SensorUnit unit = static_cast<SensorUnit>(i);
-		bfill.emit_p(PSTR("{\"name\":\"$S\",\"short\":\"$S\",\"group\":$D,\"index\":$D,\"value\":$D}"), get_sensor_unit_name(unit), get_sensor_unit_short(unit), get_sensor_unit_group(unit), get_sensor_unit_index(unit), i);
+		bfill.emit_p(PSTR("[$D,\"$S\",\"$S\",$D]"),
+			i, get_sensor_unit_name(unit), get_sensor_unit_short(unit),
+			static_cast<uint8_t>(get_sensor_unit_group(unit)));
 	}
 
 	bfill.emit_p(PSTR("],\"enums\":{"));
@@ -2494,20 +2588,20 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("}"));
 
 	bfill.emit_p(PSTR(
-		",\"args\":["
-		"{\"name\":\"Name\",\"arg\":\"name\",\"type\":\"string::[1,32]\",\"default\":\"" SENSOR_DEFAULT_NAME "\"},"
-		"{\"name\":\"Interval\",\"arg\":\"interval\",\"type\":\"int::[1,any]\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\",\"hint\":\"Sensor's update interval (in minutes)\"},"
+		",\"as\":["
+		"{\"n\":\"Name\",\"a\":\"name\",\"t\":\"string::[1,32]\",\"d\":\"" SENSOR_DEFAULT_NAME "\"},"
+		"{\"n\":\"Interval\",\"a\":\"interval\",\"t\":\"int::[1,any]\",\"d\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_INTERVAL) "\",\"h\":\"Sensor's update interval (in minutes)\"},"
 	));
-	bfill.emit_p(PSTR("{\"name\":\"Unit\",\"arg\":\"unit\",\"type\":\"unit\",\"default\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
+	bfill.emit_p(PSTR("{\"n\":\"Unit\",\"a\":\"unit\",\"t\":\"unit\",\"d\":\"$D\"},"), static_cast<uint8_t>(SENSOR_DEFAULT_UNIT));
 	bfill.emit_p(PSTR(
-		"{\"name\":\"Min. Value\",\"arg\":\"min\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
-		"{\"name\":\"Max. Value\",\"arg\":\"max\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
-		"{\"name\":\"Type\",\"arg\":\"type\",\"type\":\"type\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
+		"{\"n\":\"Min. Value\",\"a\":\"min\",\"t\":\"float\",\"d\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MIN) "\"},"
+		"{\"n\":\"Max. Value\",\"a\":\"max\",\"t\":\"float\",\"d\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_MAX) "\"},"
+		"{\"n\":\"Type\",\"a\":\"type\",\"t\":\"type\",\"d\":\"" SENSOR_DEFAULT_STR(SENSOR_DEFAULT_TYPE) "\"}"
 		"]"
 	));
 
 	static_assert(SENSOR_FLAG_COUNT == 3); // If this fails, update the flags array below
-	bfill.emit_p(PSTR(",\"flags\":[{\"name\":\"Enabled\",\"default\":$D},{\"name\":\"Logging\",\"default\":$D},{\"name\":\"Show on Home\",\"default\":$D}]"),
+	bfill.emit_p(PSTR(",\"flags\":[{\"n\":\"Enabled\",\"d\":$D},{\"n\":\"Logging\",\"d\":$D},{\"n\":\"Show on Home\",\"d\":$D}]"),
 		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_ENABLE) & 1,
 		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_LOG) & 1,
 		(SENSOR_DEFAULT_FLAG >> SENSOR_FLAG_SHOW) & 1);

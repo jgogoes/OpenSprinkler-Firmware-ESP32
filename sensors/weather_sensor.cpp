@@ -12,12 +12,12 @@ void WeatherSensor::emit_extra_json(BufferFiller* bfill) {
 
 void WeatherSensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR(
-		"{\"name\":\"Weather Sensor\","
-		"\"args\":["
-			"{\"name\":\"Weather Information\","
-			 "\"arg\":\"action\","
-			 "\"type\":\"enum::WeatherAction\","
-			 "\"default\":\"0\"}"
+		"{\"n\":\"Weather Sensor\","
+		"\"as\":["
+			"{\"n\":\"Weather Information\","
+			 "\"a\":\"action\","
+			 "\"t\":\"enum::WeatherAction\","
+			 "\"d\":\"0\"}"
 		"]}"
 	));
 }

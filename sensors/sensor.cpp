@@ -146,6 +146,48 @@ uint32_t Sensor::_deserialize(char* buf, uint32_t len, uint8_t *subclass_len) {
 	return common_end;
 }
 
+float convert_unit(float value, SensorUnit from, SensorUnit to) {
+	if (from == to) return value;
+	SensorUnitGroup g = get_sensor_unit_group(from);
+	if (g != get_sensor_unit_group(to)) return value;   // incompatible groups: no-op
+
+	if (g == SensorUnitGroup::Temperature) {
+		// Pivot through Celsius
+		float c;
+		switch (from) {
+			case SensorUnit::Celsius:    c = value; break;
+			case SensorUnit::Fahrenheit: c = (value - 32.0f) * 5.0f / 9.0f; break;
+			case SensorUnit::Kelvin:     c = value - 273.15f; break;
+			default:                     return value;
+		}
+		switch (to) {
+			case SensorUnit::Celsius:    return c;
+			case SensorUnit::Fahrenheit: return c * 9.0f / 5.0f + 32.0f;
+			case SensorUnit::Kelvin:     return c + 273.15f;
+			default:                     return value;
+		}
+	}
+	// Other groups (Pressure, Length, Volume, ...) added when their sensors land.
+	return value;
+}
+
+float sensor_piecewise_interp(float x, const sensor_adjustment_point_t *points, uint8_t n) {
+	if (n == 0) return NAN;
+	// duplicate x values form a step: x == T maps to the rightmost point at T
+	if (x < points[0].x) return points[0].y;
+	if (x >= points[n - 1].x) return points[n - 1].y;
+
+	uint8_t i = 0;
+	while (i + 1 < n - 1 && x >= points[i + 1].x) i++;
+
+	const sensor_adjustment_point_t &left  = points[i];
+	const sensor_adjustment_point_t &right = points[i + 1];
+
+	if (right.x == left.x) return right.y;
+
+	return (x - left.x) / (right.x - left.x) * (right.y - left.y) + left.y;
+}
+
 SensorAdjustment::SensorAdjustment(uint16_t uuid, uint8_t point_count, uint8_t flag, sensor_adjustment_point_t* points) {
 	this->uuid = uuid;
 	this->flag = flag;
@@ -162,22 +204,8 @@ float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
 		uint8_t idx = Sensor::find_index(this->uuid);
 		if (idx < MAX_SENSORS && sensors[idx].interval) {
 			if (this->point_count == 0) return 1.f;
-			float value = sensors[idx].value;
-			// duplicate x values form a step: x == T maps to the rightmost point at T
-			if (value < this->points[0].x) return this->points[0].y;
-			if (value >= this->points[this->point_count - 1].x) return this->points[this->point_count - 1].y;
-
-			uint8_t i = 0;
-			while (i + 1 < this->point_count - 1 && value >= this->points[i + 1].x) i++;
-
-			sensor_adjustment_point_t left = this->points[i];
-			sensor_adjustment_point_t right = this->points[i + 1];
-
-			if (right.x == left.x) return right.y;
-
-			value = (value - left.x) / (right.x - left.x) * (right.y - left.y) + left.y;
-
-			if (value < 0) value = 0;
+			float value = sensor_piecewise_interp(sensors[idx].value, this->points, this->point_count);
+			if (value < 0) value = 0;   // adjustment factor must be non-negative
 			return value;
 		}
 	}
@@ -270,6 +298,9 @@ Sensor *Sensor::parse(os_file_type file) {
 			break;
 		case SensorType::Weather:
 			active_sensor = new (sensor_scratchpad) WeatherSensor(os.get_sensor_weather_data, (char*)tmp_buffer, len);
+			break;
+		case SensorType::SystemInternal:
+			active_sensor = new (sensor_scratchpad) SystemInternalSensor((char*)tmp_buffer, len);
 			break;
 		default:
 			return nullptr;

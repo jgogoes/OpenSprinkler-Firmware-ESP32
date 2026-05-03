@@ -28,20 +28,20 @@ void AggregateSensor::emit_extra_json(BufferFiller* bfill) {
 
 void AggregateSensor::emit_description_json(BufferFiller* bfill) {
 	bfill->emit_p(PSTR(
-		"{\"name\":\"Aggregate Sensor\","
-		"\"args\":["
-			"{\"name\":\"Children\","
-			 "\"arg\":\"children\","
-			 "\"type\":\"array::" SENSOR_DEFAULT_STR(AGGREGATE_SENSOR_CHILDREN_COUNT) "\","
-			 "\"extra\":["
-				"{\"name\":\"Sensor UUID\",\"arg\":\"uuid\",\"type\":\"sensor\",\"default\":\"" SENSOR_DEFAULT_STR(SENSOR_UUID_NONE) "\",\"indicator\":true},"
-				"{\"name\":\"Scale\",\"arg\":\"scale\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_SCALE) "\"},"
-				"{\"name\":\"Offset\",\"arg\":\"offset\",\"type\":\"float\",\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_OFFSET) "\"}"
+		"{\"n\":\"Aggregate Sensor\","
+		"\"as\":["
+			"{\"n\":\"Children\","
+			 "\"a\":\"children\","
+			 "\"t\":\"array::" SENSOR_DEFAULT_STR(AGGREGATE_SENSOR_CHILDREN_COUNT) "\","
+			 "\"e\":["
+				"{\"n\":\"Sensor UUID\",\"a\":\"uuid\",\"t\":\"sensor\",\"d\":\"" SENSOR_DEFAULT_STR(SENSOR_UUID_NONE) "\",\"indicator\":true},"
+				"{\"n\":\"Scale\",\"a\":\"scale\",\"t\":\"float\",\"d\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_SCALE) "\"},"
+				"{\"n\":\"Offset\",\"a\":\"offset\",\"t\":\"float\",\"d\":\"" SENSOR_DEFAULT_STR(AGGREGATE_CHILD_DEFAULT_OFFSET) "\"}"
 			"]},"
-			"{\"name\":\"Action\","
-			 "\"arg\":\"action\","
-			 "\"type\":\"enum::AggregateAction\","
-			 "\"default\":\"" SENSOR_DEFAULT_STR(AGGREGATE_DEFAULT_ACTION) "\"}"
+			"{\"n\":\"Action\","
+			 "\"a\":\"action\","
+			 "\"t\":\"enum::AggregateAction\","
+			 "\"d\":\"" SENSOR_DEFAULT_STR(AGGREGATE_DEFAULT_ACTION) "\"}"
 		"]}"
 	));
 }

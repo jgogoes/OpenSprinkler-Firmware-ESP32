@@ -79,6 +79,7 @@ enum class SensorType : uint8_t {
 	Aggregate = 0,
 	ADS1115,
 	Weather,
+	SystemInternal,
 	MAX_VALUE,
 };
 
@@ -150,7 +151,8 @@ enum class SensorType : uint8_t {
 	X(Degree,            "Degree",             "deg",   Angle)       \
 	X(Radian,            "Radian",             "rad",   Angle)       \
 	X(MillimetersPerHour, "Millimeters Per Hour", "mm/h", Precipitation) \
-	X(InchesPerHour,     "Inches Per Hour",    "in/h",  Precipitation)
+	X(InchesPerHour,     "Inches Per Hour",    "in/h",  Precipitation) \
+	X(Kilobyte,          "Kilobyte",           "KB",    None)
 
 enum class SensorUnitGroup : uint8_t {
 #define X(id, name) id,
@@ -280,6 +282,17 @@ inline bool read_buf(char* buf, uint32_t* i, uint32_t end, T& out) {
 	*i += sizeof(T);
 	return ok;
 }
+
+// Linear interpolation across (x, y) points, clamped at endpoints.
+// Duplicate x values form a step (x == T returns the rightmost point at T).
+// Caller is responsible for n >= 1 in normal use; n == 0 returns NAN.
+float sensor_piecewise_interp(float x, const sensor_adjustment_point_t *points, uint8_t n);
+
+// Convert a value between units within the same SensorUnitGroup.
+// Returns the value unchanged if from == to or the units are in different groups.
+// v1 supports the Temperature group (Celsius / Fahrenheit / Kelvin); other
+// groups are added on demand.
+float convert_unit(float value, SensorUnit from, SensorUnit to);
 
 const char *enum_string(SensorUnitGroup group);
 const char *enum_string(AggregateAction action);
