@@ -137,7 +137,9 @@ struct StationAttrib {  // station attributes
 	unsigned char gid;    // sequential group id
 	unsigned char mas3:1; // master 3 binding bit (was reserved[0])
 	unsigned char mas4:1; // master 4 binding bit
-	unsigned char :6;     // remaining bits of this byte, reserved
+	unsigned char igs3:1; // ignore sensor 3
+	unsigned char igs4:1; // ignore sensor 4
+	unsigned char :4;     // remaining bits of this byte, reserved
 	unsigned char reserved; // reserved for future use (was reserved[1])
 }; // total is 4 bytes
 
@@ -219,6 +221,10 @@ struct ConStatus {
 	unsigned char req_mqtt_restart:1;// request mqtt restart
 	unsigned char pause_state:1;     // pause station runs
 	unsigned char overcurrent_sid:8; // overcurrent sid (0: no overcurrent; 1~254: overcurrent caused by opening zone; 255: system overcurrent)
+	unsigned char sensor3:1;         // sensor3 status bit (when set, sensor3 on is detected)
+	unsigned char sensor3_active:1;  // sensor3 active bit (when set, sensor3 is activated)
+	unsigned char sensor4:1;         // sensor4 status bit (when set, sensor4 on is detected)
+	unsigned char sensor4_active:1;  // sensor4 active bit (when set, sensor4 is activated)
 };
 
 /** OTF configuration */
@@ -229,8 +235,32 @@ struct OTCConfig {
 	uint32_t port;
 };
 
-extern const char iopt_json_names[];
-extern const uint8_t iopt_max[];
+// ========================================================================
+// IOPT metadata table
+// ========================================================================
+// Per-option metadata flags. The flags byte is reserved for future expansion.
+#define IOPT_FLAG_RETIRED      0x01  // skipped in /jo, /co, and LCD edit
+#define IOPT_FLAG_SIGNED_TIME  0x02  // value uses water_time_encode_signed
+#define IOPT_FLAG_READ_ONLY    0x04  // /co rejects writes; reads pass through
+#define IOPT_FLAG_HIDDEN_API   0x08  // omitted from /jo (still editable on LCD)
+
+// Per-option flash-resident metadata. One entry per IOPT_* in enum order.
+struct IOptDef {
+	char json[6];        // JSON name, up to 5 chars plus NUL
+	uint8_t max_val;     // permitted maximum (also used by LCD edit clamp)
+	uint8_t def_val;     // factory-default value
+	uint8_t flags;       // IOPT_FLAG_*
+	char prompt[17];     // LCD prompt, up to 16 chars plus NUL
+};                       // flash-resident only
+
+extern const IOptDef iopt_defs[NUM_IOPTS] PROGMEM;
+
+// Accessors that hide PROGMEM reads.
+uint8_t iopt_get_max(uint8_t oid);
+uint8_t iopt_get_def(uint8_t oid);
+uint8_t iopt_get_flags(uint8_t oid);
+void iopt_get_json_name(uint8_t oid, char *buf);  // buf size >= 6
+void iopt_get_prompt(uint8_t oid, char *buf);     // buf size >= 17
 
 class OpenSprinkler {
 public:
@@ -275,6 +305,8 @@ public:
 	static unsigned char attrib_mas3[];
 	static unsigned char attrib_mas4[];
 	static unsigned char attrib_igs2[];
+	static unsigned char attrib_igs3[];
+	static unsigned char attrib_igs4[];
 	static unsigned char attrib_igrd[];
 	static unsigned char attrib_dis[];
 	static unsigned char attrib_spe[];
@@ -289,6 +321,12 @@ public:
 	static time_os_t sensor2_on_timer;  // time when sensor2 is detected on last time
 	static time_os_t sensor2_off_timer; // time when sensor2 is detected off last time
 	static time_os_t sensor2_active_lasttime; // most recent time sensor1 is activated
+	static time_os_t sensor3_on_timer;
+	static time_os_t sensor3_off_timer;
+	static time_os_t sensor3_active_lasttime;
+	static time_os_t sensor4_on_timer;
+	static time_os_t sensor4_off_timer;
+	static time_os_t sensor4_active_lasttime;
 	static time_os_t raindelay_on_lasttime;  // time when the most recent rain delay started
 	static uint32_t pause_timer; // count down timer in paused state
 	static uint32_t flowcount_rt;     // flow count (for computing real-time flow rate)
@@ -345,6 +383,7 @@ public:
 	static void options_setup();
 	static void pre_factory_reset();
 	static void factory_reset();
+	static void load_iopt_defaults();   // populate iopts[] from iopt_defs[].def_val
 	static void iopts_load();
 	static void iopts_save();
 	static bool sopt_save(unsigned char oid, const char *buf);
@@ -471,4 +510,3 @@ private:
 
 	static void parse_otc_config();
 };
-

@@ -25,7 +25,7 @@
 #define ENABLE_DEBUG  // enable serial debug
 
 #define TMP_BUFFER_SIZE       320   // scratch buffer size
-#define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+(TMP_BUFFER_SIZE/2) // allocate extra space to allow overflow when needed
+#define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+32 // allocate extra space to allow overflow when needed
 
 /** Firmware version, hardware version, and maximal values */
 #define OS_FW_VERSION  221  // Firmware version: 221 means 2.2.1
@@ -86,6 +86,8 @@
 #define NOTIFY_STATION_ON      0x0100
 #define NOTIFY_FLOW_ALERT      0x0200
 #define NOTIFY_CURR_ALERT      0x0400
+#define NOTIFY_SENSOR3         0x0800
+#define NOTIFY_SENSOR4         0x1000
 
 /** Queue Insertion Mode */
 enum {
@@ -309,14 +311,14 @@ enum {
 	IOPT_MASTER_STATION_4,
 	IOPT_MASTER_ON_ADJ_4,
 	IOPT_MASTER_OFF_ADJ_4,
-	/*IOPT_SENSOR3_TYPE,
+	IOPT_SENSOR3_TYPE,
 	IOPT_SENSOR3_OPTION,
 	IOPT_SENSOR3_ON_DELAY,
 	IOPT_SENSOR3_OFF_DELAY,
 	IOPT_SENSOR4_TYPE,
 	IOPT_SENSOR4_OPTION,
 	IOPT_SENSOR4_ON_DELAY,
-	IOPT_SENSOR4_OFF_DELAY,*/
+	IOPT_SENSOR4_OFF_DELAY,
 	NUM_IOPTS // total number of integer options
 };
 
@@ -344,6 +346,8 @@ enum {
 #define LOGDATA_WATERLEVEL 0x03
 #define LOGDATA_FLOWSENSE  0x04
 #define LOGDATA_SENSOR2    0x05
+#define LOGDATA_SENSOR3    0x06
+#define LOGDATA_SENSOR4    0x07
 #define LOGDATA_CURRENT    0x80
 
 #undef OS_HW_VERSION
@@ -384,6 +388,8 @@ enum {
 	extern unsigned char PIN_LATCH_COMK;
 	extern unsigned char PIN_SENSOR1;
 	extern unsigned char PIN_SENSOR2;
+	extern unsigned char PIN_SENSOR3;
+	extern unsigned char PIN_SENSOR4;
 	extern unsigned char PIN_IOEXP_INT;
 
 	/* Original OS30 pin defines */
@@ -434,6 +440,8 @@ enum {
 	#define V2_PIN_LATCH_COMK    IOEXP_PIN+15 // latch COM- (cathode)
 	#define V2_PIN_SENSOR1       3  // sensor 1
 	#define V2_PIN_SENSOR2       10 // sensor 2
+	#define V2_PIN_SENSOR3       IOEXP_PIN+10 // sensor 3 (OS 3.4 only — IO expander pin)
+	#define V2_PIN_SENSOR4       IOEXP_PIN+11 // sensor 4 (OS 3.4 only — IO expander pin)
 	#define V2_PIN_BOOST_SEL     IOEXP_PIN+8
 
 	#define USE_DISPLAY

@@ -762,6 +762,28 @@ void do_loop()
 		}
 		os.old_status.sensor2_active = os.status.sensor2_active;
 
+		if(os.old_status.sensor3_active != os.status.sensor3_active) {
+			if(os.status.sensor3_active) {
+				os.sensor3_active_lasttime = curr_time;
+				notif.add(NOTIFY_SENSOR3, LOGDATA_SENSOR3, 1);
+			} else {
+				write_log(LOGDATA_SENSOR3, curr_time);
+				notif.add(NOTIFY_SENSOR3, LOGDATA_SENSOR3, 0);
+			}
+		}
+		os.old_status.sensor3_active = os.status.sensor3_active;
+
+		if(os.old_status.sensor4_active != os.status.sensor4_active) {
+			if(os.status.sensor4_active) {
+				os.sensor4_active_lasttime = curr_time;
+				notif.add(NOTIFY_SENSOR4, LOGDATA_SENSOR4, 1);
+			} else {
+				write_log(LOGDATA_SENSOR4, curr_time);
+				notif.add(NOTIFY_SENSOR4, LOGDATA_SENSOR4, 0);
+			}
+		}
+		os.old_status.sensor4_active = os.status.sensor4_active;
+
 		// ===== Check program switch status =====
 		unsigned char pswitch = os.detect_programswitch_status(curr_time);
 		if(pswitch > 0) {
@@ -1303,6 +1325,8 @@ void process_dynamic_events(time_os_t curr_time) {
 	// check if rain is detected
 	bool sn1 = false;
 	bool sn2 = false;
+	bool sn3 = false;
+	bool sn4 = false;
 	bool rd  = os.status.rain_delayed;
 	bool en = os.status.enabled;
 
@@ -1314,10 +1338,20 @@ void process_dynamic_events(time_os_t curr_time) {
 		 && os.status.sensor2_active)
 		sn2 = true;
 
-	unsigned char sid, s, bid, qid, igs, igs2, igrd;
+	if((os.iopts[IOPT_SENSOR3_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR3_TYPE] == SENSOR_TYPE_SOIL)
+		 && os.status.sensor3_active)
+		sn3 = true;
+
+	if((os.iopts[IOPT_SENSOR4_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR4_TYPE] == SENSOR_TYPE_SOIL)
+		 && os.status.sensor4_active)
+		sn4 = true;
+
+	unsigned char sid, s, bid, qid, igs, igs2, igs3, igs4, igrd;
 	for(bid=0;bid<os.nboards;bid++) {
 		igs = os.attrib_igs[bid];
 		igs2= os.attrib_igs2[bid];
+		igs3= os.attrib_igs3[bid];
+		igs4= os.attrib_igs4[bid];
 		igrd= os.attrib_igrd[bid];
 
 		for(s=0;s<8;s++) {
@@ -1341,6 +1375,8 @@ void process_dynamic_events(time_os_t curr_time) {
 			if(rd && !(igrd&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if rain delay is on and zone does not ignore rain delay, turn it off
 			if(sn1&& !(igs &(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if sensor1 is on and zone does not ignore sensor1, turn it off
 			if(sn2&& !(igs2&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if sensor2 is on and zone does not ignore sensor2, turn it off
+			if(sn3&& !(igs3&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}
+			if(sn4&& !(igs4&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}
 		}
 	}
 }
@@ -1692,6 +1728,8 @@ static const char log_type_names[] PROGMEM =
 	"wl\0"
 	"fl\0"
 	"s2\0"
+	"s3\0"
+	"s4\0"
 	"cu\0";
 
 /** write run record to log on SD card */
@@ -1768,6 +1806,12 @@ void write_log(unsigned char type, time_os_t curr_time) {
 				break;
 			case LOGDATA_SENSOR2:
 				lvalue = (curr_time>os.sensor2_active_lasttime)?(curr_time-os.sensor2_active_lasttime):0;
+				break;
+			case LOGDATA_SENSOR3:
+				lvalue = (curr_time>os.sensor3_active_lasttime)?(curr_time-os.sensor3_active_lasttime):0;
+				break;
+			case LOGDATA_SENSOR4:
+				lvalue = (curr_time>os.sensor4_active_lasttime)?(curr_time-os.sensor4_active_lasttime):0;
 				break;
 			case LOGDATA_RAINDELAY:
 				lvalue = (curr_time>os.raindelay_on_lasttime)?(curr_time-os.raindelay_on_lasttime):0;

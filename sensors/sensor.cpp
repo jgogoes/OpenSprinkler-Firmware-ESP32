@@ -447,6 +447,7 @@ void Sensor::test_log(uint32_t n_records) {
 	}
 
 	uint32_t write_ms = millis() - t0;
+	(void)write_ms;
 	DEBUG_PRINTF("sensor log write: %lu ms total, %.2f ms/record\n",
 		(unsigned long)write_ms,
 		n_records ? (float)write_ms / n_records : 0.f);
@@ -481,6 +482,7 @@ void Sensor::test_log(uint32_t n_records) {
 	}
 
 	uint32_t read_ms = millis() - tr;
+	(void)read_ms;
 	DEBUG_PRINTF("sensor log read: %lu records in %lu ms (%.2f ms/record)\n",
 		(unsigned long)count, (unsigned long)read_ms,
 		count ? (float)read_ms / count : 0.f);

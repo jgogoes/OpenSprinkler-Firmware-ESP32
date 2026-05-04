@@ -112,7 +112,7 @@ const char* encode64_f(char* input, uint8_t len) {
   // Guard: refuse inputs whose encoded form (plus null terminator) wouldn't
   // fit in our static buffer. Base64 expands 3 bytes -> 4 chars, so the safe
   // input cap is roughly len*4/3 < 256 (i.e., len <= 189).
-  if (base64_enc_length(len) >= sizeof(encoded)) {
+  if ((size_t)base64_enc_length(len) >= sizeof(encoded)) {
     encoded[0] = '\0';
     return encoded;
   }

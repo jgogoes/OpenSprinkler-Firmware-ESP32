@@ -50,6 +50,12 @@ time_os_t OpenSprinkler::sensor1_active_lasttime;
 time_os_t OpenSprinkler::sensor2_on_timer;
 time_os_t OpenSprinkler::sensor2_off_timer;
 time_os_t OpenSprinkler::sensor2_active_lasttime;
+time_os_t OpenSprinkler::sensor3_on_timer;
+time_os_t OpenSprinkler::sensor3_off_timer;
+time_os_t OpenSprinkler::sensor3_active_lasttime;
+time_os_t OpenSprinkler::sensor4_on_timer;
+time_os_t OpenSprinkler::sensor4_off_timer;
+time_os_t OpenSprinkler::sensor4_active_lasttime;
 time_os_t OpenSprinkler::raindelay_on_lasttime;
 uint32_t  OpenSprinkler::pause_timer;
 
@@ -69,6 +75,8 @@ unsigned char OpenSprinkler::attrib_mas2[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas3[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas4[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igs2[MAX_NUM_BOARDS];
+unsigned char OpenSprinkler::attrib_igs3[MAX_NUM_BOARDS];
+unsigned char OpenSprinkler::attrib_igs4[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igrd[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_dis[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_spe[MAX_NUM_BOARDS];
@@ -110,351 +118,139 @@ ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
 
 OTCConfig OpenSprinkler::otc;
 
-/** Option json names (stored in PROGMEM to reduce RAM usage) */
-// IMPORTANT: each json name is strictly 5 characters
-// with 0 fillings if less
-#define OP_JSON_NAME_STEPSIZE 5
-// for Integer options
-const char iopt_json_names[] PROGMEM =
-	"fwv\0\0"
-	"tz\0\0\0"
-	"ntp\0\0"
-	"dhcp\0"
-	"ip1\0\0"
-	"ip2\0\0"
-	"ip3\0\0"
-	"ip4\0\0"
-	"gw1\0\0"
-	"gw2\0\0"
-	"gw3\0\0"
-	"gw4\0\0"
-	"hp0\0\0"
-	"hp1\0\0"
-	"hwv\0\0"
-	"ext\0\0"
-	"seq\0\0"
-	"sdt\0\0"
-	"mas\0\0"
-	"mton\0"
-	"mtof\0"
-	"urs\0\0"
-	"rso\0\0"
-	"wl\0\0\0"
-	"den\0\0"
-	"ipas\0"
-	"devid"
-	"con\0\0"
-	"lit\0\0"
-	"dim\0\0"
-	"bst\0\0"
-	"uwt\0\0"
-	"ntp1\0"
-	"ntp2\0"
-	"ntp3\0"
-	"ntp4\0"
-	"lg\0\0\0"
-	"mas2\0"
-	"mton2"
-	"mtof2"
-	"fwm\0\0"
-	"fpr0\0"
-	"fpr1\0"
-	"re\0\0\0"
-	"dns1\0"
-	"dns2\0"
-	"dns3\0"
-	"dns4\0"
-	"sar\0\0"
-	"ife\0\0"
-	"sn1t\0"
-	"sn1o\0"
-	"sn2t\0"
-	"sn2o\0"
-	"sn1on"
-	"sn1of"
-	"sn2on"
-	"sn2of"
-	"subn1"
-	"subn2"
-	"subn3"
-	"subn4"
-	"fwire"
-	"laton"
-	"latof"
-	"ife2\0"
-	"imin\0"
-	"imax\0"
-	"tpdv\0"
-	"resv7"
-	"resv8"
-	"wimod"
-	"reset"
-	"mas3\0"
-	"mton3"
-	"mtof3"
-	"mas4\0"
-	"mton4"
-	"mtof4"
-	;
-
-/** Option prompts (stored in PROGMEM to reduce RAM usage) */
-// Each string is strictly 16 characters
-// with SPACE fillings if less
-const char iopt_prompts[] PROGMEM =
-	"Firmware version"
-	"Time zone (GMT):"
-	"Enable NTP sync?"
-	"Enable DHCP?    "
-	"Static.ip1:     "
-	"Static.ip2:     "
-	"Static.ip3:     "
-	"Static.ip4:     "
-	"Gateway.ip1:    "
-	"Gateway.ip2:    "
-	"Gateway.ip3:    "
-	"Gateway.ip4:    "
-	"HTTP Port:      "
-	"----------------"
-	"Hardware version"
-	"# of exp. board:"
-	"----------------"
-	"Stn. delay (sec)"
-	"Master 1 (Mas1):"
-	"Mas1  on adjust:"
-	"Mas1 off adjust:"
-	"----------------"
-	"----------------"
-	"Watering level: "
-	"Device enabled? "
-	"Ignore password?"
-	"Device ID:      "
-	"LCD contrast:   "
-	"LCD brightness: "
-	"LCD dimming:    "
-	"DC boost time:  "
-	"Weather algo.:  "
-	"NTP server.ip1: "
-	"NTP server.ip2: "
-	"NTP server.ip3: "
-	"NTP server.ip4: "
-	"Enable logging? "
-	"Master 2 (Mas2):"
-	"Mas2  on adjust:"
-	"Mas2 off adjust:"
-	"Firmware minor: "
-	"Pulse rate:     "
-	"----------------"
-	"As remote ext.? "
-	"DNS server.ip1: "
-	"DNS server.ip2: "
-	"DNS server.ip3: "
-	"DNS server.ip4: "
-	"Special Refresh?"
-	"Notif Enable:   "
-	"Sensor 1 type:  "
-	"Normally open?  "
-	"Sensor 2 type:  "
-	"Normally open?  "
-	"Sn1 on adjust:  "
-	"Sn1 off adjust: "
-	"Sn2 on adjust:  "
-	"Sn2 off adjust: "
-	"Subnet mask1:   "
-	"Subnet mask2:   "
-	"Subnet mask3:   "
-	"Subnet mask4:   "
-	"Force wired?    "
-	"Latch On Volt.  "
-	"Latch Off Volt. "
-	"Notif 2 Enable  "
-	"I min threshold "
-	"I max limit     "
-	"Target PD Volt. "
-	"Reserved 7      "
-	"Reserved 8      "
-	"WiFi mode?      "
-	"Factory reset?  "
-	"Master 3 (Mas3):"
-	"Mas3  on adjust:"
-	"Mas3 off adjust:"
-	"Master 4 (Mas4):"
-	"Mas4  on adjust:"
-	"Mas4 off adjust:";
-
-// string options do not have prompts
-
-/** Option maximum values (stored in PROGMEM to reduce RAM usage) */
-const unsigned char iopt_max[] PROGMEM = {
-	0,
-	108,
-	1,
-	1,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	0,
-	MAX_EXT_BOARDS,
-	1,
-	255,
-	MAX_NUM_STATIONS,
-	255,
-	255,
-	255,
-	1,
-	250,
-	1,
-	1,
-	255,
-	255,
-	255,
-	255,
-	250,
-	255,
-	255,
-	255,
-	255,
-	255,
-	1,
-	MAX_NUM_STATIONS,
-	255,
-	255,
-	0,
-	255,
-	255,
-	1,
-	255,
-	255,
-	255,
-	255,
-	1,
-	255,
-	255,
-	1,
-	255,
-	1,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	255,
-	1,
-	24,
-	24,
-	255,
-	100,
-	255,
-	210,
-	255,
-	255,
-	255,
-	1,
-	MAX_NUM_STATIONS,
-	255,
-	255,
-	MAX_NUM_STATIONS,
-	255,
-	255
-};
-
-// string options do not have maximum values
-
-/** Integer option values (stored in RAM) */
-unsigned char OpenSprinkler::iopts[] = {
-	OS_FW_VERSION, // firmware version
-	28, // default time zone: GMT-5
-	1,  // 0: disable NTP sync, 1: enable NTP sync
-	1,  // 0: use static ip, 1: use dhcp
-	0,  // this and next 3 bytes define static ip
-	0,
-	0,
-	0,
-	0,  // this and next 3 bytes define static gateway ip
-	0,
-	0,
-	0,
-#if defined(ESP8266)  // on Arduino, the default HTTP port is 80
-	80, // this and next byte define http port number
-	0,
-#else // on RPI/LINUX, the default HTTP port is 8080
-	144,// this and next byte define http port number
-	31,
+// HTTP port defaults differ by platform.
+#if defined(ESP8266)
+#define DEFAULT_HTTPPORT_0 80
+#define DEFAULT_HTTPPORT_1 0
+#else
+#define DEFAULT_HTTPPORT_0 144
+#define DEFAULT_HTTPPORT_1 31
 #endif
-	OS_HW_VERSION,
-	0,  // number of 8-station extension board. 0: no extension boards
-	1,  // the option 'sequential' is now retired
-	120,// station delay time (-10 minutes to 10 minutes).
-	0,  // index of master station. 0: no master station
-	120,// master on time adjusted time (-10 minutes to 10 minutes)
-	120,// master off adjusted time (-10 minutes to 10 minutes)
-	0,  // urs (retired)
-	0,  // rso (retired)
-	100,// water level (default 100%),
-	1,  // device enable
-	0,  // 1: ignore password; 0: use password
-	0,  // device id
-	150,// lcd contrast
-	100,// lcd backlight
-	15, // lcd dimming
-	80, // boost time (only valid to DC and LATCH type)
-	0,  // weather algorithm (0 means not using weather algorithm)
-	0,  // this and the next three bytes define the ntp server ip
-	0,
-	0,
-	0,
-	1,  // enable logging: 0: disable; 1: enable.
-	0,  // index of master2. 0: no master2 station
-	120,// master2 on adjusted time
-	120,// master2 off adjusted time
-	OS_FW_MINOR, // firmware minor version
-	100,// this and next byte define flow pulse rate (100x)
-	0,  // default is 1.00 (100)
-	0,  // set as remote extension
-	8,  // this and the next three bytes define the custom dns server ip
-	8,
-	8,
-	8,
-	0,  // special station auto refresh
-	0,  // notif enable bits
-	0,  // sensor 1 type (see SENSOR_TYPE macro defines)
-	1,  // sensor 1 option. 0: normally closed; 1: normally open.	default 1.
-	0,  // sensor 2 type
-	1,  // sensor 2 option. 0: normally closed; 1: normally open. default 1.
-	0,  // sensor 1 on delay
-	0,  // sensor 1 off delay
-	0,  // sensor 2 on delay
-	0,  // sensor 2 off delay
-	255,// subnet mask 1
-	255,// subnet mask 2
-	255,// subnet mask 3
-	0,
-	1,  // force wired connection
-	0,  // latch on volt
-	0,  // latch off volt
-	0,  // notif enable bits 2
-	DEFAULT_UNDERCURRENT_THRESHOLD/10, // imin threshold scaled down by 10.
-	0,  // imax limit scaled down by 10. 0 means using default value
-	DEFAULT_TARGET_PD_VOLTAGE,  // target pd voltage (in unit of 100mV)
-	0,  // reserved 7
-	0,  // reserved 8
-	WIFI_MODE_AP, // wifi mode
-	0,  // reset
-	0,  // index of master3. 0: no master3 station
-	120,// master3 on adjusted time
-	120,// master3 off adjusted time
-	0,  // index of master4. 0: no master4 station
-	120,// master4 on adjusted time
-	120,// master4 off adjusted time
+
+/** Per-option metadata: JSON name, max value, factory default, flags, LCD prompt.
+ * Stored in PROGMEM in IOPT_* enum order. To add a new option:
+ *   1) add IOPT_* to defines.h enum (before NUM_IOPTS)
+ *   2) add a row here in the same position
+ * The static_assert below catches order/length drift.
+ *
+ * Notes on flag use:
+ *   IOPT_FLAG_RETIRED      — option is deprecated; skipped in /jo and LCD edit
+ *   IOPT_FLAG_SIGNED_TIME  — value uses water_time_encode_signed packing
+ *   IOPT_FLAG_READ_ONLY    — /co rejects writes; firmware can still write internally
+ *   IOPT_FLAG_HIDDEN_API   — omitted from /jo (e.g., LCD-only or reserved fields)
+ */
+const IOptDef iopt_defs[NUM_IOPTS] PROGMEM = {
+	/* IOPT_FW_VERSION         */ {"fwv",   0,                OS_FW_VERSION,                     IOPT_FLAG_READ_ONLY,    "Firmware version"},
+	/* IOPT_TIMEZONE           */ {"tz",    108,              28,                                0,                      "Time zone (GMT):"},
+	/* IOPT_USE_NTP            */ {"ntp",   1,                1,                                 0,                      "Enable NTP sync?"},
+	/* IOPT_USE_DHCP           */ {"dhcp",  1,                1,                                 0,                      "Enable DHCP?    "},
+	/* IOPT_STATIC_IP1         */ {"ip1",   255,              0,                                 0,                      "Static.ip1:     "},
+	/* IOPT_STATIC_IP2         */ {"ip2",   255,              0,                                 0,                      "Static.ip2:     "},
+	/* IOPT_STATIC_IP3         */ {"ip3",   255,              0,                                 0,                      "Static.ip3:     "},
+	/* IOPT_STATIC_IP4         */ {"ip4",   255,              0,                                 0,                      "Static.ip4:     "},
+	/* IOPT_GATEWAY_IP1        */ {"gw1",   255,              0,                                 0,                      "Gateway.ip1:    "},
+	/* IOPT_GATEWAY_IP2        */ {"gw2",   255,              0,                                 0,                      "Gateway.ip2:    "},
+	/* IOPT_GATEWAY_IP3        */ {"gw3",   255,              0,                                 0,                      "Gateway.ip3:    "},
+	/* IOPT_GATEWAY_IP4        */ {"gw4",   255,              0,                                 0,                      "Gateway.ip4:    "},
+	/* IOPT_HTTPPORT_0         */ {"hp0",   255,              DEFAULT_HTTPPORT_0,                0,                      "HTTP Port:      "},
+	/* IOPT_HTTPPORT_1         */ {"hp1",   255,              DEFAULT_HTTPPORT_1,                0,                      "----------------"},
+	/* IOPT_HW_VERSION         */ {"hwv",   0,                OS_HW_VERSION,                     IOPT_FLAG_READ_ONLY,    "Hardware version"},
+	/* IOPT_EXT_BOARDS         */ {"ext",   MAX_EXT_BOARDS,   0,                                 0,                      "# of exp. board:"},
+	/* IOPT_SEQUENTIAL_RETIRED */ {"seq",   1,                1,                                 IOPT_FLAG_RETIRED,      "----------------"},
+	/* IOPT_STATION_DELAY_TIME */ {"sdt",   255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Stn. delay (sec)"},
+	/* IOPT_MASTER_STATION     */ {"mas",   MAX_NUM_STATIONS, 0,                                 0,                      "Master 1 (Mas1):"},
+	/* IOPT_MASTER_ON_ADJ      */ {"mton",  255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas1  on adjust:"},
+	/* IOPT_MASTER_OFF_ADJ     */ {"mtof",  255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas1 off adjust:"},
+	/* IOPT_URS_RETIRED        */ {"urs",   255,              0,                                 IOPT_FLAG_RETIRED,      "----------------"},
+	/* IOPT_RSO_RETIRED        */ {"rso",   1,                0,                                 IOPT_FLAG_RETIRED,      "----------------"},
+	/* IOPT_WATER_PERCENTAGE   */ {"wl",    250,              100,                               0,                      "Watering level: "},
+	/* IOPT_DEVICE_ENABLE      */ {"den",   1,                1,                                 0,                      "Device enabled? "},
+	/* IOPT_IGNORE_PASSWORD    */ {"ipas",  1,                0,                                 0,                      "Ignore password?"},
+	/* IOPT_DEVICE_ID          */ {"devid", 255,              0,                                 0,                      "Device ID:      "},
+	/* IOPT_LCD_CONTRAST       */ {"con",   255,              150,                               IOPT_FLAG_HIDDEN_API,   "LCD contrast:   "},
+	/* IOPT_LCD_BACKLIGHT      */ {"lit",   255,              100,                               IOPT_FLAG_HIDDEN_API,   "LCD brightness: "},
+	/* IOPT_LCD_DIMMING        */ {"dim",   255,              15,                                0,                      "LCD dimming:    "},
+	/* IOPT_BOOST_TIME         */ {"bst",   250,              80,                                0,                      "DC boost time:  "},
+	/* IOPT_USE_WEATHER        */ {"uwt",   255,              0,                                 0,                      "Weather algo.:  "},
+	/* IOPT_NTP_IP1            */ {"ntp1",  255,              0,                                 0,                      "NTP server.ip1: "},
+	/* IOPT_NTP_IP2            */ {"ntp2",  255,              0,                                 0,                      "NTP server.ip2: "},
+	/* IOPT_NTP_IP3            */ {"ntp3",  255,              0,                                 0,                      "NTP server.ip3: "},
+	/* IOPT_NTP_IP4            */ {"ntp4",  255,              0,                                 0,                      "NTP server.ip4: "},
+	/* IOPT_ENABLE_LOGGING     */ {"lg",    1,                1,                                 0,                      "Enable logging? "},
+	/* IOPT_MASTER_STATION_2   */ {"mas2",  MAX_NUM_STATIONS, 0,                                 0,                      "Master 2 (Mas2):"},
+	/* IOPT_MASTER_ON_ADJ_2    */ {"mton2", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas2  on adjust:"},
+	/* IOPT_MASTER_OFF_ADJ_2   */ {"mtof2", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas2 off adjust:"},
+	/* IOPT_FW_MINOR           */ {"fwm",   0,                OS_FW_MINOR,                       IOPT_FLAG_READ_ONLY,    "Firmware minor: "},
+	/* IOPT_PULSE_RATE_0       */ {"fpr0",  255,              100,                               0,                      "Pulse rate:     "},
+	/* IOPT_PULSE_RATE_1       */ {"fpr1",  255,              0,                                 0,                      "----------------"},
+	/* IOPT_REMOTE_EXT_MODE    */ {"re",    1,                0,                                 0,                      "As remote ext.? "},
+	/* IOPT_DNS_IP1            */ {"dns1",  255,              8,                                 0,                      "DNS server.ip1: "},
+	/* IOPT_DNS_IP2            */ {"dns2",  255,              8,                                 0,                      "DNS server.ip2: "},
+	/* IOPT_DNS_IP3            */ {"dns3",  255,              8,                                 0,                      "DNS server.ip3: "},
+	/* IOPT_DNS_IP4            */ {"dns4",  255,              8,                                 0,                      "DNS server.ip4: "},
+	/* IOPT_SPE_AUTO_REFRESH   */ {"sar",   1,                0,                                 0,                      "Special Refresh?"},
+	/* IOPT_NOTIF_ENABLE       */ {"ife",   255,              0,                                 0,                      "Notif Enable:   "},
+	/* IOPT_SENSOR1_TYPE       */ {"sn1t",  255,              0,                                 0,                      "Sensor 1 type:  "},
+	/* IOPT_SENSOR1_OPTION     */ {"sn1o",  1,                1,                                 0,                      "Normally open?  "},
+	/* IOPT_SENSOR2_TYPE       */ {"sn2t",  255,              0,                                 0,                      "Sensor 2 type:  "},
+	/* IOPT_SENSOR2_OPTION     */ {"sn2o",  1,                1,                                 0,                      "Normally open?  "},
+	/* IOPT_SENSOR1_ON_DELAY   */ {"sn1on", 255,              0,                                 0,                      "Sn1 on adjust:  "},
+	/* IOPT_SENSOR1_OFF_DELAY  */ {"sn1of", 255,              0,                                 0,                      "Sn1 off adjust: "},
+	/* IOPT_SENSOR2_ON_DELAY   */ {"sn2on", 255,              0,                                 0,                      "Sn2 on adjust:  "},
+	/* IOPT_SENSOR2_OFF_DELAY  */ {"sn2of", 255,              0,                                 0,                      "Sn2 off adjust: "},
+	/* IOPT_SUBNET_MASK1       */ {"subn1", 255,              255,                               0,                      "Subnet mask1:   "},
+	/* IOPT_SUBNET_MASK2       */ {"subn2", 255,              255,                               0,                      "Subnet mask2:   "},
+	/* IOPT_SUBNET_MASK3       */ {"subn3", 255,              255,                               0,                      "Subnet mask3:   "},
+	/* IOPT_SUBNET_MASK4       */ {"subn4", 255,              0,                                 0,                      "Subnet mask4:   "},
+	/* IOPT_FORCE_WIRED        */ {"fwire", 1,                1,                                 0,                      "Force wired?    "},
+	/* IOPT_LATCH_ON_VOLTAGE   */ {"laton", 24,               0,                                 0,                      "Latch On Volt.  "},
+	/* IOPT_LATCH_OFF_VOLTAGE  */ {"latof", 24,               0,                                 0,                      "Latch Off Volt. "},
+	/* IOPT_NOTIF2_ENABLE      */ {"ife2",  255,              0,                                 0,                      "Notif 2 Enable  "},
+	/* IOPT_I_MIN_THRESHOLD    */ {"imin",  100,              DEFAULT_UNDERCURRENT_THRESHOLD/10, 0,                      "I min threshold "},
+	/* IOPT_I_MAX_LIMIT        */ {"imax",  255,              0,                                 0,                      "I max limit     "},
+	/* IOPT_TARGET_PD_VOLTAGE  */ {"tpdv",  210,              DEFAULT_TARGET_PD_VOLTAGE,         0,                      "Target PD Volt. "},
+	/* IOPT_RESERVE_7          */ {"resv7", 255,              0,                                 IOPT_FLAG_HIDDEN_API,   "Reserved 7      "},
+	/* IOPT_RESERVE_8          */ {"resv8", 255,              0,                                 IOPT_FLAG_HIDDEN_API,   "Reserved 8      "},
+	/* IOPT_WIFI_MODE          */ {"wimod", 255,              WIFI_MODE_AP,                      IOPT_FLAG_READ_ONLY,    "WiFi mode?      "},
+	/* IOPT_RESET              */ {"reset", 1,                0,                                 IOPT_FLAG_READ_ONLY,    "Factory reset?  "},
+	/* IOPT_MASTER_STATION_3   */ {"mas3",  MAX_NUM_STATIONS, 0,                                 0,                      "Master 3 (Mas3):"},
+	/* IOPT_MASTER_ON_ADJ_3    */ {"mton3", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas3  on adjust:"},
+	/* IOPT_MASTER_OFF_ADJ_3   */ {"mtof3", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas3 off adjust:"},
+	/* IOPT_MASTER_STATION_4   */ {"mas4",  MAX_NUM_STATIONS, 0,                                 0,                      "Master 4 (Mas4):"},
+	/* IOPT_MASTER_ON_ADJ_4    */ {"mton4", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas4  on adjust:"},
+	/* IOPT_MASTER_OFF_ADJ_4   */ {"mtof4", 255,              120,                               IOPT_FLAG_SIGNED_TIME,  "Mas4 off adjust:"},
+	/* IOPT_SENSOR3_TYPE       */ {"sn3t",  255,              0,                                 0,                      "Sensor 3 type:  "},
+	/* IOPT_SENSOR3_OPTION     */ {"sn3o",  1,                1,                                 0,                      "Normally open?  "},
+	/* IOPT_SENSOR3_ON_DELAY   */ {"sn3on", 255,              0,                                 0,                      "Sn3 on adjust:  "},
+	/* IOPT_SENSOR3_OFF_DELAY  */ {"sn3of", 255,              0,                                 0,                      "Sn3 off adjust: "},
+	/* IOPT_SENSOR4_TYPE       */ {"sn4t",  255,              0,                                 0,                      "Sensor 4 type:  "},
+	/* IOPT_SENSOR4_OPTION     */ {"sn4o",  1,                1,                                 0,                      "Normally open?  "},
+	/* IOPT_SENSOR4_ON_DELAY   */ {"sn4on", 255,              0,                                 0,                      "Sn4 on adjust:  "},
+	/* IOPT_SENSOR4_OFF_DELAY  */ {"sn4of", 255,              0,                                 0,                      "Sn4 off adjust: "},
 };
+
+static_assert(sizeof(iopt_defs)/sizeof(iopt_defs[0]) == NUM_IOPTS,
+              "iopt_defs out of sync with IOPT_* enum");
+
+// Accessors that hide PROGMEM reads.
+uint8_t iopt_get_max(uint8_t oid)   { return pgm_read_byte(&iopt_defs[oid].max_val); }
+uint8_t iopt_get_def(uint8_t oid)   { return pgm_read_byte(&iopt_defs[oid].def_val); }
+uint8_t iopt_get_flags(uint8_t oid) { return pgm_read_byte(&iopt_defs[oid].flags); }
+
+void iopt_get_json_name(uint8_t oid, char *buf) {
+	memcpy_P(buf, iopt_defs[oid].json, 6);
+}
+
+void iopt_get_prompt(uint8_t oid, char *buf) {
+	memcpy_P(buf, iopt_defs[oid].prompt, 17);
+}
+
+/** Integer option values — populated at boot from iopt_defs[].def_val
+ * (factory_reset path) or restored from iopts.dat (iopts_load path).
+ * iopts.dat file format depends on IOPT_* enum order, which must remain
+ * stable across firmware upgrades. */
+unsigned char OpenSprinkler::iopts[NUM_IOPTS];
+
 
 /** String option values (stored in RAM) */
 const char *OpenSprinkler::sopts[] = {
@@ -913,6 +709,12 @@ void OpenSprinkler::begin() {
 			PIN_LATCH_COMA = V2_PIN_LATCH_COMA;
 			PIN_SENSOR1 = V2_PIN_SENSOR1;
 			PIN_SENSOR2 = V2_PIN_SENSOR2;
+			if(hw_rev == 4) {
+				// SN3/SN4 are wired to IO expander pins on OS 3.4 only.
+				// Earlier rev2/rev3 boards leave PIN_SENSOR3/4 at the default 255 sentinel.
+				PIN_SENSOR3 = V2_PIN_SENSOR3;
+				PIN_SENSOR4 = V2_PIN_SENSOR4;
+			}
 		}
 	}
 
@@ -1050,7 +852,7 @@ void OpenSprinkler::setup_pd_voltage() {
  */
 void OpenSprinkler::latch_boost(int8_t volt) {
 	// if volt is negative or larger than max volt, ignore it and boost according to BOOST_TIME only
-	if(volt<0 || volt>iopt_max[IOPT_LATCH_ON_VOLTAGE]) {
+	if(volt<0 || volt>iopt_get_max(IOPT_LATCH_ON_VOLTAGE)) {
 		digitalWriteExt(PIN_BOOST, HIGH);      // enable boost converter
 		delay((int)iopts[IOPT_BOOST_TIME]<<2); // wait for booster to charge
 		digitalWriteExt(PIN_BOOST, LOW);       // disable boost converter
@@ -1379,6 +1181,62 @@ void OpenSprinkler::detect_binarysensor_status(time_os_t curr_time) {
 			}
 		}
 	}
+
+	#if defined(ESP8266)
+	if(iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_SOIL) {
+		unsigned char val = digitalReadExt(PIN_SENSOR3);
+		status.sensor3 = (val == iopts[IOPT_SENSOR3_OPTION]) ? 0 : 1;
+		if(status.sensor3) {
+			if(!sensor3_on_timer) {
+				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR3_ON_DELAY]*60;
+				sensor3_on_timer = curr_time + (delay_time>5?delay_time:5);
+				sensor3_off_timer = 0;
+			} else {
+				if(curr_time > sensor3_on_timer) {
+					status.sensor3_active = 1;
+				}
+			}
+		} else {
+			if(!sensor3_off_timer) {
+				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR3_OFF_DELAY]*60;
+				sensor3_off_timer = curr_time + (delay_time>5?delay_time:5);
+				sensor3_on_timer = 0;
+			} else {
+				if(curr_time > sensor3_off_timer) {
+					status.sensor3_active = 0;
+				}
+			}
+		}
+	}
+	#endif
+
+	#if defined(ESP8266)
+	if(iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_SOIL) {
+		unsigned char val = digitalReadExt(PIN_SENSOR4);
+		status.sensor4 = (val == iopts[IOPT_SENSOR4_OPTION]) ? 0 : 1;
+		if(status.sensor4) {
+			if(!sensor4_on_timer) {
+				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR4_ON_DELAY]*60;
+				sensor4_on_timer = curr_time + (delay_time>5?delay_time:5);
+				sensor4_off_timer = 0;
+			} else {
+				if(curr_time > sensor4_on_timer) {
+					status.sensor4_active = 1;
+				}
+			}
+		} else {
+			if(!sensor4_off_timer) {
+				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR4_OFF_DELAY]*60;
+				sensor4_off_timer = curr_time + (delay_time>5?delay_time:5);
+				sensor4_on_timer = 0;
+			} else {
+				if(curr_time > sensor4_off_timer) {
+					status.sensor4_active = 0;
+				}
+			}
+		}
+	}
+	#endif
 }
 
 /** Return program switch status */
@@ -1406,6 +1264,28 @@ unsigned char OpenSprinkler::detect_programswitch_status(time_os_t curr_time) {
 		}
 	}
 
+	#if defined(ESP8266)
+	if(iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_PSWITCH) {
+		static unsigned char sensor3_hist = 0;
+		status.sensor3 = (digitalReadExt(PIN_SENSOR3) != iopts[IOPT_SENSOR3_OPTION]);
+		sensor3_hist = (sensor3_hist<<1) | status.sensor3;
+		if((sensor3_hist&0b1111) == 0b0011) {
+			ret |= 0x04;
+		}
+	}
+	#endif
+
+	#if defined(ESP8266)
+	if(iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_PSWITCH) {
+		static unsigned char sensor4_hist = 0;
+		status.sensor4 = (digitalReadExt(PIN_SENSOR4) != iopts[IOPT_SENSOR4_OPTION]);
+		sensor4_hist = (sensor4_hist<<1) | status.sensor4;
+		if((sensor4_hist&0b1111) == 0b0011) {
+			ret |= 0x08;
+		}
+	}
+	#endif
+
 	return ret;
 }
 
@@ -1416,8 +1296,16 @@ void OpenSprinkler::sensor_resetall() {
 	sensor2_on_timer = 0;
 	sensor2_off_timer = 0;
 	sensor2_active_lasttime = 0;
+	sensor3_on_timer = 0;
+	sensor3_off_timer = 0;
+	sensor3_active_lasttime = 0;
+	sensor4_on_timer = 0;
+	sensor4_off_timer = 0;
+	sensor4_active_lasttime = 0;
 	old_status.sensor1_active = status.sensor1_active = 0;
 	old_status.sensor2_active = status.sensor2_active = 0;
+	old_status.sensor3_active = status.sensor3_active = 0;
+	old_status.sensor4_active = status.sensor4_active = 0;
 }
 
 /** Read current sensing value
@@ -1638,6 +1526,8 @@ void OpenSprinkler::attribs_save() {
 			at.igs = (attrib_igs[bid]>>s) & 1;
 			at.mas2= (attrib_mas2[bid]>>s)& 1;
 			at.igs2= (attrib_igs2[bid]>>s) & 1;
+			at.igs3= (attrib_igs3[bid]>>s) & 1;
+			at.igs4= (attrib_igs4[bid]>>s) & 1;
 			at.igrd= (attrib_igrd[bid]>>s) & 1;
 			at.dis = (attrib_dis[bid]>>s) & 1;
 			at.mas3= (attrib_mas3[bid]>>s) & 1;
@@ -1674,6 +1564,8 @@ void OpenSprinkler::attribs_load() {
 	memset(attrib_mas3, 0, nboards);
 	memset(attrib_mas4, 0, nboards);
 	memset(attrib_igs2, 0, nboards);
+	memset(attrib_igs3, 0, nboards);
+	memset(attrib_igs4, 0, nboards);
 	memset(attrib_igrd, 0, nboards);
 	memset(attrib_dis, 0, nboards);
 	memset(attrib_spe, 0, nboards);
@@ -1688,6 +1580,8 @@ void OpenSprinkler::attribs_load() {
 			attrib_mas3[bid]|= (at.mas3<<s);
 			attrib_mas4[bid]|= (at.mas4<<s);
 			attrib_igs2[bid]|= (at.igs2<<s);
+			attrib_igs3[bid]|= (at.igs3<<s);
+			attrib_igs4[bid]|= (at.igs4<<s);
 			attrib_igrd[bid]|= (at.igrd<<s);
 			attrib_dis[bid] |= (at.dis<<s);
 			attrib_grp[sid] = at.gid;
@@ -2098,6 +1992,15 @@ void OpenSprinkler::pre_factory_reset() {
 	#endif
 }
 
+/** Populate the in-RAM iopts[] from the PROGMEM iopt_defs[].def_val table.
+ * Called from factory_reset before iopts_save, and as a safety net when
+ * iopts.dat is missing or corrupt. */
+void OpenSprinkler::load_iopt_defaults() {
+	for (uint8_t i = 0; i < NUM_IOPTS; i++) {
+		iopts[i] = iopt_get_def(i);
+	}
+}
+
 /** Factory reset */
 void OpenSprinkler::factory_reset() {
 #if defined(ESP8266)
@@ -2107,7 +2010,8 @@ void OpenSprinkler::factory_reset() {
 	DEBUG_PRINT("factory reset...");
 #endif
 
-	// 1. reset integer options (by saving default values)
+	// 1. populate iopts[] with factory defaults from iopt_defs[], then persist
+	load_iopt_defaults();
 	iopts_save();
 	// reset string options by first wiping the file clean then write default values
 	memset(tmp_buffer, 0, MAX_SOPTS_SIZE);
@@ -2351,9 +2255,10 @@ void parse_wto(char* wto);
 
 /** Load integer options from file */
 void OpenSprinkler::iopts_load() {
-	// Load only as many entries as the file actually contains so that new options
-	// (added in a later firmware) keep their compile-time defaults when upgrading
-	// from an older iopts.dat that has fewer entries.
+	// Seed iopts[] with factory defaults first. This way, any options not
+	// yet present in iopts.dat (e.g., newly added options after a firmware
+	// upgrade) keep their compile-time defaults rather than reading as 0.
+	load_iopt_defaults();
 	os_file_type f = file_open(IOPTS_FILENAME, FileOpenMode::Read);
 	uint32_t load_count = f ? file_size(f) : 0;
 	if (f) file_close(f);
@@ -2881,7 +2786,7 @@ void OpenSprinkler::lcd_print_version(unsigned char v) {
 /** print an option value */
 void OpenSprinkler::lcd_print_option(int i) {
 	// each prompt string takes 16 characters
-	strncpy_P0(tmp_buffer, iopt_prompts+16*i, 16);
+	iopt_get_prompt(i, tmp_buffer);
 	lcd.setCursor(0, 0);
 	lcd.print(tmp_buffer);
 	lcd_print_line_clear_pgm(PSTR(""), 1);
@@ -2990,7 +2895,7 @@ void OpenSprinkler::lcd_print_option(int i) {
 		break;
 	default:
 		// if this is a boolean option
-		if (pgm_read_byte(iopt_max+i)==1)
+		if (iopt_get_max(i)==1)
 			lcd_print_pgm(iopts[i] ? PSTR("Yes") : PSTR("No"));
 		else
 			lcd.print((int)iopts[i]);
@@ -3075,7 +2980,7 @@ void OpenSprinkler::ui_set_options(int oid)
 					i==IOPT_HTTPPORT_0 || i==IOPT_HTTPPORT_1 ||
 					i==IOPT_PULSE_RATE_0 || i==IOPT_PULSE_RATE_1 ||
 					i==IOPT_WIFI_MODE) break; // ignore non-editable options
-			if (pgm_read_byte(iopt_max+i) != iopts[i]) iopts[i] ++;
+			if (iopt_get_max(i) != iopts[i]) iopts[i] ++;
 			break;
 
 		case BUTTON_2:

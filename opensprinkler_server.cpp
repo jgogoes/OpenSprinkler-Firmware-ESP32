@@ -347,7 +347,8 @@ boolean process_password(OTF_PARAMS_DEF, boolean fwv_on_fail=false) {
 	if(fwv_on_fail) {
 		print_header(OTF_PARAMS);
 		begin_response(res);
-		bfill.emit_p(PSTR("{\"$F\":$D}"), iopt_json_names+0, os.iopts[0]);
+		iopt_get_json_name(IOPT_FW_VERSION, tmp_buffer);
+		bfill.emit_p(PSTR("{\"$S\":$D}"), tmp_buffer, os.iopts[0]);
 	} else {
 		otf_send_result(OTF_PARAMS, HTML_UNAUTHORIZED);
 	}
@@ -387,6 +388,10 @@ void server_json_stations_main(OTF_PARAMS_DEF) {
 	server_json_board_attrib(PSTR("ignore_rain"), os.attrib_igrd);
 	server_json_board_attrib(PSTR("ignore_sn1"), os.attrib_igs);
 	server_json_board_attrib(PSTR("ignore_sn2"), os.attrib_igs2);
+	if (os.hw_rev >= 4) {
+		server_json_board_attrib(PSTR("ignore_sn3"), os.attrib_igs3);
+		server_json_board_attrib(PSTR("ignore_sn4"), os.attrib_igs4);
+	}
 	server_json_board_attrib(PSTR("stn_dis"), os.attrib_dis);
 	server_json_board_attrib(PSTR("stn_spe"), os.attrib_spe);
 	server_json_stations_attrib(PSTR("stn_grp"), os.attrib_grp);
@@ -469,15 +474,18 @@ void server_change_stations_attrib(const OTF::Request &req, char header, unsigne
  *
  * pw: password
  * s?: station name (? is station index, starting from 0)
- * m?: master operation bit field (? is board index, starting from 0)
+ * m?: master1 operation bit field (? is board index, starting from 0)
  * i?: ignore rain bit field
+ * j?: ignore sensor1 bit field
+ * k?: ignore sensor2 bit field
+ * o?: ignore sensor3 bit field
+ * r?: ignore sensor4 bit field
  * n?: master2 operation bit field
- * d?: disable sation bit field
- * q?: station sequential bit field
- * p?: station special flag bit field
- * g?: sequential group id
  * u?: master3 operation bit field
  * v?: master4 operation bit field
+ * d?: disable sation bit field
+ * p?: station special flag bit field
+ * g?: sequential group id
  */
 void server_change_stations(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
@@ -497,6 +505,10 @@ void server_change_stations(OTF_PARAMS_DEF) {
 	server_change_board_attrib(FKV_SOURCE, 'i', os.attrib_igrd); // ignore rain delay
 	server_change_board_attrib(FKV_SOURCE, 'j', os.attrib_igs); // ignore sensor1
 	server_change_board_attrib(FKV_SOURCE, 'k', os.attrib_igs2); // ignore sensor2
+	if (os.hw_rev >= 4) {
+		server_change_board_attrib(FKV_SOURCE, 'o', os.attrib_igs3); // ignore sensor3
+		server_change_board_attrib(FKV_SOURCE, 'r', os.attrib_igs4); // ignore sensor4
+	}
 	server_change_board_attrib(FKV_SOURCE, 'n', os.attrib_mas2); // master2
 	server_change_board_attrib(FKV_SOURCE, 'u', os.attrib_mas3); // master3
 	server_change_board_attrib(FKV_SOURCE, 'v', os.attrib_mas4); // master4
@@ -937,6 +949,7 @@ void server_change_program(OTF_PARAMS_DEF) {
 
 void server_json_options_main() {
 	unsigned char oid;
+	bool emitted = false;
 	for(oid=0;oid<NUM_IOPTS;oid++) {
 		#if !defined(ESP8266) // do not send the following parameters for non-Arduino platforms
 		if (oid==IOPT_USE_NTP			|| oid==IOPT_USE_DHCP		 ||
@@ -948,12 +961,12 @@ void server_json_options_main() {
 				continue;
 		#endif
 
+		uint8_t flags = iopt_get_flags(oid);
+		// Skip retired and API-hidden options.
+		if (flags & (IOPT_FLAG_RETIRED | IOPT_FLAG_HIDDEN_API)) continue;
+
 		int32_t v=os.iopts[oid];
-		if (oid==IOPT_MASTER_OFF_ADJ   || oid==IOPT_MASTER_OFF_ADJ_2 ||
-				oid==IOPT_MASTER_OFF_ADJ_3 || oid==IOPT_MASTER_OFF_ADJ_4 ||
-				oid==IOPT_MASTER_ON_ADJ    || oid==IOPT_MASTER_ON_ADJ_2  ||
-				oid==IOPT_MASTER_ON_ADJ_3  || oid==IOPT_MASTER_ON_ADJ_4  ||
-				oid==IOPT_STATION_DELAY_TIME) {
+		if (flags & IOPT_FLAG_SIGNED_TIME) {
 			v=water_time_decode_signed(v);
 		}
 
@@ -975,8 +988,14 @@ void server_json_options_main() {
 		if (oid==IOPT_TARGET_PD_VOLTAGE) {
 			if (!(os.hw_rev==4 && os.hw_type==HW_TYPE_DC)) continue;
 		}
+
+		if ((oid>=IOPT_SENSOR3_TYPE && oid<=IOPT_SENSOR4_OFF_DELAY)) {
+			if (os.hw_rev < 4) continue; // SN3/SN4 only on OS 3.4+
+		}
 		#else
 		if (oid==IOPT_BOOST_TIME || oid==IOPT_I_MIN_THRESHOLD || oid==IOPT_I_MAX_LIMIT || oid==IOPT_LATCH_ON_VOLTAGE || oid==IOPT_LATCH_OFF_VOLTAGE || oid==IOPT_TARGET_PD_VOLTAGE) continue;
+		// SN3/SN4 are OS 3.4-only hardware; never expose on Linux/Pi/DEMO targets
+		if (oid>=IOPT_SENSOR3_TYPE && oid<=IOPT_SENSOR4_OFF_DELAY) continue;
 		#endif
 
 		#if defined(ESP8266)
@@ -985,15 +1004,11 @@ void server_json_options_main() {
 		}
 		#endif
 
-		if (oid==IOPT_LCD_CONTRAST || oid==IOPT_LCD_BACKLIGHT || oid==IOPT_SEQUENTIAL_RETIRED || oid==IOPT_URS_RETIRED ||
-				oid==IOPT_RSO_RETIRED || oid==IOPT_RESERVE_7 || oid==IOPT_RESERVE_8)
-			continue;
-
-		// each json name takes 5 characters
-		strncpy_P0(tmp_buffer, iopt_json_names+oid*5, 5);
+		// each json name takes up to 5 characters; iopt_get_json_name copies + NUL-terminates
+		iopt_get_json_name(oid, tmp_buffer);
+		if (emitted) bfill.emit_p(PSTR(","));
 		bfill.emit_p(PSTR("\"$S\":$D"), tmp_buffer, v);
-		if(oid!=NUM_IOPTS-1)
-			bfill.emit_p(PSTR(","));
+		emitted = true;
 	}
 
 	bfill.emit_p(PSTR(",\"dexp\":$D,\"mexp\":$D,\"hwt\":$D,"), os.detect_exp(), MAX_EXT_BOARDS, os.hw_type);
@@ -1144,6 +1159,14 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 							os.pause_timer,
 							pd.nqueue,
 							os.status.overcurrent_sid);
+
+	// SN3/SN4 only present on OS 3.4+ hardware. UI uses key-presence to
+	// decide whether to render the corresponding controls.
+	if (os.hw_rev >= 4) {
+		bfill.emit_p(PSTR("\"sn3\":$D,\"sn4\":$D,"),
+								 os.status.sensor3_active,
+								 os.status.sensor4_active);
+	}
 
 #if defined(ESP8266)
 	bfill.emit_p(PSTR("\"RSSI\":$D,"), (int16_t)WiFi.RSSI());
@@ -1397,27 +1420,23 @@ void server_change_options(OTF_PARAMS_DEF)
 	unsigned char max_value;
 	for (unsigned char oid=0; oid<NUM_IOPTS; oid++) {
 
+		uint8_t flags = iopt_get_flags(oid);
 		// skip options that cannot be set through /co command
-		if (oid==IOPT_FW_VERSION || oid==IOPT_HW_VERSION || oid==IOPT_SEQUENTIAL_RETIRED ||
-				oid==IOPT_DEVICE_ENABLE || oid==IOPT_FW_MINOR || oid==IOPT_REMOTE_EXT_MODE ||
-				oid==IOPT_RESET || oid==IOPT_WIFI_MODE || oid==IOPT_URS_RETIRED || oid==IOPT_RSO_RETIRED)
-			continue;
+		if (flags & (IOPT_FLAG_RETIRED | IOPT_FLAG_READ_ONLY)) continue;
+		// IOPT_DEVICE_ENABLE and IOPT_REMOTE_EXT_MODE are intentionally excluded from /co
+		// (they're toggled via /jc) and don't fit a generic flag.
+		if (oid==IOPT_DEVICE_ENABLE || oid==IOPT_REMOTE_EXT_MODE) continue;
 		prev_value = os.iopts[oid];
-		max_value = pgm_read_byte(iopt_max+oid);
+		max_value = iopt_get_max(oid);
 
-		// will no longer support oxx option names
 		// json name only
 		char tbuf2[6];
-		strncpy_P0(tbuf2, iopt_json_names+oid*5, 5);
+		iopt_get_json_name(oid, tbuf2);
 		if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, tbuf2)) {
 			int32_t v = atol(tmp_buffer);
-			if (oid==IOPT_MASTER_OFF_ADJ   || oid==IOPT_MASTER_OFF_ADJ_2 ||
-					oid==IOPT_MASTER_OFF_ADJ_3 || oid==IOPT_MASTER_OFF_ADJ_4 ||
-					oid==IOPT_MASTER_ON_ADJ    || oid==IOPT_MASTER_ON_ADJ_2  ||
-					oid==IOPT_MASTER_ON_ADJ_3  || oid==IOPT_MASTER_ON_ADJ_4  ||
-					oid==IOPT_STATION_DELAY_TIME) {
+			if (flags & IOPT_FLAG_SIGNED_TIME) {
 				v=water_time_encode_signed(v);
-			} // encode station delay time
+			}
 			if(oid==IOPT_BOOST_TIME) {
 				 v>>=2;
 			}
@@ -1439,7 +1458,8 @@ void server_change_options(OTF_PARAMS_DEF)
 				// California restriction is now indicated in wto and no longer by the highest bit of uwt. So we force that bit to 0
 				os.iopts[oid] &= 0x7F;
 			}
-			if (oid>=IOPT_SENSOR1_TYPE && oid<=IOPT_SENSOR2_OFF_DELAY) sensor_change = true;
+			if ((oid>=IOPT_SENSOR1_TYPE && oid<=IOPT_SENSOR2_OFF_DELAY) ||
+			    (oid>=IOPT_SENSOR3_TYPE && oid<=IOPT_SENSOR4_OFF_DELAY)) sensor_change = true;
 			if (oid==IOPT_TARGET_PD_VOLTAGE) tpdv_change = true;
 		}
 	}

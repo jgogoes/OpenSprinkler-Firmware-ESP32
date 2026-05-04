@@ -116,7 +116,7 @@ void str2mac(const char *_str, unsigned char mac[]);
 	void delay(uint32_t ms);
 	void delayMicroseconds(uint32_t us);
 	void delayMicrosecondsHard(uint32_t us);
-	unsigned long millis();   // TODO: change to uint32_t once upstream OTF is updated
+	uint32_t millis();   // defined in external/OpenThings-Framework-Firmware-Library/Websocket.cpp
 	uint32_t micros();
 	void initialiseEpoch();
 	#if defined(OSPI)

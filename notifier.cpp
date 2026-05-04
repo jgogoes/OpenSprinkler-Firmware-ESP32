@@ -339,6 +339,24 @@ static void format_notification(uint16_t type, uint32_t lval, float fval,
 			break;
 		}
 
+		case NOTIFY_SENSOR3: {
+			strncpy_P(bufs.topic, PSTR("sensor3"), bufs.topic_cap - 1);
+			snprintf_P(bufs.payload, bufs.payload_cap, PSTR("{\"state\":%d}"), (int)fval);
+			strcat_P(bufs.body, PSTR("sensor 3 "));
+			strcat_P(bufs.body, ((int)fval) ? PSTR("activated.") : PSTR("de-activated."));
+			set_pstr(bufs.subject_suffix, bufs.subject_suffix_cap, PSTR("sensor 3 event"));
+			break;
+		}
+
+		case NOTIFY_SENSOR4: {
+			strncpy_P(bufs.topic, PSTR("sensor4"), bufs.topic_cap - 1);
+			snprintf_P(bufs.payload, bufs.payload_cap, PSTR("{\"state\":%d}"), (int)fval);
+			strcat_P(bufs.body, PSTR("sensor 4 "));
+			strcat_P(bufs.body, ((int)fval) ? PSTR("activated.") : PSTR("de-activated."));
+			set_pstr(bufs.subject_suffix, bufs.subject_suffix_cap, PSTR("sensor 4 event"));
+			break;
+		}
+
 		case NOTIFY_RAINDELAY: {
 			strncpy_P(bufs.topic, PSTR("raindelay"), bufs.topic_cap - 1);
 			snprintf_P(bufs.payload, bufs.payload_cap, PSTR("{\"state\":%d}"), (int)fval);
