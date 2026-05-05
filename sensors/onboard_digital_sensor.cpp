@@ -16,6 +16,7 @@ void OnboardDigitalSensor::emit_extra_json(BufferFiller *bfill) {
 }
 
 void OnboardDigitalSensor::emit_description_json(BufferFiller* bfill) {
+	// SN1 and SN2 are always present on every hardware variant.
 	bfill->emit_p(PSTR(
 		"{\"n\":\"Onboard Digital\","
 		"\"as\":["
@@ -30,20 +31,42 @@ void OnboardDigitalSensor::emit_description_json(BufferFiller* bfill) {
 				"{\"id\":1,\"l\":\"SN2\","
 				 "\"dfl\":{\"unit\":$D,\"max\":\"1\"},"
 				 "\"lk\":[\"unit\"]}"
+		),
+		static_cast<uint8_t>(SensorUnit::None),
+		static_cast<uint8_t>(SensorUnit::None));
+
+	// SN3/SN4 are only present on OS 3.4+ hardware. Omit them from the UI
+	// description on earlier hardware so users don't see non-functional options.
+	if (os.hw_rev >= 4) {
+		bfill->emit_p(PSTR(
+				",{\"id\":2,\"l\":\"SN3\","
+				 "\"dfl\":{\"unit\":$D,\"max\":\"1\"},"
+				 "\"lk\":[\"unit\"]},"
+				"{\"id\":3,\"l\":\"SN4\","
+				 "\"dfl\":{\"unit\":$D,\"max\":\"1\"},"
+				 "\"lk\":[\"unit\"]}"
+			),
+			static_cast<uint8_t>(SensorUnit::None),
+			static_cast<uint8_t>(SensorUnit::None));
+	}
+
+	bfill->emit_p(PSTR(
 			 "]}"
 		"]}"
-	),
-	static_cast<uint8_t>(SensorUnit::None),
-	static_cast<uint8_t>(SensorUnit::None));
+	));
 }
 
 
 float OnboardDigitalSensor::_get_raw_value() {
 	switch (this->input) {
 		case OnboardInput::SN1:
-			return os.status.sensor1_active ? 1.0f : 0.0f;
+			return os.sn_sensors[0].active ? 1.0f : 0.0f;
 		case OnboardInput::SN2:
-			return os.status.sensor2_active ? 1.0f : 0.0f;
+			return os.sn_sensors[1].active ? 1.0f : 0.0f;
+		case OnboardInput::SN3:
+			return os.sn_sensors[2].active ? 1.0f : 0.0f;
+		case OnboardInput::SN4:
+			return os.sn_sensors[3].active ? 1.0f : 0.0f;
 		default:
 			return NAN;
 	}

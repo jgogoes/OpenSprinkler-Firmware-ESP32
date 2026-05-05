@@ -3,16 +3,22 @@
 #include "../defines.h"
 #include "sensor.h"
 
-// Wraps the firmware's onboard digital inputs (SN1, SN2) as Sensor instances.
+// Wraps the firmware's onboard digital inputs (SN1-SN4) as Sensor instances.
 // Reports the *debounced* state (post delayed-on / delayed-off filter), so
 // adjustment logic sees the same "is this input considered active right now?"
 // signal that the rest of the firmware uses internally.
 //
+// SN3/SN4 only exist on OS 3.4+ hardware. emit_description_json gates them
+// from the UI based on os.hw_rev so users on earlier hardware don't see
+// non-functional options.
+//
 // Numeric values are stable across builds; future entries (raw state, computed
 // flow rate) can be appended without disturbing existing records.
 enum class OnboardInput : uint8_t {
-	SN1 = 0,    // -> os.status.sensor1_active
-	SN2 = 1,    // -> os.status.sensor2_active
+	SN1 = 0,    // -> os.sn_sensors[0].active
+	SN2 = 1,    // -> os.sn_sensors[1].active
+	SN3 = 2,    // -> os.sn_sensors[2].active (OS 3.4+ only)
+	SN4 = 3,    // -> os.sn_sensors[3].active (OS 3.4+ only)
 	MAX_VALUE,
 };
 

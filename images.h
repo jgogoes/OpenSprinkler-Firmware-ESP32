@@ -12,12 +12,20 @@ enum {
 	NUM_CUSTOM_ICONS
 };
 
+// LCD layout (columns are 0-indexed; rows are passed separately to setCursor).
+//
+// Status row (row 1):  ... SN1 SN2 SN3 SN4 NET
+// Bottom row (row 2):  ........... REMOTEXT RAIN
+//
+// Column constants only — pair with the appropriate row at the call site.
 enum {
-	LCD_CURSOR_REMOTEXT = 11,
-	LCD_CURSOR_RAINDELAY,// 12
-	LCD_CURSOR_SENSOR1,  // 13
-	LCD_CURSOR_SENSOR2,  // 14
-	LCD_CURSOR_NETWORK  // 15
+	LCD_CURSOR_SENSOR1   = 11,  // status row
+	LCD_CURSOR_SENSOR2   = 12,
+	LCD_CURSOR_SENSOR3   = 13,
+	LCD_CURSOR_SENSOR4   = 14,
+	LCD_CURSOR_NETWORK   = 15,
+	LCD_CURSOR_REMOTEXT  = 14,  // bottom row
+	LCD_CURSOR_RAINDELAY = 15,  // bottom row
 };
 
 #if defined(USE_DISPLAY)

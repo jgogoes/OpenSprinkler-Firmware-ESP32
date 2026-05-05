@@ -738,62 +738,31 @@ void do_loop()
 		// ====== Check binary (i.e. rain or soil) sensor status ======
 		os.detect_binarysensor_status(curr_time);
 
-		if(os.old_status.sensor1_active != os.status.sensor1_active) {
-			// send notification when sensor1 becomes active
-			if(os.status.sensor1_active) {
-				os.sensor1_active_lasttime = curr_time;
-				notif.add(NOTIFY_SENSOR1, LOGDATA_SENSOR1, 1);
+		// Sensor active-state change → log + notify, driven by lookup tables
+		// instead of 4 duplicated blocks. Each sensor tracks its own
+		// prev_active so we don't need a parallel old_status copy.
+		for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+			if (!sensor_available(i)) continue;
+			if (os.sn_sensors[i].prev_active == os.sn_sensors[i].active) continue;
+			if (os.sn_sensors[i].active) {
+				os.sn_sensors[i].active_lasttime = curr_time;
+				notif.add(sensor_notif_bits[i], sensor_log_codes[i], 1);
 			} else {
-				write_log(LOGDATA_SENSOR1, curr_time);
-				notif.add(NOTIFY_SENSOR1, LOGDATA_SENSOR1, 0);
+				write_log(sensor_log_codes[i], curr_time);
+				notif.add(sensor_notif_bits[i], sensor_log_codes[i], 0);
 			}
+			os.sn_sensors[i].prev_active = os.sn_sensors[i].active;
 		}
-		os.old_status.sensor1_active = os.status.sensor1_active;
-
-		if(os.old_status.sensor2_active != os.status.sensor2_active) {
-			// send notification when sensor1 becomes active
-			if(os.status.sensor2_active) {
-				os.sensor2_active_lasttime = curr_time;
-				notif.add(NOTIFY_SENSOR2, LOGDATA_SENSOR2, 1);
-			} else {
-				write_log(LOGDATA_SENSOR2, curr_time);
-				notif.add(NOTIFY_SENSOR2, LOGDATA_SENSOR2, 0);
-			}
-		}
-		os.old_status.sensor2_active = os.status.sensor2_active;
-
-		if(os.old_status.sensor3_active != os.status.sensor3_active) {
-			if(os.status.sensor3_active) {
-				os.sensor3_active_lasttime = curr_time;
-				notif.add(NOTIFY_SENSOR3, LOGDATA_SENSOR3, 1);
-			} else {
-				write_log(LOGDATA_SENSOR3, curr_time);
-				notif.add(NOTIFY_SENSOR3, LOGDATA_SENSOR3, 0);
-			}
-		}
-		os.old_status.sensor3_active = os.status.sensor3_active;
-
-		if(os.old_status.sensor4_active != os.status.sensor4_active) {
-			if(os.status.sensor4_active) {
-				os.sensor4_active_lasttime = curr_time;
-				notif.add(NOTIFY_SENSOR4, LOGDATA_SENSOR4, 1);
-			} else {
-				write_log(LOGDATA_SENSOR4, curr_time);
-				notif.add(NOTIFY_SENSOR4, LOGDATA_SENSOR4, 0);
-			}
-		}
-		os.old_status.sensor4_active = os.status.sensor4_active;
 
 		// ===== Check program switch status =====
 		unsigned char pswitch = os.detect_programswitch_status(curr_time);
 		if(pswitch > 0) {
 			reset_all_stations_immediate(); // immediately stop all stations
 		}
-		if (pswitch & 0x01) {
-			if(pd.nprograms > 0)	manual_start_program(1, 0, QUEUE_OPTION_INSERT_FRONT);
-		}
-		if (pswitch & 0x02) {
-			if(pd.nprograms > 1)	manual_start_program(2, 0, QUEUE_OPTION_INSERT_FRONT);
+		for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+			if ((pswitch & (1 << i)) && pd.nprograms > i) {
+				manual_start_program(i + 1, 0, QUEUE_OPTION_INSERT_FRONT);
+			}
 		}
 
 		// ====== Schedule program data ======
@@ -1322,36 +1291,20 @@ void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shif
  * and turn off stations accordingly
  */
 void process_dynamic_events(time_os_t curr_time) {
-	// check if rain is detected
-	bool sn1 = false;
-	bool sn2 = false;
-	bool sn3 = false;
-	bool sn4 = false;
 	bool rd  = os.status.rain_delayed;
 	bool en = os.status.enabled;
 
-	if((os.iopts[IOPT_SENSOR1_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR1_TYPE] == SENSOR_TYPE_SOIL)
-		 && os.status.sensor1_active)
-		sn1 = true;
+	// Per-sensor: is this sensor currently asserting a "stop watering" signal?
+	// True only for rain/soil sensors that are active. Program switches and
+	// flow sensors do not gate watering this way.
+	bool sn[NUM_SENSORS];
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		uint8_t type = os.iopts[sensor_iopt_keys[i].type];
+		sn[i] = sensor_available(i) && (type == SENSOR_TYPE_RAIN || type == SENSOR_TYPE_SOIL) && os.sn_sensors[i].active;
+	}
 
-	if((os.iopts[IOPT_SENSOR2_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR2_TYPE] == SENSOR_TYPE_SOIL)
-		 && os.status.sensor2_active)
-		sn2 = true;
-
-	if((os.iopts[IOPT_SENSOR3_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR3_TYPE] == SENSOR_TYPE_SOIL)
-		 && os.status.sensor3_active)
-		sn3 = true;
-
-	if((os.iopts[IOPT_SENSOR4_TYPE] == SENSOR_TYPE_RAIN || os.iopts[IOPT_SENSOR4_TYPE] == SENSOR_TYPE_SOIL)
-		 && os.status.sensor4_active)
-		sn4 = true;
-
-	unsigned char sid, s, bid, qid, igs, igs2, igs3, igs4, igrd;
+	unsigned char sid, s, bid, qid, igrd;
 	for(bid=0;bid<os.nboards;bid++) {
-		igs = os.attrib_igs[bid];
-		igs2= os.attrib_igs2[bid];
-		igs3= os.attrib_igs3[bid];
-		igs4= os.attrib_igs4[bid];
 		igrd= os.attrib_igrd[bid];
 
 		for(s=0;s<8;s++) {
@@ -1373,10 +1326,14 @@ void process_dynamic_events(time_os_t curr_time) {
 			if(q->pid>=99) continue;  // if this is a manually started program, proceed
 			if(!en)	{q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if system is disabled, turn off zone
 			if(rd && !(igrd&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if rain delay is on and zone does not ignore rain delay, turn it off
-			if(sn1&& !(igs &(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if sensor1 is on and zone does not ignore sensor1, turn it off
-			if(sn2&& !(igs2&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if sensor2 is on and zone does not ignore sensor2, turn it off
-			if(sn3&& !(igs3&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}
-			if(sn4&& !(igs4&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}
+			// Per-sensor turn-off: stop the zone if any sensor i is active and
+			// this zone does not have its ignore-sensor-i bit set.
+			for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+				if (sn[i] && !(os.attrib_igs[i][bid] & (1<<s))) {
+					q->deque_time = curr_time;
+					turn_off_station(sid, curr_time);
+				}
+			}
 		}
 	}
 }
@@ -1538,7 +1495,7 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 			// start flow count
 			if(os.iopts[IOPT_SENSOR1_TYPE] == SENSOR_TYPE_FLOW) {  // if flow sensor is connected
 				os.flowcount_log_start = flow_count;
-				os.sensor1_active_lasttime = curr_time;
+				os.sn_sensors[0].active_lasttime = curr_time;
 			}
 		}
 	}
@@ -1799,20 +1756,17 @@ void write_log(unsigned char type, time_os_t curr_time) {
 
 		switch(type) {
 			case LOGDATA_FLOWSENSE:
-				lvalue = (curr_time>os.sensor1_active_lasttime)?(curr_time-os.sensor1_active_lasttime):0;
-				break;
 			case LOGDATA_SENSOR1:
-				lvalue = (curr_time>os.sensor1_active_lasttime)?(curr_time-os.sensor1_active_lasttime):0;
-				break;
 			case LOGDATA_SENSOR2:
-				lvalue = (curr_time>os.sensor2_active_lasttime)?(curr_time-os.sensor2_active_lasttime):0;
-				break;
 			case LOGDATA_SENSOR3:
-				lvalue = (curr_time>os.sensor3_active_lasttime)?(curr_time-os.sensor3_active_lasttime):0;
+			case LOGDATA_SENSOR4: {
+				// FLOWSENSE and SENSOR1..4 all use the SN(i)_active_lasttime
+				// for their duration value; pick the right sensor index.
+				int8_t sidx = sensor_index_from_log_code(type);
+				time_os_t t = (sidx >= 0) ? os.sn_sensors[sidx].active_lasttime : 0;
+				lvalue = (curr_time>t) ? (curr_time-t) : 0;
 				break;
-			case LOGDATA_SENSOR4:
-				lvalue = (curr_time>os.sensor4_active_lasttime)?(curr_time-os.sensor4_active_lasttime):0;
-				break;
+			}
 			case LOGDATA_RAINDELAY:
 				lvalue = (curr_time>os.raindelay_on_lasttime)?(curr_time-os.raindelay_on_lasttime):0;
 				break;

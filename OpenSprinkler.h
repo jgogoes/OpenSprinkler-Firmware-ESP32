@@ -199,11 +199,41 @@ struct HTTPStationData {
 	unsigned char data[STATION_SPECIAL_DATA_SIZE];
 };
 
+// ========================================================================
+// Sensor framework (binary sensors SN1-SN4)
+// ========================================================================
+// Per-sensor state. For sensor 1, type may also be SENSOR_TYPE_FLOW (handled
+// outside this struct via flow_count / flow ISR). For sensors 2-4 the type
+// is restricted to rain/soil/program switch.
+#define NUM_SENSORS 4
+
+struct SensorState {
+	time_os_t on_timer;            // when raw input went on; 0 means inactive
+	time_os_t off_timer;           // when raw input went off; 0 means inactive
+	time_os_t active_lasttime;     // most recent time the sensor became active
+	uint8_t   raw         : 1;     // current raw debounced input (post-polarity)
+	uint8_t   active      : 1;     // current debounced active state
+	uint8_t   prev_active : 1;     // last-cycle active (for state-change detection)
+};
+
+// Per-sensor IOPT key lookup. PROGMEM in OpenSprinkler.cpp.
+struct SensorIoptKeys {
+	uint8_t type, option, on_delay, off_delay;
+};
+extern const SensorIoptKeys sensor_iopt_keys[NUM_SENSORS];
+extern const uint16_t sensor_notif_bits[NUM_SENSORS];   // NOTIFY_SENSOR1..4 bits
+extern const uint8_t  sensor_log_codes[NUM_SENSORS];    // LOGDATA_SENSOR1..4 codes
+
+// Helper accessors for sensor metadata. These index iopts[] which is RAM, so
+// they're plain inline reads (no pgm_read_byte needed for the iopts side).
+unsigned char sensor_pin(uint8_t i);  // implemented in OpenSprinkler.cpp
+bool sensor_available(uint8_t i);     // true if the physical SN input exists
+int8_t sensor_index_from_log_code(uint8_t type);
+
 /** Volatile controller status bits */
 struct ConStatus {
 	unsigned char enabled:1;         // operation enable (when set, controller operation is enabled)
 	unsigned char rain_delayed:1;    // rain delay bit (when set, rain delay is applied)
-	unsigned char sensor1:1;         // sensor1 status bit (when set, sensor1 on is detected)
 	unsigned char program_busy:1;    // HIGH means a program is being executed currently
 	unsigned char has_curr_sense:1;  // HIGH means the controller has a current sensing pin
 	unsigned char safe_reboot:1;     // HIGH means a safe reboot has been marked
@@ -215,16 +245,10 @@ struct ConStatus {
 	unsigned char mas2:8;            // master2 station index
 	unsigned char mas3:8;            // master3 station index
 	unsigned char mas4:8;            // master4 station index
-	unsigned char sensor2:1;         // sensor2 status bit (when set, sensor2 on is detected)
-	unsigned char sensor1_active:1;  // sensor1 active bit (when set, sensor1 is activated)
-	unsigned char sensor2_active:1;  // sensor2 active bit (when set, sensor2 is activated)
 	unsigned char req_mqtt_restart:1;// request mqtt restart
 	unsigned char pause_state:1;     // pause station runs
 	unsigned char overcurrent_sid:8; // overcurrent sid (0: no overcurrent; 1~254: overcurrent caused by opening zone; 255: system overcurrent)
-	unsigned char sensor3:1;         // sensor3 status bit (when set, sensor3 on is detected)
-	unsigned char sensor3_active:1;  // sensor3 active bit (when set, sensor3 is activated)
-	unsigned char sensor4:1;         // sensor4 status bit (when set, sensor4 on is detected)
-	unsigned char sensor4_active:1;  // sensor4 active bit (when set, sensor4 is activated)
+	// Sensor raw/active state lives in OpenSprinkler::sn_sensors[] (per-sensor SensorState).
 };
 
 /** OTF configuration */
@@ -272,6 +296,10 @@ public:
 
 	static ADS1115 *ads1115_devices[4];
 
+	// True if at least one ADS1115 chip was detected at boot (or always true on
+	// DEMO/SIM where the mock backend is unconditionally instantiated).
+	static bool has_ads1115();
+
 	union SensorUnion {
 		ADS1115Sensor ads1115;
 		AggregateSensor aggregate;
@@ -300,13 +328,11 @@ public:
 																	// first byte-> master controller, second byte-> ext. board 1, and so on
 	// Note: the following attribute bytes are for backward compatibility
 	static unsigned char attrib_mas[];
-	static unsigned char attrib_igs[];
 	static unsigned char attrib_mas2[];
 	static unsigned char attrib_mas3[];
 	static unsigned char attrib_mas4[];
-	static unsigned char attrib_igs2[];
-	static unsigned char attrib_igs3[];
-	static unsigned char attrib_igs4[];
+	// Per-sensor per-board ignore mask. attrib_igs[i] is for sensor i+1.
+	static unsigned char attrib_igs[NUM_SENSORS][MAX_NUM_BOARDS];
 	static unsigned char attrib_igrd[];
 	static unsigned char attrib_dis[];
 	static unsigned char attrib_spe[];
@@ -314,19 +340,12 @@ public:
 	static unsigned char masters[NUM_MASTER_ZONES][NUM_MASTER_OPTS];
 	static time_os_t masters_last_on[NUM_MASTER_ZONES];
 
+	// Per-sensor state (timers + raw/active bits). Replaces the 12 separate
+	// per-sensor timers and the 8 per-sensor bit fields that used to live in
+	// ConStatus. Access via os.sn_sensors[i].active / .raw / .on_timer / etc.
+	static SensorState sn_sensors[NUM_SENSORS];
+
 	// variables for time keeping
-	static time_os_t sensor1_on_timer;  // time when sensor1 is detected on last time
-	static time_os_t sensor1_off_timer; // time when sensor1 is detected off last time
-	static time_os_t sensor1_active_lasttime; // most recent time sensor1 is activated
-	static time_os_t sensor2_on_timer;  // time when sensor2 is detected on last time
-	static time_os_t sensor2_off_timer; // time when sensor2 is detected off last time
-	static time_os_t sensor2_active_lasttime; // most recent time sensor1 is activated
-	static time_os_t sensor3_on_timer;
-	static time_os_t sensor3_off_timer;
-	static time_os_t sensor3_active_lasttime;
-	static time_os_t sensor4_on_timer;
-	static time_os_t sensor4_off_timer;
-	static time_os_t sensor4_active_lasttime;
 	static time_os_t raindelay_on_lasttime;  // time when the most recent rain delay started
 	static uint32_t pause_timer; // count down timer in paused state
 	static uint32_t flowcount_rt;     // flow count (for computing real-time flow rate)

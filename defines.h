@@ -456,6 +456,10 @@ enum {
 	#define PIN_SR_OE         17    // shift register output enable pin
 	#define PIN_SENSOR1       14
 	#define PIN_SENSOR2       23
+	// SN3/SN4 don't exist on OSPi hardware; sentinel values are referenced by
+	// sensor_pin() but never reached at runtime (sensor_available() returns false).
+	#define PIN_SENSOR3       255
+	#define PIN_SENSOR4       255
 	#define PIN_RFTX          15    // RF transmitter pin
 	#define PIN_BUTTON_1      24    // button 1
 	#define PIN_BUTTON_2      18    // button 2
@@ -483,6 +487,8 @@ enum {
 	#define PIN_SR_OE       0
 	#define PIN_SENSOR1     0
 	#define PIN_SENSOR2     0
+	#define PIN_SENSOR3     0
+	#define PIN_SENSOR4     0
 	#define PIN_RFTX        0
 	#define PIN_FREE_LIST  {}
 	#define ETHER_BUFFER_SIZE   8192  // HTTP client send/receive (weather, notifier, remote station)

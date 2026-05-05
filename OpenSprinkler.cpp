@@ -44,18 +44,52 @@ unsigned char OpenSprinkler::station_bits[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::engage_booster;
 uint16_t OpenSprinkler::baseline_current;
 
-time_os_t OpenSprinkler::sensor1_on_timer;
-time_os_t OpenSprinkler::sensor1_off_timer;
-time_os_t OpenSprinkler::sensor1_active_lasttime;
-time_os_t OpenSprinkler::sensor2_on_timer;
-time_os_t OpenSprinkler::sensor2_off_timer;
-time_os_t OpenSprinkler::sensor2_active_lasttime;
-time_os_t OpenSprinkler::sensor3_on_timer;
-time_os_t OpenSprinkler::sensor3_off_timer;
-time_os_t OpenSprinkler::sensor3_active_lasttime;
-time_os_t OpenSprinkler::sensor4_on_timer;
-time_os_t OpenSprinkler::sensor4_off_timer;
-time_os_t OpenSprinkler::sensor4_active_lasttime;
+SensorState OpenSprinkler::sn_sensors[NUM_SENSORS] = {};
+
+const SensorIoptKeys sensor_iopt_keys[NUM_SENSORS] = {
+	{IOPT_SENSOR1_TYPE, IOPT_SENSOR1_OPTION, IOPT_SENSOR1_ON_DELAY, IOPT_SENSOR1_OFF_DELAY},
+	{IOPT_SENSOR2_TYPE, IOPT_SENSOR2_OPTION, IOPT_SENSOR2_ON_DELAY, IOPT_SENSOR2_OFF_DELAY},
+	{IOPT_SENSOR3_TYPE, IOPT_SENSOR3_OPTION, IOPT_SENSOR3_ON_DELAY, IOPT_SENSOR3_OFF_DELAY},
+	{IOPT_SENSOR4_TYPE, IOPT_SENSOR4_OPTION, IOPT_SENSOR4_ON_DELAY, IOPT_SENSOR4_OFF_DELAY},
+};
+
+const uint16_t sensor_notif_bits[NUM_SENSORS] = {
+	NOTIFY_SENSOR1, NOTIFY_SENSOR2, NOTIFY_SENSOR3, NOTIFY_SENSOR4,
+};
+
+const uint8_t sensor_log_codes[NUM_SENSORS] = {
+	LOGDATA_SENSOR1, LOGDATA_SENSOR2, LOGDATA_SENSOR3, LOGDATA_SENSOR4,
+};
+
+unsigned char sensor_pin(uint8_t i) {
+	switch (i) {
+		case 0: return PIN_SENSOR1;
+		case 1: return PIN_SENSOR2;
+	#if defined(ESP8266)
+		case 2: return PIN_SENSOR3;
+		case 3: return PIN_SENSOR4;
+	#endif
+	}
+	return 255;
+}
+
+bool sensor_available(uint8_t i) {
+	if (i < 2) return true;
+#if defined(ESP8266)
+	return OpenSprinkler::hw_rev >= 4;
+#else
+	return false;
+#endif
+}
+
+int8_t sensor_index_from_log_code(uint8_t type) {
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		if (sensor_log_codes[i] == type) return i;
+	}
+	if (type == LOGDATA_FLOWSENSE) return 0;
+	return -1;
+}
+
 time_os_t OpenSprinkler::raindelay_on_lasttime;
 uint32_t  OpenSprinkler::pause_timer;
 
@@ -70,13 +104,10 @@ unsigned char    OpenSprinkler::weather_update_flag;
 
 // todo future: the following attribute bytes are for backward compatibility
 unsigned char OpenSprinkler::attrib_mas[MAX_NUM_BOARDS];
-unsigned char OpenSprinkler::attrib_igs[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas2[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas3[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_mas4[MAX_NUM_BOARDS];
-unsigned char OpenSprinkler::attrib_igs2[MAX_NUM_BOARDS];
-unsigned char OpenSprinkler::attrib_igs3[MAX_NUM_BOARDS];
-unsigned char OpenSprinkler::attrib_igs4[MAX_NUM_BOARDS];
+unsigned char OpenSprinkler::attrib_igs[NUM_SENSORS][MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_igrd[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_dis[MAX_NUM_BOARDS];
 unsigned char OpenSprinkler::attrib_spe[MAX_NUM_BOARDS];
@@ -96,6 +127,13 @@ SSD1306Display OpenSprinkler::lcd(0x3c, SDA, SCL);
 #endif
 
 ADS1115 *OpenSprinkler::ads1115_devices[4] = {nullptr};
+
+bool OpenSprinkler::has_ads1115() {
+	for (size_t i = 0; i < 4; i++) {
+		if (ads1115_devices[i] != nullptr) return true;
+	}
+	return false;
+}
 
 #if defined(ESP8266)
 	unsigned char OpenSprinkler::state = OS_STATE_INITIAL;
@@ -1123,189 +1161,73 @@ void OpenSprinkler::apply_all_station_bits(void (*post_activation_callback)()) {
 	}
 }
 
-/** Read rain sensor status */
+/** Read rain/soil sensor status across all binary sensors. */
 void OpenSprinkler::detect_binarysensor_status(time_os_t curr_time) {
-	// sensor_type: 0 if normally closed, 1 if normally open
-	if(iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_SOIL) {
-		if(hw_rev>=2)	pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
-		unsigned char val = digitalReadExt(PIN_SENSOR1);
-		status.sensor1 = (val == iopts[IOPT_SENSOR1_OPTION]) ? 0 : 1;
-		if(status.sensor1) {
-			if(!sensor1_on_timer) {
+	// option byte: 0 = normally closed, 1 = normally open
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		if (!sensor_available(i)) continue;
+		uint8_t type = iopts[sensor_iopt_keys[i].type];
+		if (type != SENSOR_TYPE_RAIN && type != SENSOR_TYPE_SOIL) continue;
+
+		// SN1/SN2 GPIO pins need INPUT_PULLUP on OS 3.2+. SN3/SN4 are on
+		// the I/O expander where pinMode() is a no-op anyway, so the call
+		// is safe regardless.
+		if (i < 2 && hw_rev >= 2) pinMode(sensor_pin(i), INPUT_PULLUP);
+
+		unsigned char val = digitalReadExt(sensor_pin(i));
+		sn_sensors[i].raw = (val == iopts[sensor_iopt_keys[i].option]) ? 0 : 1;
+
+		if (sn_sensors[i].raw) {
+			if (!sn_sensors[i].on_timer) {
 				// add minimum of 5 seconds on delay
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR1_ON_DELAY]*60;
-				sensor1_on_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor1_off_timer = 0;
-			} else {
-				if(curr_time > sensor1_on_timer) {
-					status.sensor1_active = 1;
-				}
+				uint32_t delay_time = (uint32_t)iopts[sensor_iopt_keys[i].on_delay] * 60;
+				sn_sensors[i].on_timer = curr_time + (delay_time > 5 ? delay_time : 5);
+				sn_sensors[i].off_timer = 0;
+			} else if (curr_time > sn_sensors[i].on_timer) {
+				sn_sensors[i].active = 1;
 			}
 		} else {
-			if(!sensor1_off_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR1_OFF_DELAY]*60;
-				sensor1_off_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor1_on_timer = 0;
-			} else {
-				if(curr_time > sensor1_off_timer) {
-					status.sensor1_active = 0;
-				}
+			if (!sn_sensors[i].off_timer) {
+				uint32_t delay_time = (uint32_t)iopts[sensor_iopt_keys[i].off_delay] * 60;
+				sn_sensors[i].off_timer = curr_time + (delay_time > 5 ? delay_time : 5);
+				sn_sensors[i].on_timer = 0;
+			} else if (curr_time > sn_sensors[i].off_timer) {
+				sn_sensors[i].active = 0;
 			}
 		}
 	}
-
-	if(iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_SOIL) {
-		if(hw_rev>=2)	pinMode(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2
-		unsigned char val = digitalReadExt(PIN_SENSOR2);
-		status.sensor2 = (val == iopts[IOPT_SENSOR2_OPTION]) ? 0 : 1;
-		if(status.sensor2) {
-			if(!sensor2_on_timer) {
-				// add minimum of 5 seconds on delay
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR2_ON_DELAY]*60;
-				sensor2_on_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor2_off_timer = 0;
-			} else {
-				if(curr_time > sensor2_on_timer) {
-					status.sensor2_active = 1;
-				}
-			}
-		} else {
-			if(!sensor2_off_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR2_OFF_DELAY]*60;
-				sensor2_off_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor2_on_timer = 0;
-			} else {
-				if(curr_time > sensor2_off_timer) {
-					status.sensor2_active = 0;
-				}
-			}
-		}
-	}
-
-	#if defined(ESP8266)
-	if(iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_SOIL) {
-		unsigned char val = digitalReadExt(PIN_SENSOR3);
-		status.sensor3 = (val == iopts[IOPT_SENSOR3_OPTION]) ? 0 : 1;
-		if(status.sensor3) {
-			if(!sensor3_on_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR3_ON_DELAY]*60;
-				sensor3_on_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor3_off_timer = 0;
-			} else {
-				if(curr_time > sensor3_on_timer) {
-					status.sensor3_active = 1;
-				}
-			}
-		} else {
-			if(!sensor3_off_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR3_OFF_DELAY]*60;
-				sensor3_off_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor3_on_timer = 0;
-			} else {
-				if(curr_time > sensor3_off_timer) {
-					status.sensor3_active = 0;
-				}
-			}
-		}
-	}
-	#endif
-
-	#if defined(ESP8266)
-	if(iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_RAIN || iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_SOIL) {
-		unsigned char val = digitalReadExt(PIN_SENSOR4);
-		status.sensor4 = (val == iopts[IOPT_SENSOR4_OPTION]) ? 0 : 1;
-		if(status.sensor4) {
-			if(!sensor4_on_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR4_ON_DELAY]*60;
-				sensor4_on_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor4_off_timer = 0;
-			} else {
-				if(curr_time > sensor4_on_timer) {
-					status.sensor4_active = 1;
-				}
-			}
-		} else {
-			if(!sensor4_off_timer) {
-				uint32_t delay_time = (uint32_t)iopts[IOPT_SENSOR4_OFF_DELAY]*60;
-				sensor4_off_timer = curr_time + (delay_time>5?delay_time:5);
-				sensor4_on_timer = 0;
-			} else {
-				if(curr_time > sensor4_off_timer) {
-					status.sensor4_active = 0;
-				}
-			}
-		}
-	}
-	#endif
 }
 
-/** Return program switch status */
+/** Return program switch status; bit i corresponds to sensor i+1.
+ * 4-sample debounce: triggers on pattern 0011 (two consecutive lows
+ * followed by two consecutive highs). */
 unsigned char OpenSprinkler::detect_programswitch_status(time_os_t curr_time) {
+	(void)curr_time;
+	static unsigned char sensor_hist[NUM_SENSORS] = {0};
 	unsigned char ret = 0;
-	if(iopts[IOPT_SENSOR1_TYPE]==SENSOR_TYPE_PSWITCH) {
-		static unsigned char sensor1_hist = 0;
-		if(hw_rev>=2) pinMode(PIN_SENSOR1, INPUT_PULLUP); // this seems necessary for OS 3.2
-		status.sensor1 = (digitalReadExt(PIN_SENSOR1) != iopts[IOPT_SENSOR1_OPTION]); // is switch activated?
-		sensor1_hist = (sensor1_hist<<1) | status.sensor1;
-		// basic noise filtering: only trigger if sensor matches pattern:
-		// i.e. two consecutive lows followed by two consecutive highs
-		if((sensor1_hist&0b1111) == 0b0011) {
-			ret |= 0x01;
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		if (!sensor_available(i)) continue;
+		if (iopts[sensor_iopt_keys[i].type] != SENSOR_TYPE_PSWITCH) continue;
+
+		if (i < 2 && hw_rev >= 2) pinMode(sensor_pin(i), INPUT_PULLUP);
+
+		sn_sensors[i].raw = (digitalReadExt(sensor_pin(i)) != iopts[sensor_iopt_keys[i].option]);
+		sensor_hist[i] = (sensor_hist[i] << 1) | sn_sensors[i].raw;
+		if ((sensor_hist[i] & 0b1111) == 0b0011) {
+			ret |= (1 << i);
 		}
 	}
-
-	if(iopts[IOPT_SENSOR2_TYPE]==SENSOR_TYPE_PSWITCH) {
-		static unsigned char sensor2_hist = 0;
-		if(hw_rev>=2) pinMode(PIN_SENSOR2, INPUT_PULLUP); // this seems necessary for OS 3.2
-		status.sensor2 = (digitalReadExt(PIN_SENSOR2) != iopts[IOPT_SENSOR2_OPTION]); // is sensor activated?
-		sensor2_hist = (sensor2_hist<<1) | status.sensor2;
-		if((sensor2_hist&0b1111) == 0b0011) {
-			ret |= 0x02;
-		}
-	}
-
-	#if defined(ESP8266)
-	if(iopts[IOPT_SENSOR3_TYPE]==SENSOR_TYPE_PSWITCH) {
-		static unsigned char sensor3_hist = 0;
-		status.sensor3 = (digitalReadExt(PIN_SENSOR3) != iopts[IOPT_SENSOR3_OPTION]);
-		sensor3_hist = (sensor3_hist<<1) | status.sensor3;
-		if((sensor3_hist&0b1111) == 0b0011) {
-			ret |= 0x04;
-		}
-	}
-	#endif
-
-	#if defined(ESP8266)
-	if(iopts[IOPT_SENSOR4_TYPE]==SENSOR_TYPE_PSWITCH) {
-		static unsigned char sensor4_hist = 0;
-		status.sensor4 = (digitalReadExt(PIN_SENSOR4) != iopts[IOPT_SENSOR4_OPTION]);
-		sensor4_hist = (sensor4_hist<<1) | status.sensor4;
-		if((sensor4_hist&0b1111) == 0b0011) {
-			ret |= 0x08;
-		}
-	}
-	#endif
-
 	return ret;
 }
 
 void OpenSprinkler::sensor_resetall() {
-	sensor1_on_timer = 0;
-	sensor1_off_timer = 0;
-	sensor1_active_lasttime = 0;
-	sensor2_on_timer = 0;
-	sensor2_off_timer = 0;
-	sensor2_active_lasttime = 0;
-	sensor3_on_timer = 0;
-	sensor3_off_timer = 0;
-	sensor3_active_lasttime = 0;
-	sensor4_on_timer = 0;
-	sensor4_off_timer = 0;
-	sensor4_active_lasttime = 0;
-	old_status.sensor1_active = status.sensor1_active = 0;
-	old_status.sensor2_active = status.sensor2_active = 0;
-	old_status.sensor3_active = status.sensor3_active = 0;
-	old_status.sensor4_active = status.sensor4_active = 0;
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		sn_sensors[i].on_timer = 0;
+		sn_sensors[i].off_timer = 0;
+		sn_sensors[i].active_lasttime = 0;
+		sn_sensors[i].active = 0;
+		sn_sensors[i].prev_active = 0;
+	}
 }
 
 /** Read current sensing value
@@ -1523,11 +1445,11 @@ void OpenSprinkler::attribs_save() {
 	for(bid=0;bid<MAX_NUM_BOARDS && sid<nstations;bid++) {
 		for(s=0;s<8 && sid<nstations;s++,sid++) {
 			at.mas = (attrib_mas[bid]>>s) & 1;
-			at.igs = (attrib_igs[bid]>>s) & 1;
+			at.igs = (attrib_igs[0][bid]>>s) & 1;
 			at.mas2= (attrib_mas2[bid]>>s)& 1;
-			at.igs2= (attrib_igs2[bid]>>s) & 1;
-			at.igs3= (attrib_igs3[bid]>>s) & 1;
-			at.igs4= (attrib_igs4[bid]>>s) & 1;
+			at.igs2= (attrib_igs[1][bid]>>s) & 1;
+			at.igs3= (attrib_igs[2][bid]>>s) & 1;
+			at.igs4= (attrib_igs[3][bid]>>s) & 1;
 			at.igrd= (attrib_igrd[bid]>>s) & 1;
 			at.dis = (attrib_dis[bid]>>s) & 1;
 			at.mas3= (attrib_mas3[bid]>>s) & 1;
@@ -1559,13 +1481,10 @@ void OpenSprinkler::attribs_load() {
 	StationAttrib at;
 	unsigned char ty;
 	memset(attrib_mas, 0, nboards);
-	memset(attrib_igs, 0, nboards);
+	memset(attrib_igs, 0, sizeof(attrib_igs));
 	memset(attrib_mas2, 0, nboards);
 	memset(attrib_mas3, 0, nboards);
 	memset(attrib_mas4, 0, nboards);
-	memset(attrib_igs2, 0, nboards);
-	memset(attrib_igs3, 0, nboards);
-	memset(attrib_igs4, 0, nboards);
 	memset(attrib_igrd, 0, nboards);
 	memset(attrib_dis, 0, nboards);
 	memset(attrib_spe, 0, nboards);
@@ -1575,13 +1494,13 @@ void OpenSprinkler::attribs_load() {
 		for(s=0;s<8;s++,sid++) {
 			file_read_block(STATIONS_FILENAME, &at, (uint32_t)sid*sizeof(StationData)+offsetof(StationData, attrib), sizeof(StationAttrib));
 			attrib_mas[bid] |= (at.mas<<s);
-			attrib_igs[bid] |= (at.igs<<s);
+			attrib_igs[0][bid] |= (at.igs<<s);
 			attrib_mas2[bid]|= (at.mas2<<s);
 			attrib_mas3[bid]|= (at.mas3<<s);
 			attrib_mas4[bid]|= (at.mas4<<s);
-			attrib_igs2[bid]|= (at.igs2<<s);
-			attrib_igs3[bid]|= (at.igs3<<s);
-			attrib_igs4[bid]|= (at.igs4<<s);
+			attrib_igs[1][bid] |= (at.igs2<<s);
+			attrib_igs[2][bid] |= (at.igs3<<s);
+			attrib_igs[3][bid] |= (at.igs4<<s);
 			attrib_igrd[bid]|= (at.igrd<<s);
 			attrib_dis[bid] |= (at.dis<<s);
 			attrib_grp[sid] = at.gid;
@@ -2675,51 +2594,32 @@ void OpenSprinkler::lcd_print_screen(char c) {
 	}
 	//lcd.print(F("    "));
 
-	lcd.setCursor(LCD_CURSOR_REMOTEXT, 1);
-	lcd.write(iopts[IOPT_REMOTE_EXT_MODE]?ICON_REMOTEXT:' ');
-
-	lcd.setCursor(LCD_CURSOR_RAINDELAY, 1);
-	lcd.write((status.rain_delayed || status.pause_state)?ICON_RAINDELAY:' ');
-
-	// write sensor 1 icon
-	lcd.setCursor(LCD_CURSOR_SENSOR1, 1);
-	switch(iopts[IOPT_SENSOR1_TYPE]) {
-		case SENSOR_TYPE_RAIN:
-			lcd.write(status.sensor1_active?ICON_RAIN:(status.sensor1?'R':'r'));
-			break;
-		case SENSOR_TYPE_SOIL:
-			lcd.write(status.sensor1_active?ICON_SOIL:(status.sensor1?'S':'s'));
-			break;
-		case SENSOR_TYPE_FLOW:
-			lcd.write(flowcount_rt>0?'F':'f');
-			break;
-		case SENSOR_TYPE_PSWITCH:
-			lcd.write(status.sensor1?'P':'p');
-			break;
-		default:
-			lcd.write(' ');
-			break;
-	}
-
-	// write sensor 2 icon
-	lcd.setCursor(LCD_CURSOR_SENSOR2, 1);
-	switch(iopts[IOPT_SENSOR2_TYPE]) {
-		case SENSOR_TYPE_RAIN:
-			lcd.write(status.sensor2_active?ICON_RAIN:(status.sensor2?'R':'r'));
-			break;
-		case SENSOR_TYPE_SOIL:
-			lcd.write(status.sensor2_active?ICON_SOIL:(status.sensor2?'S':'s'));
-			break;
-			// sensor2 cannot be flow sensor
-		/*case SENSOR_TYPE_FLOW:
-			lcd.write('F');
-			break;*/
-		case SENSOR_TYPE_PSWITCH:
-			lcd.write(status.sensor2?'Q':'q');
-			break;
-		default:
-			lcd.write(' ');
-			break;
+	// Per-sensor icon on the status row (row 1). Loop instead of 4× duplicated
+	// switches. Pswitch uses 'P'/'p' for all sensors. SENSOR_TYPE_FLOW is only
+	// reachable for SN1 (the others can't be configured as flow), but the
+	// case is harmless on the others — they'll never hit it.
+	static const uint8_t sensor_lcd_cols[NUM_SENSORS] = {
+		LCD_CURSOR_SENSOR1, LCD_CURSOR_SENSOR2, LCD_CURSOR_SENSOR3, LCD_CURSOR_SENSOR4
+	};
+	for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+		lcd.setCursor(sensor_lcd_cols[i], 1);
+		switch(iopts[sensor_iopt_keys[i].type]) {
+			case SENSOR_TYPE_RAIN:
+				lcd.write(sn_sensors[i].active?ICON_RAIN:(sn_sensors[i].raw?'R':'r'));
+				break;
+			case SENSOR_TYPE_SOIL:
+				lcd.write(sn_sensors[i].active?ICON_SOIL:(sn_sensors[i].raw?'S':'s'));
+				break;
+			case SENSOR_TYPE_FLOW:
+				lcd.write(flowcount_rt>0?'F':'f');
+				break;
+			case SENSOR_TYPE_PSWITCH:
+				lcd.write(sn_sensors[i].raw?'P':'p');
+				break;
+			default:
+				lcd.write(' ');
+				break;
+		}
 	}
 
 	lcd.setCursor(LCD_CURSOR_NETWORK, 1);
@@ -2765,6 +2665,16 @@ void OpenSprinkler::lcd_print_screen(char c) {
 			lcd.clear(2, 2);
 		}
 	}
+
+	// Remote Extension and Rain Delay icons live on the bottom row, freeing
+	// the status-row space for SN3/SN4. Drawn AFTER the current-display block
+	// above so they overwrite that block's trailing spaces / clear.
+	lcd.setCursor(LCD_CURSOR_REMOTEXT, 2);
+	lcd.write(iopts[IOPT_REMOTE_EXT_MODE]?ICON_REMOTEXT:' ');
+
+	lcd.setCursor(LCD_CURSOR_RAINDELAY, 2);
+	lcd.write((status.rain_delayed || status.pause_state)?ICON_RAINDELAY:' ');
+
 	lcd.display();
 	lcd.setAutoDisplay(true);
 

@@ -386,11 +386,12 @@ void server_json_stations_main(OTF_PARAMS_DEF) {
 	server_json_board_attrib(PSTR("masop3"), os.attrib_mas3);
 	server_json_board_attrib(PSTR("masop4"), os.attrib_mas4);
 	server_json_board_attrib(PSTR("ignore_rain"), os.attrib_igrd);
-	server_json_board_attrib(PSTR("ignore_sn1"), os.attrib_igs);
-	server_json_board_attrib(PSTR("ignore_sn2"), os.attrib_igs2);
+	// Per-sensor "ignore" board mask. SN3/SN4 only emitted on OS 3.4+.
+	server_json_board_attrib(PSTR("ignore_sn1"), os.attrib_igs[0]);
+	server_json_board_attrib(PSTR("ignore_sn2"), os.attrib_igs[1]);
 	if (os.hw_rev >= 4) {
-		server_json_board_attrib(PSTR("ignore_sn3"), os.attrib_igs3);
-		server_json_board_attrib(PSTR("ignore_sn4"), os.attrib_igs4);
+		server_json_board_attrib(PSTR("ignore_sn3"), os.attrib_igs[2]);
+		server_json_board_attrib(PSTR("ignore_sn4"), os.attrib_igs[3]);
 	}
 	server_json_board_attrib(PSTR("stn_dis"), os.attrib_dis);
 	server_json_board_attrib(PSTR("stn_spe"), os.attrib_spe);
@@ -503,11 +504,11 @@ void server_change_stations(OTF_PARAMS_DEF) {
 
 	server_change_board_attrib(FKV_SOURCE, 'm', os.attrib_mas); // master1
 	server_change_board_attrib(FKV_SOURCE, 'i', os.attrib_igrd); // ignore rain delay
-	server_change_board_attrib(FKV_SOURCE, 'j', os.attrib_igs); // ignore sensor1
-	server_change_board_attrib(FKV_SOURCE, 'k', os.attrib_igs2); // ignore sensor2
+	server_change_board_attrib(FKV_SOURCE, 'j', os.attrib_igs[0]); // ignore sensor1
+	server_change_board_attrib(FKV_SOURCE, 'k', os.attrib_igs[1]); // ignore sensor2
 	if (os.hw_rev >= 4) {
-		server_change_board_attrib(FKV_SOURCE, 'o', os.attrib_igs3); // ignore sensor3
-		server_change_board_attrib(FKV_SOURCE, 'r', os.attrib_igs4); // ignore sensor4
+		server_change_board_attrib(FKV_SOURCE, 'o', os.attrib_igs[2]); // ignore sensor3
+		server_change_board_attrib(FKV_SOURCE, 'r', os.attrib_igs[3]); // ignore sensor4
 	}
 	server_change_board_attrib(FKV_SOURCE, 'n', os.attrib_mas2); // master2
 	server_change_board_attrib(FKV_SOURCE, 'u', os.attrib_mas3); // master3
@@ -1140,8 +1141,8 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 							(uint32_t)curr_time,
 							os.nboards,
 							os.status.enabled,
-							os.status.sensor1_active,
-							os.status.sensor2_active,
+							os.sn_sensors[0].active,
+							os.sn_sensors[1].active,
 							os.status.rain_delayed,
 							(uint32_t)os.nvdata.rd_stop_time,
 							os.nvdata.sunrise_time,
@@ -1162,10 +1163,10 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 
 	// SN3/SN4 only present on OS 3.4+ hardware. UI uses key-presence to
 	// decide whether to render the corresponding controls.
-	if (os.hw_rev >= 4) {
-		bfill.emit_p(PSTR("\"sn3\":$D,\"sn4\":$D,"),
-								 os.status.sensor3_active,
-								 os.status.sensor4_active);
+		if (os.hw_rev >= 4) {
+			bfill.emit_p(PSTR("\"sn3\":$D,\"sn4\":$D,"),
+								 os.sn_sensors[2].active,
+								 os.sn_sensors[3].active);
 	}
 
 #if defined(ESP8266)
@@ -2591,6 +2592,12 @@ void bfill_enum_values(const char *name) {
 
 void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 	bfill.emit_p(PSTR("\"sensors\":["));
+	// IMPORTANT: the array index implies the SensorType enum value. Do NOT
+	// skip entries — UI matches type by position. For sensor types that are
+	// intentionally disabled this release, emit a minimal stub with a
+	// "dis":1 flag so positions stay stable. UI hides disabled types from
+	// the creation menu but keeps the indexing intact for when the type is
+	// re-enabled in a future release.
 	for (uint8_t i = 0; i < static_cast<uint8_t>(SensorType::MAX_VALUE); i++) {
 		if (i) bfill.emit_p(PSTR(","));
 		switch (static_cast<SensorType>(i)) {
@@ -2601,7 +2608,11 @@ void server_json_sensor_description_main(OTF_PARAMS_DEF) {
 				ADS1115Sensor::emit_description_json(&bfill);
 				break;
 			case SensorType::Weather:
-				WeatherSensor::emit_description_json(&bfill);
+				// Disabled this release — server-side weather-data path
+				// needs design work before usable end-to-end. Existing
+				// WeatherSensor records continue to deserialize and run;
+				// new creation is blocked via the "dis" flag.
+				bfill.emit_p(PSTR("{\"n\":\"Weather Sensor\",\"dis\":1}"));
 				break;
 			case SensorType::SystemInternal:
 				SystemInternalSensor::emit_description_json(&bfill);

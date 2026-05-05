@@ -1,4 +1,5 @@
 #include "ads1115_sensor.h"
+#include "../OpenSprinkler.h"
 
 #include <cmath>
 #include <cstring>
@@ -42,14 +43,25 @@ void ADS1115Sensor::emit_extra_json(BufferFiller *bfill) {
 }
 
 void ADS1115Sensor::emit_description_json(BufferFiller* bfill) {
-	// Opening + pin + subtype enum start
-	bfill->emit_p(PSTR(
+	// Opening + (hardware-detected flag on real targets only) + pin + subtype enum start.
+	// "hwd" is a generic capability bit consumed by the UI: when present and
+	// equal to 0, the UI shows a "required hardware not detected" message.
+	// On DEMO/SIM the mock backend is always present, so the field is
+	// omitted entirely — UI default is "available."
 #if defined(ESP8266) || defined(OSPI)
+	bfill->emit_p(PSTR(
 		"{\"n\":\"ADS1115 Sensor\","
-#else
-		"{\"n\":\"ADS1115 Sensor (simulated)\","
-#endif
+		"\"hwd\":$D,"
 		"\"as\":["
+		),
+		OpenSprinkler::has_ads1115() ? 1 : 0);
+#else
+	bfill->emit_p(PSTR(
+		"{\"n\":\"ADS1115 Sensor (simulated)\","
+		"\"as\":["
+		));
+#endif
+	bfill->emit_p(PSTR(
 			"{\"n\":\"Pin\","
 			 "\"a\":\"pin\","
 			 "\"t\":\"int::[1,16]\","
