@@ -45,6 +45,7 @@
 #include <limits.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
@@ -1473,7 +1474,7 @@ smtp_parse_cmd_line(char *const line,
   char *ep;
   char code_str[4];
   size_t line_len;
-  unsigned long int ulcode;
+  uint32_t ulcode;
 
   line_len = strlen(line);
   if(line_len < 5){
@@ -1487,7 +1488,7 @@ smtp_parse_cmd_line(char *const line,
 
   memcpy(code_str, line, 3);
   code_str[3] = '\0';
-  ulcode = strtoul(code_str, &ep, 10);
+  ulcode = (uint32_t)strtoul(code_str, &ep, 10);
   if(*ep != '\0' || ulcode > SMTP_BEGIN_MAIL){
     cmd->code = SMTP_INTERNAL_ERROR;
   }

@@ -282,7 +282,7 @@ unsigned char parseMdScalesArray (const char* input) {
 	int count = 0;
 	while (*p && *p != ']' && count < MAX_N_MD_SCALES) {
 		char* endptr;
-		long val = strtol(p, &endptr, 10);   // parse number
+		int32_t val = (int32_t)strtol(p, &endptr, 10);   // parse number
 		md_scales[count] = static_cast<unsigned char>(val);
 		DEBUG_PRINT(md_scales[count]);
 		DEBUG_PRINT(",");

@@ -152,7 +152,7 @@ void initialiseEpoch()
 
 // Arduino-compatible: us since initialiseEpoch(), wraps every ~71 minutes.
 // Returns uint32_t explicitly so the 32-bit semantics are part of the API on
-// every target (matches Arduino, where unsigned long is also 32-bit).
+// every target (matches Arduino).
 uint32_t micros (void)
 {
 	struct timeval tv ;
@@ -191,8 +191,8 @@ unsigned int detect_rpi_rev() {
 route_t get_route() {
 	route_t route;
 	char iface[16];
-	unsigned long dst, gw;
-	unsigned int flags, refcnt, use, metric, mask, mtu, window, irtt;
+	uint32_t dst, gw, mask;
+	unsigned int flags, refcnt, use, metric, mtu, window, irtt;
 
 	FILE *filp;
 	char buf[512];
@@ -200,7 +200,7 @@ route_t get_route() {
 	filp = fopen("/proc/net/route", "r");
 	if(filp) {
 		while(fgets(buf, sizeof(buf), filp) != NULL) {
-			if(sscanf(buf, "%s %lx %lx %X %d %d %d %lx %d %d %d", iface, &dst, &gw, &flags, &refcnt, &use, &metric, &mask, &mtu, &window, &irtt) == 11) {
+			if(sscanf(buf, "%15s %x %x %X %d %d %d %x %d %d %d", iface, &dst, &gw, &flags, &refcnt, &use, &metric, &mask, &mtu, &window, &irtt) == 11) {
 				if(flags & RTF_UP) {
 					if(dst==0) {
 						strcpy(route.iface, iface);
@@ -216,7 +216,7 @@ route_t get_route() {
 }
 
 in_addr_t get_ip_address(char *iface) {
-	struct ifaddrs *ifaddr; 
+	struct ifaddrs *ifaddr;
 	struct ifaddrs *ifa;
 	in_addr_t ip = 0;
 	if(getifaddrs(&ifaddr) == -1) {
@@ -265,8 +265,8 @@ BoardType get_board_type() {
 			index += 1;
 		}
 
-		cpu_buf += index + 1;  
-		
+		cpu_buf += index + 1;
+
 		if (!strcmp("brcm,bcm2712", cpu_buf)) {
 			// Pi 5
 			res = BoardType::RaspberryPi_bcm2712;
@@ -371,7 +371,7 @@ os_file_type file_open(const char *fn, FileOpenMode mode) {
 		case FileOpenMode::ReadAppend:
 			return fopen(full_file, "ab+");
 	}
-	
+
 	#endif
 }
 

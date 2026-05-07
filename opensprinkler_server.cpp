@@ -1933,11 +1933,11 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
 	char *end;
-	long sid = -1;
+	int32_t sid = -1;
 	bool is_new = false;
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
-		long uuid_param = strtol(tmp_buffer, &end, 10);
+		int32_t uuid_param = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (uuid_param == -1) {
 			is_new = true;
@@ -1948,7 +1948,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 			if (sid >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
 		}
 	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
-		long sid_param = strtol(tmp_buffer, &end, 10);
+		int32_t sid_param = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (sid_param == -1) {
 			is_new = true;
@@ -2305,12 +2305,12 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 void server_delete_sensor(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
-	long idx = -1;
+	int32_t idx = -1;
 	bool delete_all = false;
 	char *end;
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
-		long uuid_param = strtol(tmp_buffer, &end, 10);
+		int32_t uuid_param = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (uuid_param == -1) {
 			delete_all = true;
@@ -2320,7 +2320,7 @@ void server_delete_sensor(OTF_PARAMS_DEF) {
 			if (idx >= os.nsensors) handle_return(HTML_DATA_OUTOFBOUND);
 		}
 	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
-		long sid_param = strtol(tmp_buffer, &end, 10);
+		int32_t sid_param = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (sid_param == -1) {
 			delete_all = true;
@@ -2431,13 +2431,13 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		if (after >= before) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
-	long target_uuid = -1;
+	int32_t target_uuid = -1;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
-		target_uuid = strtol(tmp_buffer, &end, 10);
+		target_uuid = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (target_uuid != -1 && (target_uuid < 1 || target_uuid > 0xFFFF)) handle_return(HTML_DATA_OUTOFBOUND);
 	} else if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
-		long sid_param = strtol(tmp_buffer, &end, 10);
+		int32_t sid_param = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (sid_param == -1) {
 			target_uuid = -1;
@@ -2516,10 +2516,10 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 void server_delete_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
-	long uuid = -1;
+	int32_t uuid = -1;
 	char *end;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
-		uuid = strtol(tmp_buffer, &end, 10);
+		uuid = (int32_t)strtol(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (uuid != -1 && (uuid < 1 || uuid > 0xFFFF)) handle_return(HTML_DATA_OUTOFBOUND);
 	} else {
