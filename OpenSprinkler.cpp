@@ -2437,7 +2437,9 @@ void OpenSprinkler::poll_sensors() {
 		}
 		mem.next_update = millis() + (mem.interval * 1000 * 60);
 
-		if (mem.flag & (1 << SENSOR_FLAG_LOG)) {
+		// Log only a value produced by this read. mem.value may still contain the
+		// previous good reading when the current attempt reports an error.
+		if ((mem.flag & (1 << SENSOR_FLAG_LOG)) && (new_status & SENSOR_STATUS_VALID)) {
 			os.log_sensor(i, mem.value);
 		}
 	}
