@@ -46,7 +46,7 @@ bool ADS1115::begin() {
 	if ((this->_address < 0x48) || (this->_address > 0x4B)) {
 		return false;
 	}
-	if (this->_i2c.detect() < 0) {
+	if (!this->_i2c.detect()) {
 		return false;
 	}
 	return true;
