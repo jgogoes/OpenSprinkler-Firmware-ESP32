@@ -1095,7 +1095,7 @@ void server_json_programs(OTF_PARAMS_DEF) {
 	handle_return(HTML_OK);
 }
 
-/** Output per-program adjustment factors: water percent (wa), sensor adj (sa), total adj (ta) */
+/** Output per-program adjustment factors and the maximum effective station runtime. */
 void server_json_program_adj(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 	begin_response(res);
@@ -1109,7 +1109,7 @@ void server_json_program_adj(OTF_PARAMS_DEF) {
 		if(pid) bfill.emit_p(PSTR(","));
 		bfill.emit_p(PSTR("{\"wa\":$E,\"sa\":$E,\"ta\":$E}"), wa, sa, wa * sa);
 	}
-	bfill.emit_p(PSTR("]}"));
+	bfill.emit_p(PSTR("],\"maxrt\":$L}"), (uint32_t)MAX_RUNTIME_DURATION);
 	handle_return(HTML_OK);
 }
 
