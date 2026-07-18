@@ -157,6 +157,8 @@ enum {
 
 #define MAX_NUM_BOARDS    (1+MAX_EXT_BOARDS)  // maximum number of 8-zone boards including expanders
 #define MAX_NUM_STATIONS  (MAX_NUM_BOARDS*8)  // maximum number of stations
+#define MAX_PROGRAMMED_DURATION 64800U // maximum stored/manual/remote-command duration (18 hours)
+#define MAX_RUNTIME_DURATION (7UL * 24UL * 60UL * 60UL) // maximum effective station run time after adjustments
 #define STATION_NAME_SIZE 32    // maximum number of characters in each station name
 #define MAX_SOPTS_SIZE    320   // maximum string option size
 

@@ -37,7 +37,7 @@ class SensorAdjustment; // forward declaration to avoid pulling sensors/sensor.h
 struct LogStruct {
 	unsigned char station;
 	unsigned char program;
-	uint16_t duration;
+	uint32_t duration;
 	uint32_t endtime;
 };
 
@@ -119,7 +119,7 @@ extern OpenSprinkler os;
 class RuntimeQueueStruct {
 public:
 	time_os_t   st;  // start time
-	uint16_t dur; // water time
+	uint32_t dur; // effective water time after weather/sensor adjustments
 	unsigned char  sid;
 	unsigned char  pid;
 	time_os_t   deque_time; // deque time, which can be larger than st+dur to allow positive master off adjustment time

@@ -176,12 +176,12 @@ void manualRun(char *message){
 		return;
 	}
 
-	uint16_t timer = 0;
+	uint32_t timer = 0;
 	uint32_t curr_time = os.now_tz();
 	if(en){
 		if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)){
-			timer = (uint16_t)atol(tmp_buffer);
-			if(timer==0 || timer>64800){
+			timer = strtoul(tmp_buffer, NULL, 10);
+			if(timer==0 || timer>MAX_PROGRAMMED_DURATION){
 				DEBUG_LOGF("Time out of bounds.\r\n");
 				return;
 			}
@@ -274,7 +274,7 @@ void runOnceProgram(char *message){
 	pv+=3;
 
 	unsigned char sid, bid, s;
-	uint16_t dur;
+	uint32_t dur;
 	boolean match_found = false;
 	unsigned char wl = 100;
 	if(findKeyVal(message,tmp_buffer,TMP_BUFFER_SIZE,PSTR("uwt"),true)){
@@ -291,7 +291,7 @@ void runOnceProgram(char *message){
 	}
 
 	for(sid = 0; sid < os.nstations; sid++){
-		dur = parse_listdata(&pv)*wl/100;
+		dur = water_time_scale(water_time_resolve(parse_listdata(&pv)), wl, 1.f);
 		bid = sid >> 3;
 		s = sid&0x07;
 
@@ -299,7 +299,7 @@ void runOnceProgram(char *message){
 			RuntimeQueueStruct *q = pd.enqueue();
 			if(q){
 				q->st = 0;
-				q->dur = water_time_resolve(dur);
+				q->dur = dur;
 				q->pid = 254;
 				q->sid = sid;
 				match_found = true;

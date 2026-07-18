@@ -1147,7 +1147,7 @@ void OpenSprinkler::apply_all_station_bits(void (*post_activation_callback)()) {
 				bid=next_sid_to_refresh>>3;
 				s=next_sid_to_refresh&0x07;
 				bool on = (station_bits[bid]>>s)&0x01;
-				uint16_t dur = 0;
+				uint32_t dur = 0;
 				if(on) {
 					unsigned char sqi=pd.station_qid[next_sid_to_refresh];
 					RuntimeQueueStruct *q=pd.queue+sqi;
@@ -1535,7 +1535,7 @@ unsigned char OpenSprinkler::weekday_today() {
 }
 
 /** Switch special station */
-void OpenSprinkler::switch_special_station(unsigned char sid, unsigned char value, uint16_t dur) {
+void OpenSprinkler::switch_special_station(unsigned char sid, unsigned char value, uint32_t dur) {
 	// check if this is a special station
 	unsigned char bid=sid>>3,s=sid&0x07;
 	if(!(os.attrib_spe[bid]&(1<<s))) return; // if this is not a special stations
@@ -1579,7 +1579,7 @@ void OpenSprinkler::switch_special_station(unsigned char sid, unsigned char valu
  * You have to call apply_all_station_bits next to apply the bits
  * (which results in physical actions of opening/closing valves).
  */
-unsigned char OpenSprinkler::set_station_bit(unsigned char sid, unsigned char value, uint16_t dur) {
+unsigned char OpenSprinkler::set_station_bit(unsigned char sid, unsigned char value, uint32_t dur) {
 	unsigned char *data = station_bits+(sid>>3);  // pointer to the station byte
 	unsigned char mask = (unsigned char)1<<(sid&0x07); // mask
 	if (value) {
@@ -1793,7 +1793,7 @@ int8_t OpenSprinkler::send_http_request(char* server_with_port, char* p, void(*c
  * The remote controller is assumed to have the same
  * password as the main controller
  */
-void OpenSprinkler::switch_remotestation(RemoteIPStationData *data, bool turnon, uint16_t dur) {
+void OpenSprinkler::switch_remotestation(RemoteIPStationData *data, bool turnon, uint32_t dur) {
 	RemoteIPStationData copy;
 	memcpy((char*)&copy, (char*)data, sizeof(RemoteIPStationData));
 
@@ -1812,18 +1812,18 @@ void OpenSprinkler::switch_remotestation(RemoteIPStationData *data, bool turnon,
 	// otherwise:
 	//   if autorefresh is defined, we give a fixed duration each time, and auto refresh will renew it periodically
 	//   if no auto refresh, we will give the maximum allowed duration, and station will be turned off when off command is sent
-	uint16_t timer = 0;
+	uint32_t timer = 0;
 	if(turnon) {
 		if(dur>0) {
-			timer = dur;
+			timer = dur > MAX_PROGRAMMED_DURATION ? MAX_PROGRAMMED_DURATION : dur;
 		} else {
-			timer = iopts[IOPT_SPE_AUTO_REFRESH]?4*MAX_NUM_STATIONS:64800;
+			timer = iopts[IOPT_SPE_AUTO_REFRESH]?4*MAX_NUM_STATIONS:MAX_PROGRAMMED_DURATION;
 		}
 	}
-	bf.emit_p(PSTR("GET /cm?pw=$O&sid=$D&en=$D&t=$D"),
+	bf.emit_p(PSTR("GET /cm?pw=$O&sid=$D&en=$D&t=$L"),
 						SOPT_PASSWORD,
 						(int)hex2uint32_t(copy.sid, sizeof(copy.sid)),
-						turnon, timer);
+						turnon, (uint32_t)timer);
 	bf.emit_p(PSTR(" HTTP/1.0\r\nHOST: $D.$D.$D.$D\r\n"),
 						ip[0],ip[1],ip[2],ip[3]);
 
@@ -1841,7 +1841,7 @@ void OpenSprinkler::switch_remotestation(RemoteIPStationData *data, bool turnon,
  * The remote controller is assumed to have the same
  * password as the main controller
  */
-void OpenSprinkler::switch_remotestation(RemoteOTCStationData *data, bool turnon, uint16_t dur) {
+void OpenSprinkler::switch_remotestation(RemoteOTCStationData *data, bool turnon, uint32_t dur) {
 	RemoteOTCStationData copy;
 	memcpy((char*)&copy, (char*)data, sizeof(RemoteOTCStationData));
 	copy.token[sizeof(copy.token)-1] = 0; // ensure the string ends properly
@@ -1851,19 +1851,19 @@ void OpenSprinkler::switch_remotestation(RemoteOTCStationData *data, bool turnon
 	// otherwise:
 	//   if autorefresh is defined, we give a fixed duration each time, and auto refresh will renew it periodically
 	//   if no auto refresh, we will give the maximum allowed duration, and station will be turned off when off command is sent
-	uint16_t timer = 0;
+	uint32_t timer = 0;
 	if(turnon) {
 		if(dur>0) {
-			timer = dur;
+			timer = dur > MAX_PROGRAMMED_DURATION ? MAX_PROGRAMMED_DURATION : dur;
 		} else {
-			timer = iopts[IOPT_SPE_AUTO_REFRESH]?4*MAX_NUM_STATIONS:64800;
+			timer = iopts[IOPT_SPE_AUTO_REFRESH]?4*MAX_NUM_STATIONS:MAX_PROGRAMMED_DURATION;
 		}
 	}
-	bf.emit_p(PSTR("GET /forward/v1/$S/cm?pw=$O&sid=$D&en=$D&t=$D"),
+	bf.emit_p(PSTR("GET /forward/v1/$S/cm?pw=$O&sid=$D&en=$D&t=$L"),
 						copy.token,
 						SOPT_PASSWORD,
 						(int)hex2uint32_t(copy.sid, sizeof(copy.sid)),
-						turnon, timer);
+						turnon, (uint32_t)timer);
 	bf.emit_p(PSTR(" HTTP/1.0\r\nHOST: $S\r\nConnection:close\r\n"), DEFAULT_OTC_SERVER_APP);
 
 	bf.emit_p(PSTR("User-Agent: $S\r\n\r\n"), user_agent_string);

@@ -810,7 +810,7 @@ void do_loop()
 							// water time is scaled by watering percentage
 							uint32_t water_time = water_time_resolve(dur);
 
-							water_time = (uint32_t)(water_time * wl / 100 * sensor_adj);
+							water_time = water_time_scale(water_time, wl, sensor_adj);
 							if (wl < 20 && water_time < 10) { // if water_percentage is less than 20% and water_time is less than 10 seconds, skip watering
 								water_time = 0;
 							}
@@ -1641,7 +1641,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 			dur = water_time_resolve(prog.durations[sid]);
 		}
 
-		dur = (uint32_t)(dur * wl / 100 * sensor_adj);
+		dur = water_time_scale(dur, wl, sensor_adj);
 		if(dur>0 && !(os.attrib_dis[bid]&(1<<s))) {
 			RuntimeQueueStruct *q = pd.enqueue();
 			if (q) {

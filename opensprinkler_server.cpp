@@ -723,16 +723,16 @@ void server_change_runonce(OTF_PARAMS_DEF) {
 
 	for(unsigned char oi=0;oi<ns;oi++) {
 		sid=order[oi];
-		dur=prog.durations[sid]*wl/100;
+		uint32_t effective_dur = water_time_scale(water_time_resolve(prog.durations[sid]), wl, 1.f);
 		bid=sid>>3;
 		s=sid&0x07;
 		// if non-zero duration is given
 		// and if the station has not been disabled
-		if (dur>0 && !(os.attrib_dis[bid]&(1<<s))) {
+		if (effective_dur>0 && !(os.attrib_dis[bid]&(1<<s))) {
 			RuntimeQueueStruct *q = pd.enqueue();
 			if (q) {
 				q->st = 0;
-				q->dur = water_time_resolve(dur);
+				q->dur = effective_dur;
 				q->pid = 254;
 				q->sid = sid;
 				match_found = true;
@@ -1137,7 +1137,7 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 	time_os_t curr_time = os.now_tz();
 	bfill.emit_p(PSTR("\"devt\":$L,\"nbrd\":$D,\"en\":$D,\"sn1\":$D,\"sn2\":$D,\"rd\":$D,\"rdst\":$L,"
 										"\"sunrise\":$D,\"sunset\":$D,\"eip\":$L,\"lwc\":$L,\"lswc\":$L,"
-										"\"lupt\":$L,\"lrbtc\":$D,\"lrun\":[$D,$D,$D,$L],\"pq\":$D,\"pt\":$L,\"nq\":$D,\"ocs\":$D,"),
+										"\"lupt\":$L,\"lrbtc\":$D,\"lrun\":[$D,$D,$L,$L],\"pq\":$D,\"pt\":$L,\"nq\":$D,\"ocs\":$D,"),
 							(uint32_t)curr_time,
 							os.nboards,
 							os.status.enabled,
@@ -1154,7 +1154,7 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 							os.last_reboot_cause,
 							pd.lastrun.station,
 							pd.lastrun.program,
-							pd.lastrun.duration,
+							(uint32_t)pd.lastrun.duration,
 							pd.lastrun.endtime,
 							os.status.pause_state,
 							os.pause_timer,
@@ -1226,13 +1226,14 @@ void server_json_controller_main(OTF_PARAMS_DEF) {
 	for(sid=0;sid<os.nstations;sid++) {
 		uint32_t rem = 0;
 		unsigned char qid = pd.station_qid[sid];
-		RuntimeQueueStruct *q = pd.queue + qid;
-		if (qid<255) {
-			rem = (curr_time >= q->st) ? (q->st+q->dur-curr_time) : q->dur;
-			if(rem>65535) rem = 0;
+		RuntimeQueueStruct *q = qid < pd.nqueue ? pd.queue + qid : nullptr;
+		if (q) {
+			uint32_t end_time = q->st + q->dur;
+			if (!q->st || curr_time < q->st) rem = q->dur;
+			else if (curr_time < end_time) rem = end_time - curr_time;
 		}
 		bfill.emit_p(PSTR("[$D,$L,$L,$D]"),
-		(qid<255)?q->pid:0, (uint32_t)rem, (uint32_t)((qid<255)?q->st:0), os.attrib_grp[sid]);
+		q?q->pid:0, (uint32_t)rem, (uint32_t)(q?q->st:0), os.attrib_grp[sid]);
 		bfill.emit_p((sid<os.nstations-1)?PSTR(","):PSTR("]"));
 	}
 
@@ -1643,12 +1644,12 @@ void server_change_manual(OTF_PARAMS_DEF) {
 		handle_return(HTML_DATA_MISSING);
 	}
 
-	uint16_t timer=0;
+	uint32_t timer=0;
 	uint32_t curr_time = os.now_tz();
 	if (en) { // if turning on a station, must provide timer
 		if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)) {
-			timer=(uint16_t)atol(tmp_buffer);
-			if (timer==0 || timer>64800) {
+			timer=strtoul(tmp_buffer, NULL, 10);
+			if (timer==0 || timer>MAX_PROGRAMMED_DURATION) {
 				handle_return(HTML_DATA_OUTOFBOUND);
 			}
 

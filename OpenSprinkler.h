@@ -390,8 +390,8 @@ public:
 	static void attribs_load(); // load and repackage attrib bits (backward compatibility)
 	static bool parse_rfstation_code(RFStationData *data, RFStationCode *code); // parse rf code into on/off/time sections
 	static void switch_rfstation(RFStationData *data, bool turnon);  // switch rf station
-	static void switch_remotestation(RemoteIPStationData *data, bool turnon, uint16_t dur=0); // switch remote IP station
-	static void switch_remotestation(RemoteOTCStationData *data, bool turnon, uint16_t dur=0); // switch remote OTC station
+	static void switch_remotestation(RemoteIPStationData *data, bool turnon, uint32_t dur=0); // switch remote IP station
+	static void switch_remotestation(RemoteOTCStationData *data, bool turnon, uint32_t dur=0); // switch remote OTC station
 	static void switch_gpiostation(GPIOStationData *data, bool turnon); // switch gpio station
 	static void switch_httpstation(HTTPStationData *data, bool turnon, bool usessl=false); // switch http station
 
@@ -426,9 +426,9 @@ public:
 	static int detect_exp();      // detect the number of expansion boards
 	static unsigned char weekday_today();  // returns index of today's weekday (Monday is 0)
 
-	static unsigned char set_station_bit(unsigned char sid, unsigned char value, uint16_t dur=0); // set station bit of one station (sid->station index, value->0/1)
+	static unsigned char set_station_bit(unsigned char sid, unsigned char value, uint32_t dur=0); // set station bit of one station (sid->station index, value->0/1)
 	static unsigned char get_station_bit(unsigned char sid); // get station bit of one station (sid->station index)
-	static void switch_special_station(unsigned char sid, unsigned char value, uint16_t dur=0); // swtich special station
+	static void switch_special_station(unsigned char sid, unsigned char value, uint32_t dur=0); // swtich special station
 	static void clear_all_station_bits(); // clear all station bits
 	static void apply_all_station_bits(void (*post_activation_callback)()=NULL); // apply all station bits (activate/deactive values)
 

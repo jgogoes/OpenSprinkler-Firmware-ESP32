@@ -24,6 +24,7 @@
 #include "utils.h"
 #include "types.h"
 #include "OpenSprinkler.h"
+#include <math.h>
 extern OpenSprinkler os;
 
 #if defined(ESP8266)  // Arduino
@@ -585,6 +586,13 @@ uint32_t water_time_resolve(uint16_t v) {
 	} else	{
 		return v;
 	}
+}
+
+uint32_t water_time_scale(uint32_t duration, uint8_t weather_percent, float sensor_factor) {
+	if (!duration || !weather_percent || !isfinite(sensor_factor) || sensor_factor <= 0.f) return 0;
+	double scaled = (double)duration * weather_percent / 100.0 * sensor_factor;
+	if (scaled >= MAX_RUNTIME_DURATION) return MAX_RUNTIME_DURATION;
+	return (uint32_t)scaled;
 }
 
 // encode a 16-bit signed water time (-600 to 600)

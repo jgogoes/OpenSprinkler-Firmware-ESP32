@@ -605,6 +605,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 * **NTP IP Address:** Custom NTP server for time sync. Set to `0.0.0.0` to use system defaults.
 * **Ignore Password:** When enabled, accepts any device password (i.e. bypass password).
 * **Special Station Auto-Refresh:** Periodically resends commands to Virtual Stations (RF/Remote/HTTP) to keep them synchronized with the main controller.
+    * Enable this when using Remote IP/OTC stations. Weather- and sensor-adjusted program runtimes may exceed 18 hours, but each remote `/cm` command remains capped at 18 hours for compatibility with older firmware. Without auto-refresh, the remote station will stop when that command expires even though the primary controller's schedule continues.
 * **NTP Sync:** Automatically syncs device time based on your Location.
     * To **manually adjust time**, disable this option, then the Device Time becomes editable. 
 * **Use DHCP:** Automatically obtains IP from your router using DHCP.
@@ -822,4 +823,3 @@ For detailed setup steps and examples, see the [RF Station blog post](https://op
 
 <br>
 <hr class="double">
-
