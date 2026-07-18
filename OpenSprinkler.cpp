@@ -765,6 +765,21 @@ void OpenSprinkler::begin() {
 
 #if defined(OSPI)
 	Bus.begin(); // init I2C for OSPI
+
+	// Configure the station shift register before loading the initial all-off state.
+	pinMode(PIN_SR_OE, OUTPUT);
+	digitalWrite(PIN_SR_OE, HIGH); // disable outputs during setup
+	pinMode(PIN_SR_LATCH, OUTPUT);
+	digitalWrite(PIN_SR_LATCH, HIGH);
+	pinMode(PIN_SR_CLOCK, OUTPUT);
+
+	pin_sr_data = PIN_SR_DATA;
+	unsigned int rev = detect_rpi_rev();
+	if (rev == 0x0002 || rev == 0x0003) {
+		pin_sr_data = PIN_SR_DATA_ALT; // RPi 1 revision 1 boards
+	}
+	pinMode(pin_sr_data, OUTPUT);
+
 	pinModeExt(PIN_BUTTON_1, INPUT_PULLUP);
 	pinModeExt(PIN_BUTTON_2, INPUT_PULLUP);
 	pinModeExt(PIN_BUTTON_3, INPUT_PULLUP);
@@ -1126,6 +1141,7 @@ void OpenSprinkler::apply_all_station_bits(void (*post_activation_callback)()) {
 			digitalWrite(PIN_SR_CLOCK, HIGH);
 		}
 	}
+	digitalWrite(PIN_SR_LATCH, HIGH);
 
 #endif
 
