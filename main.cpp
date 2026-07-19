@@ -803,8 +803,7 @@ void do_loop()
 						bid=sid>>3;
 						s=sid&0x07;
 						// skip if the station is a master station (because master cannot be scheduled independently
-						if ((os.status.mas==sid+1) || (os.status.mas2==sid+1) ||
-						    (os.status.mas3==sid+1) || (os.status.mas4==sid+1))
+						if (os.is_master_station(sid))
 							continue;
 
 						// TODO: compare with old code
@@ -877,10 +876,7 @@ void do_loop()
 					unsigned char sid = bid*8+s;
 
 					// skip master stations and any station that's not in the queue
-					if (os.status.mas == sid+1) continue;
-					if (os.status.mas2== sid+1) continue;
-					if (os.status.mas3== sid+1) continue;
-					if (os.status.mas4== sid+1) continue;
+					if (os.is_master_station(sid)) continue;
 					if (pd.station_qid[sid]==255) continue;
 
 					q = pd.queue + pd.station_qid[sid];
@@ -1264,8 +1260,7 @@ void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shif
 	// because we may be turning off a station that hasn't started yet
 	if (curr_time >= q->st) {
 		// record lastrun log (only for non-master stations)
-		if (os.status.mas != (sid + 1) && os.status.mas2 != (sid + 1) &&
-		    os.status.mas3 != (sid + 1) && os.status.mas4 != (sid + 1)) {
+		if (!os.is_master_station(sid)) {
 			pd.lastrun.station = sid;
 			pd.lastrun.program = q->pid;
 			pd.lastrun.duration = curr_time - q->st;
@@ -1315,10 +1310,7 @@ void process_dynamic_events(time_os_t curr_time) {
 			sid=bid*8+s;
 
 			// ignore master stations because they are handled separately
-			if (os.status.mas == sid+1) continue;
-			if (os.status.mas2== sid+1) continue;
-			if (os.status.mas3== sid+1) continue;
-			if (os.status.mas4== sid+1) continue;
+			if (os.is_master_station(sid)) continue;
 			// If this is a normal program (not a run-once or test program)
 			// and either the controller is disabled, or
 			// if raining and ignore rain bit is cleared
@@ -1635,8 +1627,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 		bid=sid>>3;
 		s=sid&0x07;
 		// skip if the station is a master station (because master cannot be scheduled independently
-		if ((os.status.mas==sid+1) || (os.status.mas2==sid+1) ||
-		    (os.status.mas3==sid+1) || (os.status.mas4==sid+1))
+		if (os.is_master_station(sid))
 			continue;
 		dur = 60;
 		if(pid==255) {

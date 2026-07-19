@@ -2366,7 +2366,9 @@ void OpenSprinkler::log_sensor(uint8_t sid, float value) {
 		file_close(hfile);
 		hdr_valid = (n == (int)sizeof(hdr) &&
 		             hdr.magic == SENSOR_LOG_MAGIC &&
-		             hdr.version == SENSOR_LOG_VERSION);
+		             hdr.version == SENSOR_LOG_VERSION &&
+		             hdr.max_files == SENSOR_LOG_MAX_FILES &&
+		             hdr.records_per_file == SENSOR_LOG_RECORDS_PER_FILE);
 	}
 
 	if (!hdr_valid) {

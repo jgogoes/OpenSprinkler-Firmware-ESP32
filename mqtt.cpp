@@ -185,7 +185,7 @@ void manualRun(char *message){
 				DEBUG_LOGF("Time out of bounds.\r\n");
 				return;
 			}
-			if((os.status.mas==sid+1) || (os.status.mas2==sid+1)){
+			if(os.is_master_station(sid)){
 				DEBUG_LOGF("Cannot independently schedule master.\r\n");
 				return;
 			}

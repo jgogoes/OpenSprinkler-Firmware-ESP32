@@ -397,11 +397,11 @@ bool file_seek(os_file_type f, uint32_t position, FileSeekMode mode) {
 	#else
 	switch (mode) {
 		case FileSeekMode::Set:
-			return fseek(f, position, SEEK_SET);
+			return fseek(f, position, SEEK_SET) == 0;
 		case FileSeekMode::Current:
-			return fseek(f, position, SEEK_CUR);
+			return fseek(f, position, SEEK_CUR) == 0;
 		case FileSeekMode::End:
-			return fseek(f, position, SEEK_END);
+			return fseek(f, position, SEEK_END) == 0;
 	}
 	#endif
 

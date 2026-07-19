@@ -1660,8 +1660,7 @@ void server_change_manual(OTF_PARAMS_DEF) {
 			// schedule manual station
 			// skip if the station is a master station
 			// (because master cannot be scheduled independently)
-			if ((os.status.mas==sid+1) || (os.status.mas2==sid+1) ||
-			    (os.status.mas3==sid+1) || (os.status.mas4==sid+1))
+			if (os.is_master_station(sid))
 				handle_return(HTML_NOT_PERMITTED);
 
 			RuntimeQueueStruct *q = NULL;
@@ -2455,6 +2454,36 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		else if (strcmp(tmp_buffer, "json")   != 0) handle_return(HTML_DATA_FORMATERROR);
 	}
 
+	// Files are chronological even after rotation. Skip files whose newest
+	// record predates the requested window, while preserving flat cursor indexes.
+	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
+	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
+	uint16_t first_matching_file = 0;
+	uint32_t flat_idx = 0;
+	SensorLogRecord rec;
+
+	if (after) {
+		for (; first_matching_file < total_files; first_matching_file++) {
+			uint16_t file_no = (first_file + first_matching_file) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (!dfile) continue;
+
+			uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+			if (!record_count) {
+				file_close(dfile);
+				continue;
+			}
+
+			bool read_last = file_seek(dfile, (record_count - 1) * sizeof(SensorLogRecord)) &&
+				file_read(dfile, &rec, sizeof(rec)) == (int)sizeof(rec);
+			file_close(dfile);
+
+			// Fall back to scanning this file if its boundary cannot be trusted.
+			if (!read_last || rec.timestamp == 0 || rec.timestamp >= after) break;
+			flat_idx += record_count;
+		}
+	}
+
 	ContentType ct = (logfmt == FMT_BINARY) ? CT_BINARY : (logfmt == FMT_CSV) ? CT_CSV : CT_JSON;
 	print_header(OTF_PARAMS, ct);
 	if (logfmt == FMT_CSV)
@@ -2464,18 +2493,25 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if (logfmt == FMT_JSON) res.write("[", 1);
 	if (logfmt == FMT_CSV)  res.write("uuid,timestamp,value\n", 21);
 
-	// Iterate files from oldest to newest
-	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
-	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
-
-	SensorLogRecord rec;
-	uint32_t flat_idx = 0;
 	uint32_t count = 0;
 
-	for (uint16_t fi = 0; fi < total_files && count < max_count; fi++) {
+	for (uint16_t fi = first_matching_file; fi < total_files && count < max_count; fi++) {
 		uint16_t file_no = (first_file + fi) % hdr.max_files;
 		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
 		if (!dfile) continue;
+
+		uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+		if (flat_idx < cursor) {
+			uint32_t records_to_skip = cursor - flat_idx;
+			if (records_to_skip >= record_count) {
+				flat_idx += record_count;
+				file_close(dfile);
+				continue;
+			}
+			if (file_seek(dfile, records_to_skip * sizeof(SensorLogRecord))) {
+				flat_idx += records_to_skip;
+			}
+		}
 
 		while (count < max_count) {
 			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
