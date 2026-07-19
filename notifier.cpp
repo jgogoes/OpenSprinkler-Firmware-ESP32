@@ -307,10 +307,12 @@ static void format_notification(uint16_t type, uint32_t lval, float fval,
 				if (bval) strcat_P(bufs.body, PSTR("manually scheduled "));
 				else      strcat_P(bufs.body, PSTR("automatically scheduled "));
 			}
-			{
+			if (lval == RUNONCE_PID) {
+				strcat_P(bufs.body, PSTR("Run-once program"));
+			} else if (lval < pd.nprograms) {
 				ProgramStruct prog;
 				pd.read(lval, &prog);
-				if (lval < pd.nprograms) strcat(bufs.body, prog.name);
+				strcat(bufs.body, prog.name);
 			}
 			if (fval > 0) {
 				snprintf_P(bufs.body + strlen(bufs.body), bufs.body_cap - strlen(bufs.body),

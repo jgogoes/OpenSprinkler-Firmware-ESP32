@@ -202,7 +202,7 @@ void manualRun(char *message){
 				q->st = 0;
 				q->dur = timer;
 				q->sid = sid;
-				q->pid = 99;
+				q->pid = MANUAL_PID;
 				schedule_all_stations(curr_time);
 			}else{
 				DEBUG_LOGF("Queue is full.\r\n");
@@ -300,7 +300,7 @@ void runOnceProgram(char *message){
 			if(q){
 				q->st = 0;
 				q->dur = dur;
-				q->pid = 254;
+				q->pid = RUNONCE_PID;
 				q->sid = sid;
 				match_found = true;
 			}

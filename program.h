@@ -46,6 +46,11 @@ struct LogStruct {
 #define PROGRAM_TYPE_MONTHLY   2
 #define PROGRAM_TYPE_INTERVAL  3
 
+// special program indexes used in the runtime queue and log records
+#define MANUAL_PID 99
+#define RUNONCE_PID 254
+#define RUNONCE_REPEAT_PREFIX "Run-Once with repeat"
+
 #define STARTTIME_SUNRISE_BIT 14
 #define STARTTIME_SUNSET_BIT  13
 #define STARTTIME_SIGN_BIT    12

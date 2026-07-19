@@ -688,7 +688,7 @@ void server_change_runonce(OTF_PARAMS_DEF) {
 			prog.days[0] = (epoch_t >> 8) & 0b11111111; //one interval past current day in epoch time
 			prog.days[1] = epoch_t & 0b11111111; //one interval past current day in epoch time
 			prog.starttimes[0] = curr_time % 1440; //one interval past current time
-			strcpy_P(prog.name, PSTR("Run-Once with repeat"));
+			strcpy_P(prog.name, PSTR(RUNONCE_REPEAT_PREFIX));
 			strncat(prog.name, annoprog.name, PROGRAM_NAME_SIZE-strlen(prog.name)-1);
 			prog.name[PROGRAM_NAME_SIZE-1]=0;
 
@@ -733,7 +733,7 @@ void server_change_runonce(OTF_PARAMS_DEF) {
 			if (q) {
 				q->st = 0;
 				q->dur = effective_dur;
-				q->pid = 254;
+				q->pid = RUNONCE_PID;
 				q->sid = sid;
 				match_found = true;
 			}
@@ -1677,7 +1677,7 @@ void server_change_manual(OTF_PARAMS_DEF) {
 				q->st = 0;
 				q->dur = timer;
 				q->sid = sid;
-				q->pid = 99;  // testing stations are assigned program index 99
+				q->pid = MANUAL_PID;  // testing stations are assigned the manual program index
 				schedule_all_stations(curr_time, qo);
 			} else {
 				handle_return(HTML_NOT_PERMITTED);

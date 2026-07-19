@@ -782,6 +782,10 @@ void do_loop()
 				bool will_delete = false;
 				unsigned char runcount = prog.check_match(curr_time, &will_delete);
 				if(runcount>0) {
+					const bool repeated_runonce =
+						strncmp_P(prog.name, PSTR(RUNONCE_REPEAT_PREFIX), sizeof(RUNONCE_REPEAT_PREFIX) - 1) == 0;
+					const unsigned char queue_pid = repeated_runonce ? RUNONCE_PID : pid + 1;
+					const unsigned char notif_pid = repeated_runonce ? RUNONCE_PID : pid;
 					// program match found
 					unsigned char wl = get_program_water_percent(prog);
 					float sensor_adj = get_program_sensor_adj(pid);
@@ -823,7 +827,7 @@ void do_loop()
 									q->st = 0;
 									q->dur = water_time;
 									q->sid = sid;
-									q->pid = pid+1;
+									q->pid = queue_pid;
 									match_found = true;
 								} else {
 									// queue is full
@@ -832,10 +836,10 @@ void do_loop()
 						}// if prog.durations[sid]
 					}// for sid
 					if(match_found) {
-						notif.add(NOTIFY_PROGRAM_SCHED, pid, prog.use_weather?wl:100, 0, sensor_adj);
+						notif.add(NOTIFY_PROGRAM_SCHED, notif_pid, prog.use_weather?wl:100, 0, sensor_adj);
 					} else {
 						// program being skipped e.g. due to 0% watering level
-						notif.add(NOTIFY_PROGRAM_SCHED, pid, -1, wt_restricted);
+						notif.add(NOTIFY_PROGRAM_SCHED, notif_pid, -1, wt_restricted);
 					}
 					//delete run-once if on final runtime (stations have already been queued)
 					if(will_delete){
@@ -1323,7 +1327,7 @@ void process_dynamic_events(time_os_t curr_time) {
 			if(qid==255) continue;
 			RuntimeQueueStruct *q = pd.queue + qid;
 
-			if(q->pid>=99) continue;  // if this is a manually started program, proceed
+			if(q->pid>=MANUAL_PID) continue;  // if this is a manually started program, proceed
 			if(!en)	{q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if system is disabled, turn off zone
 			if(rd && !(igrd&(1<<s))) {q->deque_time=curr_time; turn_off_station(sid, curr_time);}  // if rain delay is on and zone does not ignore rain delay, turn it off
 			// Per-sensor turn-off: stop the zone if any sensor i is active and
@@ -1648,7 +1652,7 @@ void manual_start_program(unsigned char pid, unsigned char uwt, unsigned char qo
 				q->st = 0;
 				q->dur = dur;
 				q->sid = sid;
-				q->pid = 254;
+				q->pid = RUNONCE_PID;
 				match_found = true;
 			}
 		}
