@@ -1,4 +1,4 @@
-## Firmware 2.2.1(4) User Manual [Nov 10, 2025]
+## Firmware 2.2.1(5) User Manual [Jul 20, 2026]
 
 ### Introduction
 
@@ -21,15 +21,18 @@ In addition, OpenSprinkler v3 is available in three power models:
 
 ### What's New in this Firmware?
 
+* **External Sensor Support & Analog Sensor Expander:** Adds a framework for external sensors — analog sensors (via the new **Sensor Expander**), aggregate sensors, and weather sensors — with per-sensor logging. Sensor readings can automatically scale program watering through configurable adjustment curves. See the dedicated [Sensor Expander](../sensor-expander/overview.md) documentation.
+* **Additional Built-in Sensor Ports (SN3 / SN4):** OpenSprinkler v3.4 adds two more built-in sensor ports, for four total (`SN1`–`SN4`).
+* **Extended Watering Durations:** Weather- and sensor-adjusted station runtimes may now exceed the previous 18-hour limit. (Programmed and manually-entered durations remain capped at 18 hours.)
+
+The following changes from firmware 2.2.1(4) also carry forward:
+
 * **Support for DC-powered OpenSprinkler v3.4**, the first OpenSprinkler with USB-C. Supports USB PD (Power Delivery) via CH224 and allows **user-defined PD voltage**.
-* **Preemptive Running for Manual Actions:** Manual station runs, Run-once programs, and manually started programs now support user-specified queue options:
-    * **Append**: run after others
-    * **Insert at Front**: run now and pause others
-    * **Replace**: run now and stop others (**default behavior in previous firmwares**).
-* **OSPi GPIO Backend**: Switch from `libgpio` to `lgpio`, for simpler API, compatible with **Raspbian Trixie**, and to avoid `libgpiod` v2 breaking changes.
-* **Smoother Current Readings:** Added exponential moving average (EMA) filtering for stable current sensing.
-* **Flexible Weather Script URL:** Support explicit `http/https` and custom port, making it easy to use custom weather service.
-* **Optimized Static Pages:** Serve AP homepage and firmware update pages as minified and compressed HTML for faster load times and reduced footprint.
+* **Preemptive Running for Manual Actions:** Manual station runs, Run-once programs, and manually started programs support user-specified queue options (**Append**, **Insert at Front**, **Replace**).
+* **OSPi GPIO Backend**: Switched from `libgpio` to `lgpio`, for a simpler API, compatibility with **Raspbian Trixie**, and to avoid `libgpiod` v2 breaking changes.
+* **Smoother Current Readings:** Exponential moving average (EMA) filtering for stable current sensing.
+* **Flexible Weather Script URL:** Supports explicit `http/https` and custom port.
+* **Optimized Static Pages:** Serves AP homepage and firmware update pages as minified and compressed HTML.
 
 <hr class="double">
 
@@ -519,6 +522,9 @@ This firmware supports up to **two independent masters**, each configurable as f
 
 #### Sensor Setup
 
+!!! tip "External / analog sensors"
+    This section covers the controller's **built-in** sensor ports. For **external analog sensors** connected via the **Sensor Expander** (soil moisture, pressure, etc.) and sensor-based watering adjustment, see the dedicated [Sensor Expander](../sensor-expander/overview.md) documentation.
+
 OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configurable types: **Rain**, **Soil** (binary output only), **Program Switch**, and **Flow** (*currently only supported on `SN1`*).
 
 * **Connections:**
@@ -605,6 +611,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 * **NTP IP Address:** Custom NTP server for time sync. Set to `0.0.0.0` to use system defaults.
 * **Ignore Password:** When enabled, accepts any device password (i.e. bypass password).
 * **Special Station Auto-Refresh:** Periodically resends commands to Virtual Stations (RF/Remote/HTTP) to keep them synchronized with the main controller.
+    * Enable this when using Remote IP/OTC stations. Weather- and sensor-adjusted program runtimes may exceed 18 hours, but each remote `/cm` command remains capped at 18 hours for compatibility with older firmware. Without auto-refresh, the remote station will stop when that command expires even though the primary controller's schedule continues.
 * **NTP Sync:** Automatically syncs device time based on your Location.
     * To **manually adjust time**, disable this option, then the Device Time becomes editable. 
 * **Use DHCP:** Automatically obtains IP from your router using DHCP.
@@ -822,4 +829,3 @@ For detailed setup steps and examples, see the [RF Station blog post](https://op
 
 <br>
 <hr class="double">
-

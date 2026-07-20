@@ -7,9 +7,17 @@ theme: readthedocs
 nav:
   - 'Home': 'index.md'
   - 'FAQ': 'faq.md'
+  - 'Firmware v2.2.1(5)':
+    - 'User Manual': '2.2.1/221_5_manual.md'
+    - 'API Reference': '2.2.1/221_5_api.md'
   - 'Firmware v2.2.1(4)':
     - 'User Manual': '2.2.1/221_4_manual.md'
     - 'API Reference': '2.2.1/221_4_api.md'
+  - 'Sensor Expander':
+    - 'Overview': 'sensor-expander/overview.md'
+    - 'Hardware & Wiring': 'sensor-expander/hardware.md'
+    - 'Configuring Sensors': 'sensor-expander/configuration.md'
+    - 'Sensor-Based Watering': 'sensor-expander/watering.md'
   - 'Troubleshooting': 'troubleshooting.md'
   - 'Archived':
     - 'Previous Manuals and API docs': 'archive.md'
