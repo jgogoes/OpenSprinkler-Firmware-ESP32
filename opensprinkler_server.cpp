@@ -2601,7 +2601,14 @@ void server_delete_sensor_log(OTF_PARAMS_DEF) {
 		handle_return(HTML_DATA_MISSING);
 	}
 
+	bool page_mode = false;
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("page"), true)) {
+		if (strcmp(tmp_buffer, "1") == 0) page_mode = true;
+		else if (strcmp(tmp_buffer, "0") != 0) handle_return(HTML_DATA_FORMATERROR);
+	}
+
 	if (uuid == -1) {
+		if (page_mode) handle_return(HTML_DATA_FORMATERROR);
 		// Remove all log files — frees flash immediately; header recreated on next log_sensor call
 		remove_sensor_log();
 		handle_return(HTML_SUCCESS);
@@ -2619,26 +2626,132 @@ void server_delete_sensor_log(OTF_PARAMS_DEF) {
 	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
 	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
 
-	SensorLogRecord rec;
+	uint32_t cursor = 0;
+	if (page_mode && findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("cursor"), true)) {
+		cursor = strtoul(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+	}
+
+	uint32_t total_slots = 0;
+	uint16_t first_scan_file = 0;
+	uint32_t first_scan_flat = 0;
+	bool scan_start_found = (cursor == 0);
 	for (uint16_t fi = 0; fi < total_files; fi++) {
+		uint16_t file_no = (first_file + fi) % hdr.max_files;
+		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+		if (!dfile) continue;
+		uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+		file_close(dfile);
+		if (!scan_start_found && cursor < total_slots + record_count) {
+			first_scan_file = fi;
+			first_scan_flat = total_slots;
+			scan_start_found = true;
+		}
+		total_slots += record_count;
+	}
+
+	if (cursor > total_slots) handle_return(HTML_DATA_OUTOFBOUND);
+	if (!scan_start_found) {
+		first_scan_file = total_files;
+		first_scan_flat = total_slots;
+	}
+
+	uint32_t max_count = page_mode ? hdr.records_per_file : total_slots;
+	if (page_mode && findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("count"), true)) {
+		max_count = strtoul(tmp_buffer, &end, 10);
+		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
+		if (max_count == 0) handle_return(HTML_DATA_OUTOFBOUND);
+		// Keep each request bounded even if a client supplies an excessive count.
+		if (max_count > hdr.records_per_file) max_count = hdr.records_per_file;
+	}
+
+	uint32_t scan_end = total_slots;
+	if (page_mode) {
+		uint32_t remaining = total_slots - cursor;
+		scan_end = cursor + (max_count < remaining ? max_count : remaining);
+	}
+
+	uint32_t flat_idx = page_mode ? first_scan_flat : 0;
+	uint32_t deleted = 0;
+	const uint32_t batch_capacity = TMP_BUFFER_SIZE / sizeof(SensorLogRecord);
+	SensorLogRecord rec;
+
+	uint16_t scan_file = page_mode ? first_scan_file : 0;
+	for (uint16_t fi = scan_file; fi < total_files && flat_idx < scan_end; fi++) {
 		uint16_t file_no = (first_file + fi) % hdr.max_files;
 		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::ReadWrite);
 		if (!dfile) continue;
 
-		uint32_t pos = 0;
-		while (true) {
-			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
-			if (rec.timestamp != 0 && rec.uuid == (uint16_t)uuid) {
-				memset(&rec, 0, sizeof(rec));
-				file_seek(dfile, pos);
-				file_write(dfile, &rec, sizeof(rec));
+		uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+		uint32_t file_record_idx = 0;
+		bool io_error = false;
+
+		if (flat_idx < cursor) {
+			uint32_t records_to_skip = cursor - flat_idx;
+			if (records_to_skip >= record_count) {
+				flat_idx += record_count;
+				file_close(dfile);
+				continue;
 			}
-			pos += sizeof(rec);
+			if (!file_seek(dfile, records_to_skip * sizeof(SensorLogRecord))) {
+				file_close(dfile);
+				handle_return(HTML_INTERNAL_ERROR);
+			}
+			flat_idx += records_to_skip;
+			file_record_idx = records_to_skip;
+		}
+
+		while (file_record_idx < record_count && flat_idx < scan_end) {
+			uint32_t records_left = record_count - file_record_idx;
+			uint32_t page_left = scan_end - flat_idx;
+			uint32_t batch_records = records_left < page_left ? records_left : page_left;
+			if (batch_records > batch_capacity) batch_records = batch_capacity;
+			uint32_t batch_bytes = batch_records * sizeof(SensorLogRecord);
+			uint32_t block_pos = file_record_idx * sizeof(SensorLogRecord);
+
+			if (file_read(dfile, tmp_buffer, batch_bytes) != (int)batch_bytes) {
+				io_error = true;
+				break;
+			}
+
+			bool changed = false;
+			for (uint32_t i = 0; i < batch_records; i++) {
+				uint32_t offset = i * sizeof(SensorLogRecord);
+				memcpy(&rec, tmp_buffer + offset, sizeof(rec));
+				if (rec.timestamp != 0 && rec.uuid == (uint16_t)uuid) {
+					memset(tmp_buffer + offset, 0, sizeof(rec));
+					changed = true;
+					deleted++;
+				}
+			}
+
+			if (changed) {
+				if (!file_seek(dfile, block_pos) ||
+					file_write(dfile, tmp_buffer, batch_bytes) != (int)batch_bytes ||
+					!file_seek(dfile, block_pos + batch_bytes)) {
+					io_error = true;
+					break;
+				}
+			}
+
+			file_record_idx += batch_records;
+			flat_idx += batch_records;
+			#if defined(ESP8266)
+				yield();
+			#endif
 		}
 		file_close(dfile);
+		if (io_error) handle_return(HTML_INTERNAL_ERROR);
 	}
 
-	handle_return(HTML_SUCCESS);
+	if (!page_mode) handle_return(HTML_SUCCESS);
+
+	begin_response(res);
+	print_header(OTF_PARAMS);
+	bfill.emit_p(PSTR("{\"result\":1,\"next\":$L,\"total\":$L,\"deleted\":$L,\"done\":$D}"),
+		scan_end, total_slots, deleted, scan_end >= total_slots ? 1 : 0);
+	handle_return(HTML_OK);
+
 }
 
 template <typename T>
