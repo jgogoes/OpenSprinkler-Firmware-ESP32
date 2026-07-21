@@ -2364,7 +2364,7 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
 
 /**
  * Get sensor logs
- * Command: /jsl?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx&fmt=xxx
+ * Command: /jsl?pw=xxx&[uuid=xxx|sid=xxx]&count=xxx&before=xxx&after=xxx&cursor=xxx&fmt=xxx&page=1
  *
  * pw:     password
  * uuid:   sensor stable ID (1-65535; -1 for all)
@@ -2378,6 +2378,9 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  *         json:   [[uuid,ts,value],...] — JSON array of arrays
  *         csv:    uuid,timestamp,value\n with header row; downloads as sensor_log.csv
  *         binary: packed SensorLogRecord structs (uint32 ts, float val, uint16 uuid)
+ * page:   set to 1 to make count and cursor address physical record slots;
+ *         pagination state is returned in X-OS-* response headers; page mode
+ *         cannot be combined with before or after
  */
 void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
@@ -2395,16 +2398,37 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		handle_return(HTML_INTERNAL_ERROR);
 
 	uint32_t total_capacity = (uint32_t)hdr.max_files * hdr.records_per_file;
+	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
+	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
+
+	bool page_mode = false;
+	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("page"), true)) {
+		if (strcmp(tmp_buffer, "1") == 0) page_mode = true;
+		else if (strcmp(tmp_buffer, "0") != 0) handle_return(HTML_DATA_FORMATERROR);
+	}
+
+	// Page-mode cursors address complete physical records, including deleted ones.
+	uint32_t total_slots = 0;
+	if (page_mode) {
+		for (uint16_t fi = 0; fi < total_files; fi++) {
+			uint16_t file_no = (first_file + fi) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (!dfile) continue;
+			total_slots += file_size(dfile) / sizeof(SensorLogRecord);
+			file_close(dfile);
+		}
+	}
+	uint32_t cursor_limit = page_mode ? total_slots : total_capacity;
 
 	uint32_t max_count = 100;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("count"), true)) {
 		if (strcmp(tmp_buffer, "max") == 0 || strcmp(tmp_buffer, "all") == 0) {
-			max_count = total_capacity;
+			max_count = cursor_limit;
 		} else {
 			max_count = strtoul(tmp_buffer, &end, 10);
 			if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 			if (max_count == 0) handle_return(HTML_DATA_OUTOFBOUND);
-			if (max_count > total_capacity) max_count = total_capacity;
+			if (max_count > cursor_limit) max_count = cursor_limit;
 		}
 	}
 
@@ -2413,23 +2437,31 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("cursor"), true)) {
 		cursor = strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
-		if (cursor > total_capacity) handle_return(HTML_DATA_OUTOFBOUND);
+		if (cursor > cursor_limit) handle_return(HTML_DATA_OUTOFBOUND);
+	}
+	uint32_t page_end = cursor;
+	if (page_mode) {
+		uint32_t remaining = total_slots - cursor;
+		page_end += max_count < remaining ? max_count : remaining;
 	}
 
 	using std::numeric_limits;
 	time_os_t before = numeric_limits<time_os_t>::max();
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("before"), true)) {
+	bool has_before = findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("before"), true);
+	if (has_before) {
 		before = (time_os_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (before == 0) handle_return(HTML_DATA_OUTOFBOUND);
 	}
 
 	time_os_t after = 0;
-	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("after"), true)) {
+	bool has_after = findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("after"), true);
+	if (has_after) {
 		after = (time_os_t)strtoul(tmp_buffer, &end, 10);
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (after >= before) handle_return(HTML_DATA_OUTOFBOUND);
 	}
+	if (page_mode && (has_before || has_after)) handle_return(HTML_DATA_FORMATERROR);
 
 	int32_t target_uuid = -1;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
@@ -2456,8 +2488,6 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 
 	// Files are chronological even after rotation. Skip files whose newest
 	// record predates the requested window, while preserving flat cursor indexes.
-	uint16_t first_file  = hdr.wrapped ? (uint16_t)((hdr.cur_file + 1) % hdr.max_files) : 0;
-	uint16_t total_files = hdr.wrapped ? hdr.max_files : (uint16_t)(hdr.cur_file + 1);
 	uint16_t first_matching_file = 0;
 	uint32_t flat_idx = 0;
 	SensorLogRecord rec;
@@ -2486,6 +2516,13 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 
 	ContentType ct = (logfmt == FMT_BINARY) ? CT_BINARY : (logfmt == FMT_CSV) ? CT_CSV : CT_JSON;
 	print_header(OTF_PARAMS, ct);
+	if (page_mode) {
+		res.writeHeader(F("X-OS-Next-Cursor"), (int)page_end);
+		res.writeHeader(F("X-OS-Total-Slots"), (int)total_slots);
+		res.writeHeader(F("X-OS-Page-Done"), page_end >= total_slots ? 1 : 0);
+		res.writeHeader(F("Access-Control-Expose-Headers"),
+			F("X-OS-Next-Cursor, X-OS-Total-Slots, X-OS-Page-Done"));
+	}
 	if (logfmt == FMT_CSV)
 		res.writeHeader(F("Content-Disposition"), F("attachment; filename=\"sensor_log.csv\""));
 	res.writeBodyData("", 0);
@@ -2495,7 +2532,8 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 
 	uint32_t count = 0;
 
-	for (uint16_t fi = first_matching_file; fi < total_files && count < max_count; fi++) {
+	for (uint16_t fi = first_matching_file;
+		fi < total_files && (page_mode ? flat_idx < page_end : count < max_count); fi++) {
 		uint16_t file_no = (first_file + fi) % hdr.max_files;
 		os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
 		if (!dfile) continue;
@@ -2513,7 +2551,7 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 			}
 		}
 
-		while (count < max_count) {
+		while (page_mode ? flat_idx < page_end : count < max_count) {
 			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
 
 			flat_idx++;
