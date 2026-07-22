@@ -2379,9 +2379,124 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  *         csv:    uuid,timestamp,value\n with header row; downloads as sensor_log.csv
  *         binary: packed SensorLogRecord structs (uint32 ts, float val, uint16 uuid)
  * page:   set to 1 to make count and cursor address physical record slots;
- *         pagination state is returned in X-OS-* response headers; page mode
- *         cannot be combined with before or after
+ *         pagination state is returned in X-OS-* response headers
  */
+static void find_sensor_log_window(const SensorLogHeader &hdr, uint16_t first_file,
+	uint16_t total_files, uint32_t total_slots, time_os_t after, time_os_t before,
+	uint32_t &window_start, uint32_t &window_end,
+	uint16_t &first_window_file, uint32_t &first_window_file_start) {
+	window_start = 0;
+	window_end = total_slots;
+	first_window_file = 0;
+	first_window_file_start = 0;
+	SensorLogRecord rec;
+
+	if (after) {
+		uint16_t candidate_file = 0;
+		uint32_t candidate_start = 0;
+
+		// Skip files whose final record proves that the complete file is too old.
+		for (; candidate_file < total_files; candidate_file++) {
+			uint16_t file_no = (first_file + candidate_file) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (!dfile) continue;
+			uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+			if (!record_count) {
+				file_close(dfile);
+				continue;
+			}
+			bool read_last = file_seek(dfile, (record_count - 1) * sizeof(SensorLogRecord)) &&
+				file_read(dfile, &rec, sizeof(rec)) == (int)sizeof(rec);
+			file_close(dfile);
+			if (!read_last || rec.timestamp == 0 || rec.timestamp >= after) break;
+			candidate_start += record_count;
+		}
+
+		// Refine the lower boundary and skip tombstones in the candidate region.
+		bool found = false;
+		uint32_t flat_start = candidate_start;
+		for (uint16_t fi = candidate_file; fi < total_files && !found; fi++) {
+			uint16_t file_no = (first_file + fi) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (!dfile) continue;
+			uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+			for (uint32_t ri = 0; ri < record_count; ri++) {
+				if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
+				if (rec.timestamp != 0 && rec.timestamp >= after) {
+					window_start = flat_start + ri;
+					first_window_file = fi;
+					first_window_file_start = flat_start;
+					found = true;
+					break;
+				}
+			}
+			file_close(dfile);
+			if (!found) flat_start += record_count;
+		}
+		if (!found) {
+			window_start = total_slots;
+			first_window_file = total_files;
+			first_window_file_start = total_slots;
+		}
+	}
+
+	if (before != std::numeric_limits<time_os_t>::max()) {
+		uint32_t candidate_end = total_slots;
+		uint16_t candidate_file = total_files;
+		uint32_t candidate_start = total_slots;
+		uint32_t candidate_records = 0;
+
+		// Skip files whose first record proves that the complete file is too new.
+		for (uint16_t fi = total_files; fi > 0; fi--) {
+			uint16_t logical_file = fi - 1;
+			uint16_t file_no = (first_file + logical_file) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (!dfile) continue;
+			uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
+			uint32_t file_start = candidate_end - record_count;
+			if (!record_count) {
+				file_close(dfile);
+				candidate_end = file_start;
+				continue;
+			}
+			bool read_first = file_read(dfile, &rec, sizeof(rec)) == (int)sizeof(rec);
+			file_close(dfile);
+			if (read_first && rec.timestamp != 0 && rec.timestamp > before) {
+				candidate_end = file_start;
+				continue;
+			}
+			candidate_file = logical_file;
+			candidate_start = file_start;
+			candidate_records = record_count;
+			break;
+		}
+
+		if (candidate_file == total_files) {
+			window_end = 0;
+		} else {
+			// Refine the upper boundary, excluding trailing tombstones as well.
+			window_end = candidate_start;
+			uint16_t file_no = (first_file + candidate_file) % hdr.max_files;
+			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
+			if (dfile) {
+				for (uint32_t ri = 0; ri < candidate_records; ri++) {
+					if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
+					if (rec.timestamp == 0) continue;
+					if (rec.timestamp > before) break;
+					window_end = candidate_start + ri + 1;
+				}
+				file_close(dfile);
+			}
+		}
+	}
+
+	if (window_start > window_end) {
+		window_start = window_end;
+		first_window_file = total_files;
+		first_window_file_start = window_end;
+	}
+}
+
 void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 	begin_response(res);
@@ -2439,12 +2554,6 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (cursor > cursor_limit) handle_return(HTML_DATA_OUTOFBOUND);
 	}
-	uint32_t page_end = cursor;
-	if (page_mode) {
-		uint32_t remaining = total_slots - cursor;
-		page_end += max_count < remaining ? max_count : remaining;
-	}
-
 	using std::numeric_limits;
 	time_os_t before = numeric_limits<time_os_t>::max();
 	bool has_before = findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("before"), true);
@@ -2461,8 +2570,6 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		if (*end != '\0') handle_return(HTML_DATA_FORMATERROR);
 		if (after >= before) handle_return(HTML_DATA_OUTOFBOUND);
 	}
-	if (page_mode && (has_before || has_after)) handle_return(HTML_DATA_FORMATERROR);
-
 	int32_t target_uuid = -1;
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("uuid"), true)) {
 		target_uuid = (int32_t)strtol(tmp_buffer, &end, 10);
@@ -2486,13 +2593,30 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		else if (strcmp(tmp_buffer, "json")   != 0) handle_return(HTML_DATA_FORMATERROR);
 	}
 
-	// Files are chronological even after rotation. Skip files whose newest
-	// record predates the requested window, while preserving flat cursor indexes.
+	// Files are chronological even after rotation. Preserve absolute physical
+	// cursor positions while skipping regions outside the requested time window.
 	uint16_t first_matching_file = 0;
 	uint32_t flat_idx = 0;
 	SensorLogRecord rec;
+	uint32_t window_start = 0;
+	uint32_t window_end = page_mode ? total_slots : total_capacity;
+	uint32_t scan_cursor = cursor;
+	uint32_t page_end = cursor;
 
-	if (after) {
+	if (page_mode) {
+		find_sensor_log_window(hdr, first_file, total_files, total_slots,
+			after, before, window_start, window_end,
+			first_matching_file, flat_idx);
+		if (scan_cursor < window_start) scan_cursor = window_start;
+		if (scan_cursor < window_end) {
+			uint32_t remaining = window_end - scan_cursor;
+			page_end = scan_cursor + (max_count < remaining ? max_count : remaining);
+		} else {
+			page_end = scan_cursor;
+			first_matching_file = total_files;
+			flat_idx = page_end;
+		}
+	} else if (after) {
 		for (; first_matching_file < total_files; first_matching_file++) {
 			uint16_t file_no = (first_file + first_matching_file) % hdr.max_files;
 			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
@@ -2519,9 +2643,11 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 	if (page_mode) {
 		res.writeHeader(F("X-OS-Next-Cursor"), (int)page_end);
 		res.writeHeader(F("X-OS-Total-Slots"), (int)total_slots);
-		res.writeHeader(F("X-OS-Page-Done"), page_end >= total_slots ? 1 : 0);
+		res.writeHeader(F("X-OS-Window-Start"), (int)window_start);
+		res.writeHeader(F("X-OS-Window-End"), (int)window_end);
+		res.writeHeader(F("X-OS-Page-Done"), page_end >= window_end ? 1 : 0);
 		res.writeHeader(F("Access-Control-Expose-Headers"),
-			F("X-OS-Next-Cursor, X-OS-Total-Slots, X-OS-Page-Done"));
+			F("X-OS-Next-Cursor, X-OS-Total-Slots, X-OS-Window-Start, X-OS-Window-End, X-OS-Page-Done"));
 	}
 	if (logfmt == FMT_CSV)
 		res.writeHeader(F("Content-Disposition"), F("attachment; filename=\"sensor_log.csv\""));
@@ -2539,8 +2665,8 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 		if (!dfile) continue;
 
 		uint32_t record_count = file_size(dfile) / sizeof(SensorLogRecord);
-		if (flat_idx < cursor) {
-			uint32_t records_to_skip = cursor - flat_idx;
+		if (flat_idx < scan_cursor) {
+			uint32_t records_to_skip = scan_cursor - flat_idx;
 			if (records_to_skip >= record_count) {
 				flat_idx += record_count;
 				file_close(dfile);
@@ -2555,7 +2681,7 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 			if (file_read(dfile, &rec, sizeof(rec)) != (int)sizeof(rec)) break;
 
 			flat_idx++;
-			if (flat_idx <= cursor) continue;
+			if (flat_idx <= scan_cursor) continue;
 			if (rec.timestamp == 0) continue;
 			if (target_uuid > -1 && rec.uuid != (uint16_t)target_uuid) continue;
 			if (rec.timestamp > before || rec.timestamp < after) continue;
