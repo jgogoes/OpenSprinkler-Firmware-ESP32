@@ -2133,45 +2133,6 @@ void OpenSprinkler::options_setup() {
 	// turn on LCD backlight and contrast
 	lcd_set_brightness();
 	lcd_set_contrast();
-
-	if (!button) {
-		// flash screen
-		lcd_print_line_clear_pgm(PSTR(" OpenSprinkler"),0);
-		lcd.setCursor((hw_type==HW_TYPE_LATCH)?2:4, 1);
-		lcd_print_pgm(PSTR("v"));
-		unsigned char hwv = iopts[IOPT_HW_VERSION];
-		lcd.print((char)('0'+(hwv/10)));
-		lcd.print('.');
-		#if defined(ESP8266)
-		lcd.print(hw_rev);
-		#else
-		lcd.print((char)('0'+(hwv%10)));
-		#endif
-		switch(hw_type) {
-		case HW_TYPE_DC:
-			lcd_print_pgm(PSTR(" DC"));
-			break;
-		case HW_TYPE_LATCH:
-			lcd_print_pgm(PSTR(" LATCH"));
-			break;
-		default:
-			lcd_print_pgm(PSTR(" AC"));
-		}
-		delay(1500);
-		#if defined(ESP8266)
-		lcd.setCursor(2, 1);
-		lcd_print_pgm(PSTR("FW "));
-		lcd.print((char)('0'+(OS_FW_VERSION/100)));
-		lcd.print('.');
-		lcd.print((char)('0'+((OS_FW_VERSION/10)%10)));
-		lcd.print('.');
-		lcd.print((char)('0'+(OS_FW_VERSION%10)));
-		lcd.print('(');
-		lcd.print(OS_FW_MINOR);
-		lcd.print(')');
-		delay(1000);
-		#endif
-	}
 #endif
 }
 
@@ -2976,12 +2937,42 @@ void OpenSprinkler::lcd_set_brightness(unsigned char value) {
 #if defined(USE_DISPLAY)
 #include "images.h"
 void OpenSprinkler::flash_screen() {
-	lcd.setCursor(0, -1);
-	lcd.print(F(" OpenSprinkler"));
-	lcd.drawXbm(34, 24, WiFi_Logo_width, WiFi_Logo_height, (const unsigned char*) WiFi_Logo_image);
-	lcd.setCursor(0, 2);
+	lcd.drawXbm(0, 0, OpenSprinkler_Logo_width, OpenSprinkler_Logo_height,
+		(const unsigned char*)OpenSprinkler_Logo_image);
+
+	lcd.setCursor(2, 1);
+	lcd.print(F("FW "));
+	lcd.print((char)('0' + (OS_FW_VERSION / 100)));
+	lcd.print('.');
+	lcd.print((char)('0' + ((OS_FW_VERSION / 10) % 10)));
+	lcd.print('.');
+	lcd.print((char)('0' + (OS_FW_VERSION % 10)));
+	lcd.print('(');
+	lcd.print(OS_FW_MINOR);
+	lcd.print(')');
+
+	lcd.setCursor((hw_type == HW_TYPE_LATCH) ? 2 : 3, 2);
+	lcd.print(F("HW "));
+	lcd.print((char)('0' + (OS_HW_VERSION / 10)));
+	lcd.print('.');
+#if defined(ESP8266)
+	lcd.print(hw_rev);
+#else
+	lcd.print((char)('0' + (OS_HW_VERSION % 10)));
+#endif
+	switch (hw_type) {
+	case HW_TYPE_DC:
+		lcd.print(F(" DC"));
+		break;
+	case HW_TYPE_LATCH:
+		lcd.print(F(" LATCH"));
+		break;
+	default:
+		lcd.print(F(" AC"));
+	}
+
 	lcd.display();
-	delay(1500);
+	delay(2000);
 	lcd.clear();
 	lcd.display();
 }
