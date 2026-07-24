@@ -840,6 +840,9 @@ void server_change_program(OTF_PARAMS_DEF) {
 	// parse program name
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("name"), true)) {
 		strReplaceQuoteBackslash(tmp_buffer);
+		if (strncmp_P(tmp_buffer, PSTR(RUNONCE_REPEAT_PREFIX), sizeof(RUNONCE_REPEAT_PREFIX) - 1) == 0) {
+			handle_return(HTML_NOT_PERMITTED);
+		}
 		strncpy(prog.name, tmp_buffer, PROGRAM_NAME_SIZE);
 	} else {
 		strcpy_P(prog.name, _str_program);
@@ -1648,8 +1651,7 @@ void server_change_manual(OTF_PARAMS_DEF) {
 	uint32_t curr_time = os.now_tz();
 	if (en) { // if turning on a station, must provide timer
 		if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)) {
-			timer=strtoul(tmp_buffer, NULL, 10);
-			if (timer==0 || timer>MAX_PROGRAMMED_DURATION) {
+			if (!parse_program_duration(tmp_buffer, &timer)) {
 				handle_return(HTML_DATA_OUTOFBOUND);
 			}
 

@@ -180,8 +180,7 @@ void manualRun(char *message){
 	uint32_t curr_time = os.now_tz();
 	if(en){
 		if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)){
-			timer = strtoul(tmp_buffer, NULL, 10);
-			if(timer==0 || timer>MAX_PROGRAMMED_DURATION){
+			if(!parse_program_duration(tmp_buffer, &timer)){
 				DEBUG_LOGF("Time out of bounds.\r\n");
 				return;
 			}

@@ -27,6 +27,22 @@
 #include <math.h>
 extern OpenSprinkler os;
 
+bool parse_program_duration(const char *value, uint32_t *duration) {
+	if (!value || !duration || !value[0]) return false;
+
+	uint32_t parsed = 0;
+	for (const char *p = value; *p; p++) {
+		if (*p < '0' || *p > '9') return false;
+		uint8_t digit = *p - '0';
+		if (parsed > (MAX_PROGRAMMED_DURATION - digit) / 10) return false;
+		parsed = parsed * 10 + digit;
+	}
+
+	if (!parsed) return false;
+	*duration = parsed;
+	return true;
+}
+
 #if defined(ESP8266)  // Arduino
 	#include <FS.h>
 	#include <LittleFS.h>
@@ -250,23 +266,19 @@ BoardType get_board_type() {
 		return BoardType::Unknown;
 	}
 
-	char buffer[100];
+	char buffer[101] = {0};
 
 	BoardType res = BoardType::Unknown;
 
-	int total = fread(buffer, 1, sizeof(buffer), file);
+	size_t total = fread(buffer, 1, sizeof(buffer) - 1, file);
+	fclose(file);
 
-	if (prefix("raspberrypi", buffer)) {
+	if (total >= strlen("raspberrypi") && prefix("raspberrypi", buffer)) {
 		res = BoardType::RaspberryPi_Unknown;
-		const char *cpu_buf = buffer;
-		size_t index = 0;
-
-		// model and cpu is seperated by a null byte
-		while (index < (total - 1) && cpu_buf[index]) {
-			index += 1;
-		}
-
-		cpu_buf += index + 1;
+		// Model and CPU identifiers are separated by a null byte.
+		const char *separator = (const char*)memchr(buffer, '\0', total);
+		if (!separator || separator + 1 >= buffer + total) return res;
+		const char *cpu_buf = separator + 1;
 
 		if (!strcmp("brcm,bcm2712", cpu_buf)) {
 			// Pi 5
@@ -361,7 +373,9 @@ os_file_type file_open(const char *fn, FileOpenMode mode) {
 		case FileOpenMode::ReadWrite: {
 			int fd = open(full_file, O_RDWR | O_CREAT, 0644);
 			if (fd == -1) return nullptr;
-			return fdopen(fd, "rb+");
+			FILE *file = fdopen(fd, "rb+");
+			if (!file) close(fd);
+			return file;
 		}
 		case FileOpenMode::WriteTruncate:
 			return fopen(full_file, "wb");

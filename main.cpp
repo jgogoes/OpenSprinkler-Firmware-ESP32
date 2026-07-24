@@ -1538,7 +1538,8 @@ void reset_all_stations_immediate(bool running_ones_only) {
 		}
 		// second round, properly dequeu the marked ones
 		// for removing selected elements, must traverse the queue backward
-		for(q=pd.queue+pd.nqueue-1;q>=pd.queue;q--) {
+		for(int qi = pd.nqueue; qi-- > 0;) {
+			q = &pd.queue[qi];
 			if(q->deque_time == currtime) {
 				// shift remaining stations (ssta=1)
 				turn_off_running_station_immediate(q->sid, currtime, 0);
@@ -1560,7 +1561,8 @@ void reset_all_stations(bool running_ones_only) {
 		RuntimeQueueStruct *q;
 		time_os_t currtime = os.now_tz();
 		// for removing selected elements, must traverse the queue backward
-		for(q=pd.queue+pd.nqueue-1;q>=pd.queue;q--) {
+		for(int qi = pd.nqueue; qi-- > 0;) {
+			q = &pd.queue[qi];
 			if(os.is_running(q->sid)) { // only reset running stations
 				q->deque_time = currtime;
 				// shift remaining stations (ssta=1)

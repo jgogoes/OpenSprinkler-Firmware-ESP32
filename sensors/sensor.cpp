@@ -274,7 +274,8 @@ static void sensor_memory_init(sensor_memory_t &m, Sensor *sensor) {
 }
 
 Sensor *Sensor::parse(os_file_type file) {
-	static uint8_t sensor_scratchpad[sizeof(OpenSprinkler::SensorUnion)] __attribute__((aligned(4)));
+	alignas(OpenSprinkler::SensorUnion)
+	static uint8_t sensor_scratchpad[sizeof(OpenSprinkler::SensorUnion)];
 	static Sensor *active_sensor = nullptr;
 
 	if (active_sensor != nullptr) {
@@ -282,10 +283,12 @@ Sensor *Sensor::parse(os_file_type file) {
 		active_sensor = nullptr;
 	}
 	const uint32_t slot_size = TMP_BUFFER_SIZE;
-	file_read(file, tmp_buffer, slot_size);
+	memset(tmp_buffer, 0, slot_size);
+	int bytes_read = file_read(file, tmp_buffer, slot_size);
+	if (bytes_read < (int)SENSOR_RECORD_HEADER_LEN) return nullptr;
 
 	uint32_t len = 0;
-	if (!sensor_has_valid_layout((char*)tmp_buffer, slot_size, &len)) return nullptr;
+	if (!sensor_has_valid_layout((char*)tmp_buffer, (uint32_t)bytes_read, &len)) return nullptr;
 
 	SensorType sensor_type = static_cast<SensorType>(tmp_buffer[0]);
 
@@ -348,6 +351,9 @@ void Sensor::write(Sensor *sensor, uint8_t index) {
 
 void Sensor::load_count() {
 	OpenSprinkler::nsensors = file_read_byte(SENSORS_FILENAME, 0);
+	if (OpenSprinkler::nsensors > MAX_SENSORS) {
+		OpenSprinkler::nsensors = MAX_SENSORS;
+	}
 }
 
 void Sensor::save_count() {
@@ -402,8 +408,15 @@ void Sensor::load_all() {
 	}
 
 	Sensor *sensor;
+	bool repair_count = false;
 	os_file_type file = file_open(SENSORS_FILENAME, FileOpenMode::Read);
 	if (file) {
+		uint32_t size = file_size(file);
+		uint32_t complete_records = size > 1 ? (size - 1) / TMP_BUFFER_SIZE : 0;
+		if (OpenSprinkler::nsensors > complete_records) {
+			OpenSprinkler::nsensors = (uint8_t)complete_records;
+			repair_count = true;
+		}
 		file_seek(file, 1, FileSeekMode::Set);
 		for (size_t i = 0; i < OpenSprinkler::nsensors; i++) {
 			if ((sensor = Sensor::parse(file)))
@@ -415,6 +428,7 @@ void Sensor::load_all() {
 		DEBUG_PRINT("Failed to open file: ");
 		DEBUG_PRINTLN(SENSORS_FILENAME);
 	}
+	if (repair_count) Sensor::save_count();
 
 	// Stagger initial poll times by 1 second per sensor so that on first boot
 	// we don't fire all sensor reads simultaneously. Sensor i first polls at

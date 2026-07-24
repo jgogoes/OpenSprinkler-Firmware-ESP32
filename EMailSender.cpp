@@ -410,10 +410,10 @@ EMailSender::Response EMailSender::send(char* tos[], byte sizeOfTo,  byte sizeOf
 	return send(tos, sizeOfTo, sizeOfCc, 0, email, attachments);
 }
 EMailSender::Response EMailSender::send(char* tos[], byte sizeOfTo,  byte sizeOfCc,byte sizeOfCCn, EMailMessage &email, Attachments attachments){
-	uint8_t total = sizeOfTo + sizeOfCc + sizeOfCCn;
+	uint16_t total = (uint16_t)sizeOfTo + sizeOfCc + sizeOfCCn;
 	if (total > EMAIL_MAX_RECIPIENTS) return tooManyRecipientsResponse();
 	const char* tmp[EMAIL_MAX_RECIPIENTS];
-	for (uint8_t i = 0; i < total; i++) tmp[i] = tos[i];
+	for (uint16_t i = 0; i < total; i++) tmp[i] = tos[i];
 	return send(tmp, sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
 }
 
@@ -434,10 +434,10 @@ EMailSender::Response EMailSender::send(String tos[], byte sizeOfTo,  byte sizeO
 }
 
 EMailSender::Response EMailSender::send(String tos[], byte sizeOfTo,  byte sizeOfCc,byte sizeOfCCn, EMailMessage &email, Attachments attachments){
-	uint8_t total = sizeOfTo + sizeOfCc + sizeOfCCn;
+	uint16_t total = (uint16_t)sizeOfTo + sizeOfCc + sizeOfCCn;
 	if (total > EMAIL_MAX_RECIPIENTS) return tooManyRecipientsResponse();
 	const char* tmp[EMAIL_MAX_RECIPIENTS];
-	for (uint8_t i = 0; i < total; i++) tmp[i] = tos[i].c_str();
+	for (uint16_t i = 0; i < total; i++) tmp[i] = tos[i].c_str();
 	return send(tmp, sizeOfTo, sizeOfCc, sizeOfCCn, email, attachments);
 }
 

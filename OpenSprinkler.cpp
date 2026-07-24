@@ -569,7 +569,7 @@ bool OpenSprinkler::load_hardware_mac(unsigned char* mac, bool wired) {
 	mac[4] = 0x31;
 	mac[5] = iopts[IOPT_DEVICE_ID];
 
-	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) == 0) return true;
+	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) return true;
 
 	// Returns the mac address of the first interface if multiple active
 	for (unsigned int i = 0; i < sizeof(if_names)/sizeof(const char *); i++) {
@@ -2443,12 +2443,12 @@ void OpenSprinkler::lcd_print_pgm(PGM_P str) {
 void OpenSprinkler::lcd_print_line_clear_pgm(PGM_P str, unsigned char line) {
 	lcd.setCursor(0, line);
 	uint8_t c;
-	int8_t cnt = 0;
-	while((c=pgm_read_byte(str++))!= '\0') {
+	uint8_t cnt = 0;
+	while((c=pgm_read_byte(str++))!= '\0' && cnt < 16) {
 		lcd.print((char)c);
 		cnt++;
 	}
-	for(; (16-cnt) >= 0; cnt ++) lcd_print_pgm(PSTR(" "));
+	for(; cnt < 16; cnt++) lcd_print_pgm(PSTR(" "));
 }
 
 #else
@@ -2456,15 +2456,16 @@ void OpenSprinkler::lcd_print_pgm(const char *str) {
 	lcd.print(str);
 }
 void OpenSprinkler::lcd_print_line_clear_pgm(const char *str, uint8_t line) {
-	char buf[16];
+	char buf[17];
 	uint8_t c;
-	int8_t cnt = 0;
+	uint8_t cnt = 0;
 	while((c=*str++)!= '\0' && cnt<16) {
 		buf[cnt] = c;
 		cnt++;
 	}
 
 	for(int i=cnt; i<16; i++) buf[i] = ' ';
+	buf[16] = '\0';
 
 	lcd.setCursor(0, line);
 	lcd.print(buf);
