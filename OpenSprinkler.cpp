@@ -484,7 +484,7 @@ unsigned char OpenSprinkler::start_ether() {
 		if (iopts[IOPT_USE_DHCP]) {
 			memcpy(iopts+IOPT_STATIC_IP1, &(eth.localIP()[0]), 4);
 			memcpy(iopts+IOPT_GATEWAY_IP1, &(eth.gatewayIP()[0]),4);
-			memcpy(iopts+IOPT_DNS_IP1, &(WiFi.dnsIP()[0]), 4); // todo: lwip need dns ip
+			memcpy(iopts+IOPT_DNS_IP1, &(eth.dnsIP()[0]), 4);
 			memcpy(iopts+IOPT_SUBNET_MASK1, &(eth.subnetMask()[0]), 4);
 			iopts_save();
 		}
@@ -1758,9 +1758,11 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 	while(true) {
 		int nbytes = client->available();
 		if(nbytes>0) {
-			if(pos+nbytes>ETHER_BUFFER_SIZE) nbytes=ETHER_BUFFER_SIZE-pos; // cannot read more than buffer size
-			client->read((uint8_t*)ether_buffer+pos, nbytes);
-			pos+=nbytes;
+			int remaining = ETHER_BUFFER_SIZE-1-pos;
+			if(remaining<=0) break;
+			if(nbytes>remaining) nbytes=remaining;
+			int bytes_read = client->read((uint8_t*)ether_buffer+pos, nbytes);
+			if(bytes_read>0) pos+=bytes_read;
 		}
 		if((int32_t)((uint32_t)millis()-stoptime)>0) { // overflow proof
 			DEBUG_PRINTLN(F("host timeout occured"));
@@ -1773,8 +1775,8 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 		}
 	}
 #else
-	len = client->read((uint8_t *)ether_buffer+pos, ETHER_BUFFER_SIZE);
-	pos += len;
+	int bytes_read = client->read((uint8_t *)ether_buffer+pos, ETHER_BUFFER_SIZE-1);
+	if(bytes_read>0) pos += bytes_read;
 
 #endif
 	ether_buffer[pos]=0; // properly end buffer with 0

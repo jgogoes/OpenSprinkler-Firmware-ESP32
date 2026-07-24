@@ -96,6 +96,9 @@
 		inline IPAddress gatewayIP() {
 			return (isW5500)?w5500.gatewayIP():enc28j60.gatewayIP();
 		}
+		inline IPAddress dnsIP() {
+			return IPAddress(dns_getserver(0));
+		}
 		inline void setDefault() {
 			(isW5500)?w5500.setDefault():enc28j60.setDefault();
 		}

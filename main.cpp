@@ -664,7 +664,7 @@ void do_loop()
 		} else {
 			if(useEth || WiFi.status() == WL_CONNECTED) {
 				update_server->handleClient();
-				otf->loop();
+				otf->loop(os.network_connected());
 				connecting_timeout = 0;
 			} else {
 				// WiFi disconnected, ESP8266 will handle re-connect
