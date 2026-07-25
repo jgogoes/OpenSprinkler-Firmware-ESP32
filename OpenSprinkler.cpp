@@ -24,7 +24,11 @@
 #include "OpenSprinkler.h"
 #include "opensprinkler_server.h"
 #include "gpio.h"
-#include "testmode.h"
+#ifdef __has_include
+	#if __has_include("testmode.h")
+		#include "testmode.h"
+	#endif
+#endif
 #include "program.h"
 #include "ArduinoJson.hpp"
 
