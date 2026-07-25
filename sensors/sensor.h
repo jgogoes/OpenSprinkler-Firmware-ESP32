@@ -72,7 +72,7 @@ struct __attribute__((packed)) SensorLogHeader {
 struct __attribute__((packed)) SensorLogRecord {
 	uint32_t timestamp;    // unix epoch seconds
 	float    value;        // sensor reading
-	uint16_t uuid;         // sensor UUID (replaces sid+reserved, same 10-byte size)
+	uint16_t uuid;         // sensor UUID; 0 marks a tombstone while preserving timestamp
 };
 
 enum class SensorType : uint8_t {

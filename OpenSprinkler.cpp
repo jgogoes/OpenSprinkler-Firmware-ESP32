@@ -2320,6 +2320,8 @@ void list_all_files() {
 
 
 void OpenSprinkler::log_sensor(uint8_t sid, float value) {
+	if (sid >= nsensors || sensors[sid].uuid == SENSOR_UUID_NONE) return;
+
 	// Read central header; create/recreate if missing or version mismatch
 	SensorLogHeader hdr = {};
 	bool hdr_valid = false;

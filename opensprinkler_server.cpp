@@ -2383,6 +2383,10 @@ uint8_t write_buf_log(uint32_t num, char *buf) {
  * page:   set to 1 to make count and cursor address physical record slots;
  *         pagination state is returned in X-OS-* response headers
  */
+static bool sensor_log_record_is_live(const SensorLogRecord &rec) {
+	return rec.timestamp != 0 && rec.uuid != SENSOR_UUID_NONE;
+}
+
 static void find_sensor_log_window(const SensorLogHeader &hdr, uint16_t first_file,
 	uint16_t total_files, uint32_t total_slots, time_os_t after, time_os_t before,
 	uint32_t &window_start, uint32_t &window_end,
@@ -2414,7 +2418,7 @@ static void find_sensor_log_window(const SensorLogHeader &hdr, uint16_t first_fi
 			candidate_start += record_count;
 		}
 
-		// Refine the lower boundary and skip tombstones in the candidate region.
+		// Refine the lower boundary. Tombstone timestamps remain valid boundaries.
 		bool found = false;
 		uint32_t flat_start = candidate_start;
 		for (uint16_t fi = candidate_file; fi < total_files && !found; fi++) {
@@ -2476,7 +2480,7 @@ static void find_sensor_log_window(const SensorLogHeader &hdr, uint16_t first_fi
 		if (candidate_file == total_files) {
 			window_end = 0;
 		} else {
-			// Refine the upper boundary, excluding trailing tombstones as well.
+			// Refine the upper boundary. Tombstone timestamps remain valid boundaries.
 			window_end = candidate_start;
 			uint16_t file_no = (first_file + candidate_file) % hdr.max_files;
 			os_file_type dfile = open_sensor_log(file_no, FileOpenMode::Read);
@@ -2684,7 +2688,7 @@ void server_json_sensor_log(OTF_PARAMS_DEF) {
 
 			flat_idx++;
 			if (flat_idx <= scan_cursor) continue;
-			if (rec.timestamp == 0) continue;
+			if (!sensor_log_record_is_live(rec)) continue;
 			if (target_uuid > -1 && rec.uuid != (uint16_t)target_uuid) continue;
 			if (rec.timestamp > before || rec.timestamp < after) continue;
 
@@ -2846,8 +2850,10 @@ void server_delete_sensor_log(OTF_PARAMS_DEF) {
 			for (uint32_t i = 0; i < batch_records; i++) {
 				uint32_t offset = i * sizeof(SensorLogRecord);
 				memcpy(&rec, tmp_buffer + offset, sizeof(rec));
-				if (rec.timestamp != 0 && rec.uuid == (uint16_t)uuid) {
-					memset(tmp_buffer + offset, 0, sizeof(rec));
+				if (sensor_log_record_is_live(rec) && rec.uuid == (uint16_t)uuid) {
+					rec.value = 0;
+					rec.uuid = SENSOR_UUID_NONE;
+					memcpy(tmp_buffer + offset, &rec, sizeof(rec));
 					changed = true;
 					deleted++;
 				}
