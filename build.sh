@@ -36,15 +36,10 @@ while getopts ":s:d" opt; do
 done
 echo "Building OpenSprinkler..."
 
-#Git update submodules
-
-if git submodule status | grep --quiet '^-'; then
-    echo "A git submodule is not initialized."
-    git submodule update --recursive --init
-else
-    echo "Updating submodules."
-    git submodule update --recursive
-fi
+# Synchronize URLs and check out the exact revisions pinned by this firmware.
+echo "Updating submodules."
+git submodule sync --recursive
+git submodule update --init --recursive --checkout
 
 if [ "$1" == "demo" ]; then
 	echo "Installing required libraries..."
