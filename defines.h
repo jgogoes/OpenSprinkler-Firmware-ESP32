@@ -22,7 +22,7 @@
  */
 #pragma once
 
-#define ENABLE_DEBUG  // enable serial debug
+//#define ENABLE_DEBUG  // enable serial debug
 
 #define TMP_BUFFER_SIZE       320   // scratch buffer size
 #define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+32 // allocate extra space to allow overflow when needed

@@ -43,6 +43,7 @@
 	uint32_t getNtpTime();
 #else // header and defs for RPI/Linux
 	#include <dirent.h>
+	#include <unistd.h>
 	bool useEth = false;
 #endif
 
@@ -1856,12 +1857,12 @@ void delete_log(char *name) {
 		strcpy(log_dir, get_filename_fullpath(LOG_DIR));
 		DIR *d = opendir(log_dir);
 		if (d) {
+			int log_dir_fd = dirfd(d);
 			struct dirent *ent;
 			while ((ent = readdir(d)) != NULL) {
 				size_t len = strlen(ent->d_name);
 				if (len > 4 && strcmp(ent->d_name + len - 4, ".txt") == 0) {
-					snprintf(tmp_buffer, TMP_BUFFER_SIZE, "%s%s", log_dir, ent->d_name);
-					remove(tmp_buffer);
+					unlinkat(log_dir_fd, ent->d_name, 0);
 				}
 			}
 			closedir(d);

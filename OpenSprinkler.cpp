@@ -2546,6 +2546,34 @@ void OpenSprinkler::lcd_print_mac(const unsigned char *mac) {
 		lcd_print_pgm(PSTR(" (MAC)"));
 	#endif
 
+	lcd.clear(2, 2);
+	lcd.setCursor(0, 2);
+	#if defined(ESP8266)
+		lcd.print((char)('0' + (OS_HW_VERSION / 10)));
+		lcd.print('.');
+		lcd.print(hw_rev);
+		switch (hw_type) {
+		case HW_TYPE_DC:
+			lcd_print_pgm(PSTR(" DC, "));
+			break;
+		case HW_TYPE_LATCH:
+			lcd_print_pgm(PSTR(" LA, "));
+			break;
+		default:
+			lcd_print_pgm(PSTR(" AC, "));
+		}
+	#else
+		lcd_print_pgm(PSTR("OSPi, "));
+	#endif
+	lcd.print((char)('0' + (OS_FW_VERSION / 100)));
+	lcd.print('.');
+	lcd.print((char)('0' + ((OS_FW_VERSION / 10) % 10)));
+	lcd.print('.');
+	lcd.print((char)('0' + (OS_FW_VERSION % 10)));
+	lcd.print('(');
+	lcd.print(OS_FW_MINOR);
+	lcd.print(')');
+
 	lcd.display();
 	lcd.setAutoDisplay(true);
 }

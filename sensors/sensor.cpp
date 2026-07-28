@@ -200,16 +200,20 @@ SensorAdjustment::SensorAdjustment(uint16_t uuid, uint8_t point_count, uint8_t f
 }
 
 float SensorAdjustment::get_adjustment_factor(sensor_memory_t* sensors) {
-	if (this->uuid != SENSOR_UUID_NONE && (this->flag & (1 << SENADJ_FLAG_ENABLE))) {
-		uint8_t idx = Sensor::find_index(this->uuid);
-		if (idx < MAX_SENSORS && sensors[idx].interval) {
-			if (this->point_count == 0) return 1.f;
-			float value = sensor_piecewise_interp(sensors[idx].value, this->points, this->point_count);
-			if (value < 0) value = 0;   // adjustment factor must be non-negative
-			return value;
-		}
-	}
-	return 1.f;
+	if (!sensors || this->uuid == SENSOR_UUID_NONE ||
+		!(this->flag & (1 << SENADJ_FLAG_ENABLE)) || this->point_count == 0) return 1.f;
+
+	uint8_t idx = Sensor::find_index(this->uuid);
+	if (idx >= OpenSprinkler::nsensors) return 1.f;
+
+	const sensor_memory_t &sensor = sensors[idx];
+	if (!sensor.interval || !(sensor.flag & (1 << SENSOR_FLAG_ENABLE)) ||
+		!(sensor.status & SENSOR_STATUS_VALID) ||
+		(sensor.status & (SENSOR_STATUS_ERROR | SENSOR_STATUS_STALE))) return 1.f;
+
+	float value = sensor_piecewise_interp(sensor.value, this->points, this->point_count);
+	if (value < 0) value = 0;   // adjustment factor must be non-negative
+	return value;
 }
 
 SensorAdjustment *SensorAdjustment::read(uint8_t index, uint8_t nprograms) {
