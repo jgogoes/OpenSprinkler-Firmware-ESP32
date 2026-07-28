@@ -2988,15 +2988,19 @@ void OpenSprinkler::flash_screen() {
 	lcd.print(OS_FW_MINOR);
 	lcd.print(')');
 
+	#if defined(OSPI)
+	lcd.setCursor(3, 2);
+	lcd.print(F("HW OSPi AC"));
+	#else
 	lcd.setCursor((hw_type == HW_TYPE_LATCH) ? 2 : 3, 2);
 	lcd.print(F("HW "));
 	lcd.print((char)('0' + (OS_HW_VERSION / 10)));
 	lcd.print('.');
-#if defined(ESP8266)
+	#if defined(ESP8266)
 	lcd.print(hw_rev);
-#else
+	#else
 	lcd.print((char)('0' + (OS_HW_VERSION % 10)));
-#endif
+	#endif
 	switch (hw_type) {
 	case HW_TYPE_DC:
 		lcd.print(F(" DC"));
@@ -3007,6 +3011,7 @@ void OpenSprinkler::flash_screen() {
 	default:
 		lcd.print(F(" AC"));
 	}
+	#endif
 
 	lcd.display();
 	delay(2000);

@@ -180,6 +180,7 @@ public:
 
 		height = 64;
 		width = 128;
+		color = WHITE;
 	}
 
 	~SSD1306Display() {
