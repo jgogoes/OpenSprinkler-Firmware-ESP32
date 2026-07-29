@@ -455,19 +455,25 @@ void server_change_board_attrib(const OTF::Request &req, char header, unsigned c
 	}
 }
 
-void server_change_stations_attrib(const OTF::Request &req, char header, unsigned char *attrib) {
+bool server_change_station_groups(const OTF::Request &req) {
 	char tbuf2[6] = {0};
 	unsigned char bid, s, sid;
-	tbuf2[0]=header;
+	tbuf2[0]='g';
 	for(bid=0;bid<os.nboards;bid++) {
 		for(s=0;s<8;s++) {
 			sid=bid*8+s;
 			snprintf(tbuf2+1, 4, "%d", sid);
 			if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, tbuf2)) {
-				attrib[sid] = atoi(tmp_buffer);
+				char *end = NULL;
+				long gid = strtol(tmp_buffer, &end, 10);
+				if (!tmp_buffer[0] || *end || !((gid >= 0 && gid < NUM_SEQ_GROUPS) || gid == PARALLEL_GROUP_ID)) {
+					return false;
+				}
+				os.attrib_grp[sid] = (unsigned char)gid;
 			}
 		}
 	}
+	return true;
 }
 
 /**Change Station Name and Attributes
@@ -514,11 +520,15 @@ void server_change_stations(OTF_PARAMS_DEF) {
 	server_change_board_attrib(FKV_SOURCE, 'u', os.attrib_mas3); // master3
 	server_change_board_attrib(FKV_SOURCE, 'v', os.attrib_mas4); // master4
 	server_change_board_attrib(FKV_SOURCE, 'd', os.attrib_dis); // disable
-	server_change_stations_attrib(FKV_SOURCE, 'g', os.attrib_grp); // sequential groups
+	if (!server_change_station_groups(FKV_SOURCE)) handle_return(HTML_DATA_OUTOFBOUND);
 	/* handle special data */
 	if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("sid"), true)) {
-		sid = atoi(tmp_buffer);
-		if(sid<0 || sid>os.nstations) handle_return(HTML_DATA_OUTOFBOUND);
+		char *end = NULL;
+		long sid_value = strtol(tmp_buffer, &end, 10);
+		if (!tmp_buffer[0] || *end || sid_value < 0 || sid_value >= os.nstations) {
+			handle_return(HTML_DATA_OUTOFBOUND);
+		}
+		sid = (unsigned char)sid_value;
 		if(findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("st"), true) &&
 			 findKeyVal(FKV_SOURCE, tmp_buffer+1, TMP_BUFFER_SIZE-1, PSTR("sd"), true)) {
 
@@ -1581,6 +1591,8 @@ void server_change_password(OTF_PARAMS_DEF) {
 	handle_return(HTML_SUCCESS);  // do not allow chnaging password for demo
 	return;
 #endif
+
+	if(!process_password(OTF_PARAMS)) return;
 
 	if (findKeyVal(FKV_SOURCE, tmp_buffer, TMP_BUFFER_SIZE, PSTR("npw"), true)) {
 		const int pwBufferSize = TMP_BUFFER_SIZE/2;

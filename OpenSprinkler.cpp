@@ -1380,7 +1380,7 @@ unsigned char OpenSprinkler::get_station_type(unsigned char sid) {
 }
 
 unsigned char OpenSprinkler::is_sequential_station(unsigned char sid) {
-	return attrib_grp[sid] != PARALLEL_GROUP_ID;
+	return attrib_grp[sid] < NUM_SEQ_GROUPS;
 }
 
 unsigned char OpenSprinkler::is_master_station(unsigned char sid) {

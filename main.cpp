@@ -1156,6 +1156,8 @@ void turn_on_station(unsigned char sid, uint32_t duration) {
 
 // after removing element q, update remaining stations in its group
 void handle_shift_remaining_stations(RuntimeQueueStruct* q, unsigned char gid, time_os_t curr_time) {
+	if (gid >= NUM_SEQ_GROUPS) return;
+
 	RuntimeQueueStruct *s = pd.queue;
 	time_os_t q_end_time = q->st + q->dur;
 	uint32_t remainder = 0;
@@ -1192,13 +1194,14 @@ void turn_off_running_station_immediate(unsigned char sid, time_os_t curr_time, 
 	unsigned char qid = pd.station_qid[sid];
 	RuntimeQueueStruct *q = pd.queue + qid;
 	unsigned char gid = os.get_station_gid(q->sid);
+	bool sequential = os.is_sequential_station(sid) && !os.iopts[IOPT_REMOTE_EXT_MODE];
 
-	if (shift && os.is_sequential_station(sid) && !os.iopts[IOPT_REMOTE_EXT_MODE]) {
+	if (shift && sequential) {
 		handle_shift_remaining_stations(q, gid, curr_time);
 	}
 
 	int16_t station_delay = water_time_decode_signed(os.iopts[IOPT_STATION_DELAY_TIME]);
-	if (q->st + q->dur + station_delay == pd.last_seq_stop_times[gid]) { // if removing last station in group
+	if (sequential && q->st + q->dur + station_delay == pd.last_seq_stop_times[gid]) { // if removing last station in group
 		pd.last_seq_stop_times[gid] = 0;
 	}
 	pd.dequeue(qid);
@@ -1221,8 +1224,9 @@ void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shif
 	unsigned char force_dequeue = 0;
 	unsigned char station_bit = os.is_running(sid);
 	unsigned char gid = os.get_station_gid(q->sid);
+	bool sequential = os.is_sequential_station(sid) && !os.iopts[IOPT_REMOTE_EXT_MODE];
 
-	if (shift && os.is_sequential_station(sid) && !os.iopts[IOPT_REMOTE_EXT_MODE]) {
+	if (shift && sequential) {
 		handle_shift_remaining_stations(q, gid, curr_time);
 	}
 
@@ -1276,7 +1280,7 @@ void turn_off_station(unsigned char sid, time_os_t curr_time, unsigned char shif
 
 	// make necessary adjustments to sequential time stamps
 	int16_t station_delay = water_time_decode_signed(os.iopts[IOPT_STATION_DELAY_TIME]);
-	if (q->st + q->dur + station_delay == pd.last_seq_stop_times[gid]) { // if removing last station in group
+	if (sequential && q->st + q->dur + station_delay == pd.last_seq_stop_times[gid]) { // if removing last station in group
 		pd.last_seq_stop_times[gid] = 0;
 	}
 
@@ -1362,7 +1366,9 @@ void handle_master_adjustments(time_os_t curr_time, RuntimeQueueStruct *q, unsig
 	// push back station's start time to allow sufficient time to turn on master
 	if (q->st - curr_time <= abs(start_adj)) {
 		q->st += abs(start_adj);
-		seq_start_times[gid] += abs(start_adj);
+		if (os.is_sequential_station(q->sid)) {
+			seq_start_times[gid] += abs(start_adj);
+		}
 	}
 
 	q->deque_time = q->st + q->dur + dequeue_adj;
@@ -1381,6 +1387,7 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 		con_start_time += os.pause_timer;
 	}
 	int16_t station_delay = water_time_decode_signed(os.iopts[IOPT_STATION_DELAY_TIME]);
+	unsigned char re = os.iopts[IOPT_REMOTE_EXT_MODE];
 
 	RuntimeQueueStruct *q = NULL;
 	unsigned char gid;
@@ -1389,6 +1396,7 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 	// go through the queue and see if there is any scheduled zone for each sequential group
 	for(q=pd.queue;q<pd.queue+pd.nqueue;q++) {
 		if(q->st || (!q->dur)) continue; // if this element already has a start time or is marked for reset, skip
+		if (!os.is_sequential_station(q->sid) || re) continue;
 		gid = os.get_station_gid(q->sid);
 		stagger[gid] = 1; // mark this group
 	}
@@ -1399,7 +1407,6 @@ void schedule_all_stations(time_os_t curr_time, unsigned char qo) {
 	uint32_t seq_start_times[NUM_SEQ_GROUPS];  // sequential start times
 	uint32_t seq_adjustments[NUM_SEQ_GROUPS];  // adjustment amounts for insert-to-front
 	memset(seq_adjustments, 0, sizeof(seq_adjustments));
-	unsigned char re = os.iopts[IOPT_REMOTE_EXT_MODE];
 
 	// If qo>0, new zones will preempt existing, so calculate adjustment amounts first
 	if (qo>0) {

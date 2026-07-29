@@ -160,9 +160,11 @@ void ProgramData::set_pause() {
 			q->st += os.pause_timer;
 		}
 		q->deque_time += os.pause_timer;
-		unsigned char gid = os.get_station_gid(q->sid);
-		if (q->st + q->dur > last_seq_stop_times[gid]) {
-			last_seq_stop_times[gid] = q->st + q->dur; // update last_seq_stop_times of the corresponding group
+		if (os.is_sequential_station(q->sid) && !os.iopts[IOPT_REMOTE_EXT_MODE]) {
+			unsigned char gid = os.get_station_gid(q->sid);
+			if (q->st + q->dur > last_seq_stop_times[gid]) {
+				last_seq_stop_times[gid] = q->st + q->dur; // update last_seq_stop_times of the corresponding group
+			}
 		}
 	}
 }
