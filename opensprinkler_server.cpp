@@ -3135,7 +3135,7 @@ void server_list_files(OTF_PARAMS_DEF) {
  * pw:   password
  * fn:   filename to delete
  */
-#if defined(ESP8266)
+#if defined(ESP8266) && defined(ENABLE_DEBUG)
 void server_delete_file(OTF_PARAMS_DEF) {
 	if(!process_password(OTF_PARAMS)) return;
 
@@ -3203,7 +3203,9 @@ const char *uris[] PROGMEM = {
 	"db",
 #if defined(ESP8266)
 	"lf",
+#if defined(ENABLE_DEBUG)
 	"df",
+#endif
 #endif
 	"jsn",
 	"csn",
@@ -3241,7 +3243,9 @@ URLHandler urls[] = {
 	server_json_debug,      // db
 #if defined(ESP8266)
 	server_list_files,      // lf
+#if defined(ENABLE_DEBUG)
 	server_delete_file,     // df
+#endif
 #endif
 	server_json_sensors,      // jsn
 	server_change_sensor,     // csn
