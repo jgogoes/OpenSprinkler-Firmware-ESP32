@@ -97,3 +97,16 @@ ul > li {
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
   border-radius: 4px;
 }
+.nav-new-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background-color: #f0d45c;
+  color: #222;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0;
+  vertical-align: 1px;
+}

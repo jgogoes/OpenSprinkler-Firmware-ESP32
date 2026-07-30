@@ -781,7 +781,7 @@ For details on the log data format and example scripts to export logs (e.g. as s
 
 ### Firmware Update
 
-Follow the [firmware update instructions](../index.md#firmware-update).
+Follow the [firmware update instructions](../firmware-update.md).
 
 <hr class="double">
 

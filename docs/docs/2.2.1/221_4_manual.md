@@ -774,7 +774,7 @@ For details on the log data format and example scripts to export logs (e.g. as s
 
 ### Firmware Update
 
-Follow the [firmware update instructions](../index.md#firmware-update).
+Follow the [firmware update instructions](../firmware-update.md).
 
 <hr class="double">
 
@@ -822,4 +822,3 @@ For detailed setup steps and examples, see the [RF Station blog post](https://op
 
 <br>
 <hr class="double">
-
