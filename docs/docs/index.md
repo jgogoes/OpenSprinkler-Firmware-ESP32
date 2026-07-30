@@ -4,6 +4,7 @@ This Github repository contains the firmware source code and documentation for O
 
 * For product details, visit [https://opensprinkler.com](https://opensprinkler.com).
 * For firmware release notes, visit the [OpenSprinkler Firmware Releases](https://github.com/OpenSprinkler/OpenSprinkler-Firmware/releases) page on GitHub.
+* See the current [User Manual](manual.md) and [API Reference](api.md).
 
 <hr class="double">
 

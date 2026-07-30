@@ -1,4 +1,4 @@
-## Firmware 2.2.1(5) User Manual [Jul 20, 2026]
+## Firmware 2.2.1(5) User Manual [Aug 1, 2026]
 
 ### Introduction
 
@@ -21,7 +21,7 @@ In addition, OpenSprinkler v3 is available in three power models:
 
 ### What's New in this Firmware?
 
-* **External Sensor Support & Analog Sensor Expander:** Adds a framework for external sensors — analog sensors (via the new **Sensor Expander**), aggregate sensors, and weather sensors — with per-sensor logging. Sensor readings can automatically scale program watering through configurable adjustment curves. See the dedicated [Sensor Expander](../sensor-expander/overview.md) documentation.
+* **Expanded Sensor Support & Sensor Expander:** Adds a framework for Expanded Sensors, including analog sensors connected through the new **Sensor Expander** and aggregate or virtual sensors, with per-sensor logging. Expanded Sensor readings can automatically scale program watering through configurable adjustment curves. See the dedicated [Sensor Expander](../sensor-expander/manual.md) documentation.
 * **Additional Built-in Sensor Ports (SN3 / SN4):** OpenSprinkler v3.4 adds two more built-in sensor ports, for four total (`SN1`–`SN4`).
 * **Extended Watering Durations:** Weather- and sensor-adjusted station runtimes may now exceed the previous 18-hour limit. (Programmed and manually-entered durations remain capped at 18 hours.)
 
@@ -234,13 +234,13 @@ All settings will be cleared and returned to factory defaults.
 * When no zones are running, a `(System Idle)` message is shown at the top.
 * When the controller is in **Remote Extension** mode, a radar icon 📡 is shown.
 * When **Pause Queue** or **Rain Delay** is active, a clock icon 🕒 is shown.
-* If **Sensor 1** is configured, a letter is shown to indicate its type:
+* If **Built-in Sensor SN1** is configured, a letter is shown to indicate its type:
     * `r`: Rain sensor
     * `s`: Soil sensor
     * `p`: Program switch
     * `f`: Flow sensor
     * An activated rain sensor is shown as 🌧️, and active soil sensor as 💧.
-* If **Sensor 2** is configured, its display will follow the same notation as Sensor 1.
+* If **Built-in Sensor SN2** is configured, its display follows the same notation as SN1.
 
 **While the controller is running, buttons perform the following functions:**
 
@@ -353,7 +353,7 @@ Each zone (station) is shown as a card. Tap the gear ⚙️ icon next to a zone 
 * **Station Name:** A custom name (up to 32 letters).<br>
 **Annotation:** If a flow sensor is enabled (see [Sensor Setup](#sensor-setup)) and the last 5 letters represent a numerical value, a **Flow Alert** notification will trigger when the flow rate exceeds this value after the zone finishes. Example: station name is **Front Yard 1.357**, a flow alert will trigger if the flow rate `>1.357` after the zone finishes.
 * **Use Masters:** When enabled, the associated Master zone(s), if defined, will activate whenever this zone runs.
-* **Ignore Rain/Sensor1/Sensor2:** When enabled, the zone will bypass manual rain delay or sensor(s). Unchecked by default.
+* **Ignore Rain/SN1/SN2:** When enabled, the zone bypasses manual rain delay or the selected Built-in Sensors. Unchecked by default.
 * **Disable:** Disable and hide this zone. To unhide, use the [Footer Menu](#footer-menu).
 
 **Advanced Tab:**
@@ -523,7 +523,7 @@ This firmware supports up to **two independent masters**, each configurable as f
 #### Sensor Setup
 
 !!! tip "External / analog sensors"
-    This section covers the controller's **built-in** sensor ports. For **external analog sensors** connected via the **Sensor Expander** (soil moisture, pressure, etc.) and sensor-based watering adjustment, see the dedicated [Sensor Expander](../sensor-expander/overview.md) documentation.
+    This section covers the controller's **built-in** sensor ports. For **external analog sensors** connected via the **Sensor Expander** (soil moisture, pressure, etc.) and sensor-based watering adjustment, see the dedicated [Sensor Expander](../sensor-expander/manual.md) documentation.
 
 OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configurable types: **Rain**, **Soil** (binary output only), **Program Switch**, and **Flow** (*currently only supported on `SN1`*).
 
@@ -775,7 +775,7 @@ OpenSprinkler supports logging, which records **Zone Activity**, **Rain Delays**
 <br>For large datasets or slow loading, limit the range to a single day.
 * Click **Table** at the top to switch to a tabular view.
 
-For details on the log data format and example scripts to export logs (e.g. as spreadsheets), refer to the [OpenSprinkler API documentation](221_4_api.md#18-get-log-data-jl).
+For details on the log data format and example scripts to export logs (e.g. as spreadsheets), refer to the [OpenSprinkler API documentation](221_5_api.md#get-sprinkler-log-data-jl).
 
 <hr class="double">
 

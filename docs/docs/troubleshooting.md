@@ -1,7 +1,7 @@
 ## Troubleshooting Instructions
 
 !!! note
-    This page covers the most common troubleshooting steps. For additional technical support, visit the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/). Before submitting a support ticket, make sure you have carefully read the [User Manual](https://opensprinkler.github.io/OpenSprinkler-Firmware/2.2.1/221_4_manual/), [FAQs](https://opensprinkler.github.io/OpenSprinkler-Firmware/faq/), and common issues listed on this page.
+    This page covers the most common troubleshooting steps. For additional technical support, visit the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/). Before submitting a support ticket, make sure you have carefully read the [User Manual](manual.md), [FAQs](faq.md), and common issues listed on this page.
 
 ### Identify Your Hardware & Firmware
 
@@ -167,7 +167,7 @@ You can use buttons on the controller to bypass the device password. To do so:
 
 **I changed my WiFi router/SSID/password. How do I reset WiFi?**
 <span class="vsp1"></span>
-**Reset to AP (Access Point) mode**: hold **B3**, then press **B2** within 1-2 seconds (similar to pressing Ctrl+C on a keyboard). Confirm on the LCD when prompted. The unit will reboot into AP mode. Follow the [WiFi Configuration step](2.2.1/221_4_manual.md#step-4-setting-up-wifi-ethernet) in the user manual.
+**Reset to AP (Access Point) mode**: hold **B3**, then press **B2** within 1-2 seconds (similar to pressing Ctrl+C on a keyboard). Confirm on the LCD when prompted. The unit will reboot into AP mode. Follow the [WiFi Configuration step](manual.md#step-4-setting-up-wifi-ethernet) in the user manual.
 
 If Reset to AP doesn't work, perform a Factory Reset (see below).
 
@@ -237,7 +237,7 @@ If your controller can't connect or stay connected via wired Ethernet, try these
 2. **Disable PoE** (Power-over-Ethernet) on that port: OpenSprinkler’s wired module is **not PoE-compatible**. PoE-enabled port can cause it to malfunction.
 3. **DHCP Setting:** Leave the controller on DHCP, and set a **DHCP reservation** (IP-to-Mac) on your router to assign it a fixed IP. If you must use Static IP, verify **Gateway IP, DNS, Subnet Mask** are all correct and compatible with your router settings.
 4. **Use a dedicated router:** If your wired network is very busy, the most effective solution is to place OpenSprinkler on a dedicated router to isolate it from heavy traffic. 
-5. **Set an auto-reboot program:** If the controller connects initially but doesn't stay connected, a work-around is to set an auto-reboot program (daily or any regular interval of your choice). See [Program Name Annotation](2.2.1/221_4_manual.md#program-name-annotations) in the user manual.
+5. **Set an auto-reboot program:** If the controller connects initially but doesn't stay connected, a work-around is to set an auto-reboot program (daily or any regular interval of your choice). See [Program Name Annotation](manual.md#program-name-annotations) in the user manual.
 
 **<u>For OSPi</u>:** Networking is managed by RPi. Ensure RPi has adequate power (OSPi supplies up to 500 mA. RPi 3/4/5 may need extra power via USB, otherwise network may be unstable).
 
@@ -275,7 +275,7 @@ Starting with firmware 2.2.0, the old **Sequential** flag is replaced by a more 
 * Each zone can be assigned to **one of four Sequential groups** or to the **Parallel** group.
 * Putting a zone in **Parallel** group is equivalent to removing the **Sequential** flag in older firmwares.
 
-For details, refer to the [Firmware User Manual](2.2.1/221_4_manual.md#zones-group-attribute) and the [Video Tutorial](https://openthings.freshdesk.com/support/solutions/articles/5000860920-videos-introduction-to-opensprinkler-v3).
+For details, refer to the [Firmware User Manual](manual.md#zones-group-attribute) and the [Video Tutorial](https://openthings.freshdesk.com/support/solutions/articles/5000860920-videos-introduction-to-opensprinkler-v3).
 
 
 ---
