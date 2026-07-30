@@ -55,6 +55,9 @@ table td {
   color: #A04020;
   font-size: 85%;
 }
+.rst-content .hl code {
+  background-color: transparent;
+}
 .center {
   display: block;
   margin-left: auto;
@@ -69,6 +72,14 @@ table td {
 }
 ul > li {
   margin-bottom: 0.25em; /* Adjust this value as needed */
+}
+.rst-content table .compact-list {
+  margin: 0.2em 0 0.2em 0.6em;
+  padding-left: 0.25em;
+  line-height: 1.25;
+}
+.rst-content table .compact-list li {
+  margin-bottom: 0;
 }
 .custom-box {
   background-color: #d0ead0;
