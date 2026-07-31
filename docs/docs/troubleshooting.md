@@ -83,6 +83,8 @@ First, perform a [solenoid resistance test](#wiring-and-solenoids) to rule out s
 
 ### Power and Expander
 
+For Zone Expander compatibility, wiring, DIP-switch settings, and configuration, see the [Zone Expander User Manual](zone-expander.md).
+
 **My controller doesn't power on.**
 <span class="vsp1"></span>
 If the controller no longer powers on (and the LCD displays nothing), follow these steps:

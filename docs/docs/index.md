@@ -5,15 +5,15 @@ This GitHub repository contains the firmware source code and documentation for O
 ## Documentation
 
 * [FAQ](faq.md)
-* [User Manual](manual.md)
-* [API Reference](api.md)
+* [User Manual](manual.md) (**most recent**)
+* [API Reference](api.md) (**most recent**)
 * [Troubleshooting](troubleshooting.md)
 * [Firmware Update](firmware-update.md)
 
 ## Accessories
 
-* [Zone Expander User Manual](zone-expander/manual.md)
-* [Sensor Expander User Manual](sensor-expander/manual.md)
+* [Zone Expander User Manual](zone-expander.md)
+* [Sensor Expander User Manual](sensor-expander.md)
 
 ## Development
 

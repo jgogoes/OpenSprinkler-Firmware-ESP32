@@ -7,11 +7,8 @@ theme: readthedocs
 nav:
   - 'Home': 'index.md'
   - 'FAQ':  'faq.md'
-  - 'User Manual': 'manual.md'
-  - 'API Reference': 'api.md'
   - 'Troubleshooting': 'troubleshooting.md'
   - 'Firmware Update': 'firmware-update.md'
-  - 'Firmware Compilation': 'firmware-compilation.md'
   - 'Firmware v2.2.1(5) [NEW]':
     - 'User Manual': '2.2.1/221_5_manual.md'
     - 'API Reference': '2.2.1/221_5_api.md'
@@ -19,9 +16,9 @@ nav:
     - 'User Manual': '2.2.1/221_4_manual.md'
     - 'API Reference': '2.2.1/221_4_api.md'
   - 'Zone Expander':
-    - 'User Manual': 'zone-expander/manual.md'
+    - 'User Manual': 'zone-expander.md'
   - 'Sensor Expander [NEW]':
-    - 'User Manual': 'sensor-expander/manual.md'
+    - 'User Manual': 'sensor-expander.md'
   - 'Archived':
     - 'Previous Manuals and API docs': 'archive.md'
 extra_css:

@@ -70,6 +70,18 @@ table td {
   margin-right: auto;
   width: 500px;
 }
+.rst-content h4.zone-step-heading {
+  font-size: 110%;
+  letter-spacing: 0;
+}
+/* Danger-style highlighted section-note title (title bar only, no surrounding box) */
+.rst-content .notes-title {
+  background: #d04040;
+  color: #fff;
+  font-weight: bold;
+  padding: 6px 12px;
+  border-radius: 4px;
+}
 ul > li {
   margin-bottom: 0.25em; /* Adjust this value as needed */
 }
