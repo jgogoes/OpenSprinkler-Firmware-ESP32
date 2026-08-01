@@ -49,6 +49,11 @@ table th,
 table td {
   padding: 6px 10px;
 }
+.rst-content .button-function-table + table th:first-child,
+.rst-content .button-function-table + table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}
 .rst-content :not(pre) > code {
   border: none;
   background-color: #f4f4f4;

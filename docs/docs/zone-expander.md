@@ -85,6 +85,17 @@ After completing the expander wiring:
 
 ---
 
+## Specifications
+
+| | Zone Expander |
+|:--|:--|
+| **Num. of Zones:** | 16 |
+| **Solenoid Driver:** | **AC:** 1 A/zone (triac)<br>**DC:** 2 A/zone (MOSFET) |
+| **Dimensions:** | 130 × 75 × 25 mm<br>(5.1 × 3.0 × 1.0 in) |
+| **Weight:** | 100 g (4 oz) |
+
+---
+
 ## Troubleshooting
 
 For expander detection, power, wiring, and zone-output problems, see [Power and Expander Troubleshooting](troubleshooting.md#power-and-expander).

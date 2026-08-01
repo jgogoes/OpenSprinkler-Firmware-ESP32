@@ -1,69 +1,65 @@
-## Firmware 2.2.1(5) User Manual [Aug 1, 2026]
+# Firmware 2.2.1(5) User Manual [Aug 1, 2026]
 
-### Introduction
+## Introduction
 
 **OpenSprinkler** is an open-source, web-based sprinkler/irrigation controller designed as a drop-in replacement for conventional sprinkler controllers that lack web connectivity. Its key benefits include an intuitive user interface, remote access, and smart weather-based watering control. It is ideal for homeowners and businesses in applications such as lawn and garden watering, plant irrigation, drip irrigation, hydroponics, etc.
 
-The OpenSprinkler hardware comes in two flavors:
+The OpenSprinkler hardware comes in two product families:
 
-* **OpenSprinkler v3** – Features built-in WiFi, two independent sensor ports, and an optional wired Ethernet module. It is fully assembled and pre-loaded with firmware.
+* **OpenSprinkler v3** – Features built-in WiFi, two independent sensor ports on v3.0–v3.3 or four on v3.4, and an optional wired Ethernet module. It is fully assembled and pre-loaded with firmware.
 * **OpenSprinkler Pi (OSPi)** – Powered by a Raspberry Pi (RPi), requiring some assembly (such as connecting the RPi) and firmware installation.
 
 Each controller provides 8 zones, with expansion possible via zone expanders (each adding 16 zones): **OpenSprinkler v3** supports up to **72** zones, and **OSPi** supports up to **200** zones.
 <a id="power-models"></a>
 In addition, OpenSprinkler v3 is available in three power models:
 
-* **AC-powered** – Comes with an <span class="hl_orange">**Orange**</span> terminal block (v3.0-3.3) or <span class="hl_red">**Red**</span> power barrel (v3.4). Requires a 24VAC transformer (NOT included by default; available for purchase as an add-on, or use your own 24VAC transformer).
-* **DC-powered** – Comes with a **Black** power barrel (v3.0-3.3) or **USB-C** connector (v3.4). A compatible power adapter is included for North America. It can operate on 6V–24VDC, including a 12VDC solar panel. Despite DC input power, it is designed to operate 24VAC sprinkler valves, as well as DC non-latching valves.
-* **LATCH** – Comes with a **Black** power barrel and a 7.5VDC adapter for North America. It's specifically designed for use with **latching solenoid valves only**.
+* **AC-powered** – Comes with an <span class="hl_red">**Red**</span> power barrel (v3.4) or <span class="hl_orange">**Orange**</span> terminal block (v3.0-3.3). Requires a 24VAC transformer (NOT included by default; available for purchase as an add-on, or use your own 24VAC transformer).
+* **DC-powered** – Comes with **USB-C** connector (v3.4) or a **Black** power barrel (v3.0-3.3). A compatible power adapter is included. It can operate on 6V–24VDC, including a 12VDC solar panel. Despite DC input power, it is designed to operate 24VAC sprinkler valves, as well as DC non-latching valves.
+* **LATCH** – Comes with a **Black** power barrel and a 7.5VDC adapter. It's specifically designed for use with **latching solenoid valves only**.
 
 <hr class="double">
 
-### What's New in this Firmware?
+## What's New in this Firmware?
 
-* **Expanded Sensor Support & Sensor Expander:** Adds a framework for Expanded Sensors, including analog sensors connected through the new **Sensor Expander** and aggregate or virtual sensors, with per-sensor logging. Expanded Sensor readings can automatically scale program watering through configurable adjustment curves. See the dedicated [Sensor Expander](../sensor-expander.md) documentation.
-* **Additional Built-in Sensor Ports (SN3 / SN4):** OpenSprinkler v3.4 adds two more built-in sensor ports, for four total (`SN1`–`SN4`).
-* **Extended Watering Durations:** Weather- and sensor-adjusted station runtimes may now exceed the previous 18-hour limit. (Programmed and manually-entered durations remain capped at 18 hours.)
-
-The following changes from firmware 2.2.1(4) also carry forward:
-
-* **Support for DC-powered OpenSprinkler v3.4**, the first OpenSprinkler with USB-C. Supports USB PD (Power Delivery) via CH224 and allows **user-defined PD voltage**.
-* **Preemptive Running for Manual Actions:** Manual station runs, Run-once programs, and manually started programs support user-specified queue options (**Append**, **Insert at Front**, **Replace**).
-* **OSPi GPIO Backend**: Switched from `libgpio` to `lgpio`, for a simpler API, compatibility with **Raspbian Trixie**, and to avoid `libgpiod` v2 breaking changes.
-* **Smoother Current Readings:** Exponential moving average (EMA) filtering for stable current sensing.
-* **Flexible Weather Script URL:** Supports explicit `http/https` and custom port.
-* **Optimized Static Pages:** Serves AP homepage and firmware update pages as minified and compressed HTML.
+* **Expanded Sensor Support & Sensor Expander:** A new framework for Expanded Sensors, including analog sensors connected through the **Sensor Expander** and virtual sensors such as Aggregate and System Internal, with per-sensor logging. Expanded Sensor readings can automatically scale program watering through configurable adjustment curves. Refer to the dedicated [Sensor Expander](../sensor-expander.md) documentation.
+* **Extended Master Support:** This firmware supports up to **four master stations**, with independent on/off adjustments and per-zone selection of which masters apply.
+* **Additional Built-in Sensor Ports (SN3 / SN4):** This firmware enables two additional built-in sensor ports on OpenSprinkler v3.4, for a total of four: `SN1`–`SN4`.
+* **Sensor Terminology**: In this firmware we distinguish between the following two categories of sensors:
+    * **Built-in Sensors** refer to sensor ports on the main controller, identified by `SN1`–`SN4` where available. They support digital sensors such as rain, flow, and program switch.
+    * **Expanded Sensors** are configurable sensors managed through the Expanded Sensor interface. They include analog sensors connected through the Sensor Expander and virtual sensors such as Aggregate and System Internal sensors. Expanded Sensors can be used for program adjustment.
+* **Extended Watering Durations:** Weather- and sensor-adjusted station runtimes may now exceed the previous 18-hour limit, up to the firmware's seven-day runtime limit. Programmed water times remain limited to 18 hours.
+* **OpenSprinkler v2.3 Support Removed:** Firmware 2.2.1(5) supports OpenSprinkler v3.x and OSPi/Linux. Firmware 2.2.1(4) was the final release supporting OpenSprinkler v2.3.
 
 <hr class="double">
 
-### Hardware Interface
+## Hardware Interface
 
-#### OpenSprinkler v3.4 (new) {: .hltitle}
+### OpenSprinkler v3.4 {: .hltitle}
 
-![OpenSprinkler v3.4 (new enclosure)](images/os34_hardware_interface.jpg)
+![OpenSprinkler v3.4](images/os34_hardware_interface_new.jpg)
 
 <hr>
 
-#### OpenSprinkler v3.0-3.3 {: .hltitle}
+### OpenSprinkler v3.0-3.3 {: .hltitle}
 
 ![OpenSprinkler v3.0-3.3](images/os33_hardware_interface.jpg)
 
 <hr>
 
-#### OpenSprinkler Pi (OSPi) {: .hltitle}
+### OpenSprinkler Pi (OSPi) {: .hltitle}
 
 ![OpenSprinkler Pi](images/ospi20_hardware_interface.jpg)
 
 <hr class="double">
 
-### Zone Wiring Diagram
+## Zone Wiring Diagram
 
 The diagram below shows how to wire valves on the main controller and expanders.
 
 **Basics**
 
 * Each valve solenoid has two wires. Gather one wire from every valve (across the main controller and any expanders) and bundle them into a **COM (common)** wire. Connect this **COM** wire to the controller's **COM** port (do NOT use GND).
-* OpenSprinkler has **two COM ports**: they are internally connected, so you may use either one.
+* OpenSprinkler has **two COM ports**: they are equivalent, so you may use either.
 * The other wire from each valve goes to its individual zone port (1, 2, 3, ...).
 
 **Polarity**
@@ -80,7 +76,7 @@ The diagram below shows how to wire valves on the main controller and expanders.
 
 <hr class="double">
 
-### Installation
+## Installation
 
 !!! warning "AC Power (International Users)"
     For **AC-powered** OpenSprinkler, you must use a 24VAC transformer that **matches your country’s mains voltage** standard. An incompatible transformer can damage the controller. If a suitable 24VAC transformer isn't available, consider the **DC-powered** OpenSprinkler instead (6–24VDC input; v3.4 uses USB-C). **Never** connect mains power directly to the controller.
@@ -91,7 +87,7 @@ The diagram below shows how to wire valves on the main controller and expanders.
 !!! info "Video Guides"
     **Video Guides and Tutorials** are available on the [OpenSprinkler support site](https://support.opensprinkler.com).
 
-#### Step 1: Preparation
+### Step 1: Preparation
 
 Carefully label and remove wires from your existing sprinkler controller as you disconnect it. You will typically find:
 
@@ -99,11 +95,11 @@ Carefully label and remove wires from your existing sprinkler controller as you 
 * A **COM (common) wire**
 * One or more **Zone wires**
 * (Optionally) A **Master Zone / Pump Start Relay** wire
-* (Optionally) **Rain / Soil / Flow Sensor** wires
+* (Optionally) Wires for digital sensors such as **Rain / Soil / Flow Sensor**
 
 ---
 
-#### Step 2: Wiring OpenSprinkler
+### Step 2: Wiring OpenSprinkler
 
 Refer to the [Hardware Interface](#hardware-interface) and [Zone Wiring Diagram](#zone-wiring-diagram) sections above.
 
@@ -113,16 +109,18 @@ OpenSprinkler uses **removable terminal blocks** for easy wiring. To detach a bl
 
 * **OpenSprinkler v3.4 AC:** Plug the 24VAC transformer to the <span class="hl_red">**Red**</span> barrel jack.
     * If your transformer has bare wire, use the included screw-terminal-to-plug adapter.
-* **OpenSprinkler v3.0-3.3 AC:** Connect the 24VAC wires to the <span class="hl_orange">**Orange**</span> terminal block.
+* **OpenSprinkler v3.0-3.3 AC & OSPi:** Connect 24VAC wires to the <span class="hl_orange">**Orange**</span> terminal block.
     * AC has no polarity, so the two wires have no distinction.
-* **OpenSprinkler v3.4 DC:** Plug the USB-C cable to the USB-C port (PWR).
+* **OpenSprinkler v3.4 DC:** Plug the USB-C cable to the USB-C port marked **PWR**.
 * **OpenSprinkler v3.0-3.3 DC and Latch:** Insert the DC adapter into the **Black** barrel jack.
     * Note the **COM** terminal is <span class="hl_red">**positive(+)**</span>. If your valve wires are polarized, positive goes to COM, and negative goes to a zone. 
 
 
-**Sensors:**
+**Built-in Sensor Ports:**
 
-* **Connect sensor signal wires to SN1 + GND** (or **SN2 + GND** if using a second sensor).
+These instructions apply to digital sensors connected directly to the main controller's built-in sensor ports. For analog sensors, refer to the [**Sensor Expander User Manual**](../sensor-expander.md).
+
+* Connect each sensor's signal wire to an available sensor port and its ground wire to **GND**. All supported controllers provide **SN1** and **SN2**; OpenSprinkler v3.4 additionally provides **SN3** and **SN4**.
     * OpenSprinkler uses **GND** (NOT COM) as the common terminal for sensor inputs. **DO NOT** connect sensor signal wires to **COM**.
 * On a **AC-powered model**, if a sensor requires 24VAC power (e.g. wireless sensors), you may connect its **power wires** to COM and GND, which supply 24VAC.
     * **DC-powered and Latch** models do **NOT** output 24VAC thus cannot power these sensors.
@@ -131,19 +129,25 @@ For additional details on specific sensors (rain/soil/flow), refer to [Sensor Se
 
 ---
 
-#### Step 3: Zone Expanders (Optional)
+### Step 3: Zone and Sensor Expanders
 
-!!! warning "Power Off Before Wiring Expanders"
-    Always **power off the main controller** before connecting, disconnecting, or reconfiguring an expander.
+**Zone Expanders** increase the number of physical zones, with each expander adding 16 zones. The **Sensor Expander** enable the controller to interface with analog sensors such as soil-moisture, temperature, water-level, and pressure sensors. Their readings can be displayed and logged, and used to adjust program water times automatically.
 
-!!! warning "Verify the Correct Port"
-    Connect the Zone Expander only to the controller port marked **Expander**. Do **NOT** connect it to the port marked **Ether**.
+!!! warning "Power Off Before Making Expander Changes"
+    Always **power off the main controller** before connecting, disconnecting, or reconfiguring an expander. Never plug in/out a ribbon cable or change a DIP switch while the main controller is powered on.
 
-For compatibility, DIP-switch settings, keyed ribbon-cable orientation, daisy chaining, zone mapping, and software configuration, follow the dedicated [Zone Expander User Manual](../zone-expander.md).
+!!! warning "Verify the Correct Expander Port"
+    Connect Zone and Sensor Expanders only to the controller port marked **Expander**. Do **NOT** connect them to the port marked **Ether**.
+
+
+Detailed compatibility, wiring, and software configuration instructions are available in the respective product manuals:
+
+* [**Zone Expander User Manual**](../zone-expander.md)
+* [**Sensor Expander User Manual**](../sensor-expander.md)
 
 ---
 
-#### Step 4: Setting Up WiFi / Ethernet
+### Step 4: Setting Up WiFi / Ethernet
 
 **WiFi (OpenSprinkler v3 all versions)**
 
@@ -172,7 +176,7 @@ For compatibility, DIP-switch settings, keyed ribbon-cable orientation, daisy ch
 
 ---
 
-#### Reset WiFi
+### Reset WiFi
 * To re-enter AP mode without erasing other settings:
     * With the controller powered on, press **B3+B2** (first press B3 then while holding B3 quickly press B2, like `Ctrl+C`), and hold until you see **Reset to AP mode?**.
     * Click **B3** to confirm.
@@ -182,7 +186,7 @@ For compatibility, DIP-switch settings, keyed ribbon-cable orientation, daisy ch
 
 ---
 
-#### Reset Device Password
+### Reset Device Password
 
 If you forget the device password, you can bypass it using buttons:
 
@@ -195,7 +199,7 @@ You can now access the UI without a password. For security, immediately set a ne
 
 ---
 
-#### Factory Reset
+### Factory Reset
 
 1. Power off the controller.
 2. Power it on, and as soon as the OpenSprinkler logo appears, press and hold **B1**. Keep holding until the LCD displays **Reset?**
@@ -205,30 +209,31 @@ All settings will be cleared and returned to factory defaults.
 
 <hr class="double">
 
-### LCD Display and Buttons
+## LCD Display and Buttons
 
 ![OpenSprinkler LCD Display](images/lcd_display.png){: .img-border .img-shadow}
 
-* **Master 1** (if enabled) is shown as the letter `M`; and **Master 2** as `N`.
+* Master stations, if enabled, are shown as letters: **Master 1** as `M`, **Master 2** as `N`, **Master 3** as `U`, and **Master 4** as `V`. All four masters are supported on OpenSprinkler v3 and OSPi.
 * By default the LCD shows the status of the first 8 zones on the main controller (`MC`). Each running zone is displayed with a three-letter animation: `. o O`
 * Click **B3** to cycle through each group of 8 zones (`E1`, `E2`, `E3`...) on expanders. 
 * When no zones are running, a `(System Idle)` message is shown at the top.
 * When the controller is in **Remote Extension** mode, a radar icon 📡 is shown.
 * When **Pause Queue** or **Rain Delay** is active, a clock icon 🕒 is shown.
-* If **Built-in Sensor SN1** is configured, a letter is shown to indicate its type:
+* If a **Built-in Sensor** is configured, a letter is shown to indicate its type. All supported controllers display **SN1** and **SN2**; OpenSprinkler v3.4 additionally displays **SN3** and **SN4**.
     * `r`: Rain sensor
     * `s`: Soil sensor
     * `p`: Program switch
-    * `f`: Flow sensor
+    * `f`: Flow sensor (SN1 only)
     * An activated rain sensor is shown as 🌧️, and active soil sensor as 💧.
-* If **Built-in Sensor SN2** is configured, its display follows the same notation as SN1.
 
 **While the controller is running, buttons perform the following functions:**
+
+<div class="button-function-table"></div>
 
 | Button     | Function |
 |:-----------|:---------|
 |**Click B1**|Display device IP address, port and OTC status|
-|**Click B2**|Display device MAC address|
+|**Click B2**|Display device MAC address, hardware version, and firmware version|
 |**Click B3**|Switch between the main controller (`MC`) and each group of 8 expanded zones<br>(`E1`, `E2`, `E3` ...).|
 |**Hold B1** |Stop all zones immediately|
 |**Hold B2** |Reboot the controller|
@@ -250,7 +255,7 @@ All settings will be cleared and returned to factory defaults.
 
 <hr class="double">
 
-### Web Interface Overview
+## Web Interface Overview
 
 OpenSprinkler’s web interface works on phones, tablets, and computers, enabling you to view status, adjust settings, check logs, and edit programs from any modern **web browser** or via the free **OpenSprinkler mobile app** (search **OpenSprinkler** in your app store). 
 
@@ -278,7 +283,7 @@ OpenSprinkler’s web interface works on phones, tablets, and computers, enablin
 
 <hr class="double">
 
-### Homepage
+## Homepage
 
 ![Homepage Annotations](images/homepage_annotations.jpg)
 
@@ -289,7 +294,7 @@ The homepage provides an overview of all zones, current system status, and weath
 
 ---
 
-#### Sidebar Menu
+### Sidebar Menu
 
 !!! info "Open the Sidebar"
     Open the sidebar menu anytime by **swiping left to right**, or tap the ☰ icon at the top-left corner.
@@ -306,7 +311,7 @@ The homepage provides an overview of all zones, current system status, and weath
 
 ---
 
-#### Device Status
+### Device Status
 
 The footer reports system status, prioritizing the following information in order:
 
@@ -323,7 +328,7 @@ Additional data to display:
 
 ---
 
-#### Station Cards
+### Station Cards
 
 Each zone (station) is shown as a card. Tap the gear ⚙️ icon next to a zone name to open its **Attributes** dialog.
 
@@ -357,7 +362,7 @@ Each zone (station) is shown as a card. Tap the gear ⚙️ icon next to a zone 
 
 ---
 
-#### Cloud-Synced Features
+### Cloud-Synced Features
 
 ![Station Pictures](images/station_pictures.png){: .center }
 
@@ -369,7 +374,7 @@ After signing in with your **OpenSprinkler.com** account (via the sidebar menu),
 
 <hr class="double">
 
-### Footer Menu
+## Footer Menu
 ![Footer Menu](images/footer_menu.png){ .img-shadow width="200" style="float: right; margin: 8px 0px 8px 16px;"}
 The Footer Menu is available on all pages from the bottom-right (grid icon #️⃣) providing quick access to common actions:
 
@@ -389,7 +394,7 @@ The Footer Menu is available on all pages from the bottom-right (grid icon #️�
 
 ![Start Zone](images/manually_start_zone.png){ .img-border .img-shadow width="150" style="float: right; margin: 5px 5px 5px 5px;"}
 
-#### Manually Start / Stop a Zone
+### Manually Start / Stop a Zone
 
 To **start** a zone manually, click its station card and enter a run time. If another zone in the **same sequential group** is currently running, a **"Run immediately"** checkbox appears to let you choose if you want this zone to run now (and pause other zones in the group), or queue this zone to run after the others finish.
 
@@ -399,13 +404,13 @@ If there are other queued zones in the **same sequential group**, a **"Move up r
 
 ---
 
-#### Change Rain Delay
+### Change Rain Delay
 
 Use **Change Rain Delay** in the Footer Menu to set a custom rain delay (in hours). Affected zones stop immediately and remain off until the delay expires. To cancel an active rain delay: click the status bar at the footer, or set a rain delay time of `0`.
 
 ---
 
-#### Pause Station Runs
+### Pause Station Runs
 
 This feature temporarily halts all active and queued zones:
 
@@ -421,17 +426,17 @@ To **modify or cancel** an active pause:
 
 ---
 
-#### Stop All Zones
+### Stop All Zones
 
 Immediately terminate all zones and clear the running queue.
 
 <hr class="double">
 
-### Edit Options
+## Edit Options
 
 Click Footer Menu → Edit Options (or press `Alt+O`) to configure settings:
 
-#### System Settings
+### System Settings
 
 * **Location:** Tap *Location* to open the map and search for your address; or click the pencil icon ✏️ to manually enter the GPS coordinates.
     * **PWS location:** When using **WUnderground (WU)** as the weather data provider, you must select a **Personal Weather Station (PWS)** location.
@@ -443,7 +448,7 @@ Click Footer Menu → Edit Options (or press `Alt+O`) to configure settings:
 * **Enable Logging:** Stores log data in internal flash memory (enabled by default).
 ---
 
-#### App Settings
+### App Settings
 
 These settings are stored/cached in the app/UI. They do not affect the controller.
 
@@ -454,7 +459,7 @@ These settings are stored/cached in the app/UI. They do not affect the controlle
 
 ---
 
-#### Configure Master
+### Configure Master
 
 This firmware supports up to **two independent masters**, each configurable as follows:
 
@@ -466,7 +471,7 @@ This firmware supports up to **two independent masters**, each configurable as f
 
 ---
 
-#### Station Handling
+### Station Handling
 
 * **Number of Stations:** OpenSprinkler automatically detects the **available zones** (including expanders), but users must manually configure this number - it's allowed to exceed the physical zones to include **Virtual Zones** (see [Station Type](#station-cards)). Default: `8` zones.
 * **Station Delay:** Time gap between consecutive zones (`−600` to `+600` s, in 5-second steps). Default: `0` (no delay). Examples:
@@ -475,7 +480,7 @@ This firmware supports up to **two independent masters**, each configurable as f
 
 ---
 
-#### Weather Adjustment
+### Weather Adjustment
 
 * **Adjustment Method:** Select a weather-based adjustment method.
     * **Manual** (default): set **% Watering** manually.
@@ -501,7 +506,7 @@ This firmware supports up to **two independent masters**, each configurable as f
 
 ---
 
-#### Sensor Setup
+### Sensor Setup
 
 !!! tip "External / analog sensors"
     This section covers the controller's **built-in** sensor ports. For **external analog sensors** connected via the **Sensor Expander** (soil moisture, pressure, etc.) and sensor-based watering adjustment, see the dedicated [Sensor Expander](../sensor-expander.md) documentation.
@@ -542,7 +547,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 
 ---
 
-#### Integration
+### Integration
 
 * **OTC:** Configure **OpenThings Cloud (OTC)** token for remote access. See [**OTC Support Article**](https://openthings.freshdesk.com/support/solutions/articles/5000879535).
 * **MQTT:** Configure MQTT parameters. See [**MQTT Support Article**](https://openthings.freshdesk.com/support/solutions/articles/5000859089).
@@ -557,7 +562,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 
 ---
 
-#### LCD Screen
+### LCD Screen
 
 * **Idle Brightness:** Set the LCD brightness when the controller is inactive.
     * Lowering it helps extend the LCD's lifespan.
@@ -566,7 +571,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 
 ---
 
-#### Advanced Settings
+### Advanced Settings
 
 * **HTTP Port:** Change the device's HTTP port. Default: `80`.
 * **Undercurrent Threshold:** Triggers Undercurrent notification if a zone’s current draw (`mA`) falls below this value at the end of its run (e.g., broken wire or faulty solenoid). Default: `100 mA`.
@@ -603,7 +608,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 
 ---
 
-#### Reset
+### Reset
 
 * **Clear Log Data:** Erase all stored logs.
 * **Reset All Options:** Restore all options back to factory defaults.
@@ -615,7 +620,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
 
 ![Runonce](images/runonce_program.png){ .img-border .img-shadow width="250" style="float: right; margin: 5px 5px 5px 5px;"}
 
-### Run-Once Program
+## Run-Once Program
 
 Use Footer Menu -> **Run-Once Program** (`Alt+R`) to manually start a **one-time** program. Here you can load preset run times from an existing program, quickly build a test program, or manually enter the run time for each station.
 
@@ -635,13 +640,13 @@ Use Footer Menu -> **Run-Once Program** (`Alt+R`) to manually start a **one-time
 
 <hr class="double">
 
-### Programs
+## Programs
 
 OpenSprinkler supports up to **40 programs**. Use Footer Menu -> **Edit Programs** (`Alt+P`) to access the program list. From here you can: **Add**, **Modify**, **Copy**, **Delete**, **Run Manually**, or **Reorder** programs (using the arrow ⬆️ icon).
 
 ![Programs](images/programs.jpg)
 
-#### Program Data
+### Program Data
 
 Click **Add** ➕ in the upper-right corner to create a new program. Each program includes:
 
@@ -677,7 +682,7 @@ Repeating start times may also extend overnight into the next day.
 
 ---
 
-#### Program Name Annotations
+### Program Name Annotations
 
 Program names can include annotations to customize station run order or trigger special actions.
 
@@ -705,7 +710,7 @@ Both actions are **delayed by one minute** from the scheduled start time to prev
 
 ---
 
-#### Program Preview
+### Program Preview
 
 To verify all programs are set correctly, use Menu -> **Preview Programs** to visualize them.
 
@@ -730,7 +735,7 @@ To verify all programs are set correctly, use Menu -> **Preview Programs** to vi
 
 ----
 
-#### Zone's Group Attribute
+### Zone's Group Attribute
 
 OpenSprinkler supports both **Sequential** (one after another) and **Parallel** (concurrent) zone operations, managed by each zone’s **Sequential Group** attribute.
 
@@ -745,7 +750,7 @@ Example: If Zones 1–3 are in Group `A`, and 4–6 in Group `B`, they can opera
 
 <hr class="double">
 
-### Logs
+## Logs
 
 OpenSprinkler supports logging, which records **Zone Activity**, **Rain Delays**, **Sensor Events**, **Flow Volumes**, and **% Watering Changes** to its internal flash. To view logs:
 
@@ -760,13 +765,13 @@ For details on the log data format and example scripts to export logs (e.g. as s
 
 <hr class="double">
 
-### Firmware Update
+## Firmware Update
 
 Follow the [firmware update instructions](../firmware-update.md).
 
 <hr class="double">
 
-### Links and Resources
+## Links and Resources
 
 * [OpenSprinkler Homepage](https://opensprinkler.com/)
 * [OpenSprinkler Support Site](https://support.opensprinkler.com/)
@@ -775,7 +780,7 @@ Follow the [firmware update instructions](../firmware-update.md).
 
 <hr class="double">
 
-### Specifications
+## Specifications
 
 |                   | OpenSprinkler v3 | OpenSprinkler Pi (OSPi) |
 |:------------------|:-----------------|:------------------------|
@@ -783,15 +788,14 @@ Follow the [firmware update instructions](../firmware-update.md).
 |**Power Draw:**    |0.5-0.9 W         |0.5 W + RPi's Power Draw |
 |**Num. of Zones:** |Main controller: 8;<br>Expandable to 72|Main controller: 8;<br>Expandable to 200|
 |**Solenoid Driver:**|**AC**: 1 A/zone (triac)<br>**DC**: 2 A/zone (MOSFET)<br>**Latch**: 6A instant/zone|1 A/zone (triac)|
-|**Dimensions:**    | **v3.0-3.3**: 140×56×33 mm<br>**v3.4**: 125×79×25 mm|135×105×38 mm|
+|**Dimensions:**    | **v3.4**: 125×79×25 mm<br>(4.9×3.1×1.0 in)<br><br>**v3.0-3.3**: 140×56×33 mm<br>(5.5×2.2×1.3 in)|135×105×38 mm<br>(5.3×4.1×1.5 in)|
 |**Weight:**        | 140 g (5 oz) | 200 g (7 oz) |
-|**Expander:**      | 130×75×25 mm / 100 g (4 oz) | 130×75×25 mm / 100 g (4 oz) |
 
 <hr class="double">
 
-### Advanced Topics
+## Advanced Topics
 
-#### Installing RF Transmitter
+### Installing RF Transmitter
 
 OpenSprinkler supports standard 434 MHz and 315 MHz **RF (Radio Frequency) transmitters**, allowing it to control remote power sockets for switched powerline devices such as lights, heaters, fans, and pumps. To use RF stations:
 

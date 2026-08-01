@@ -188,3 +188,13 @@ Total adjustment:   80% × 150% = 120%
 A station with a programmed duration of `30` minutes would therefore run for<br>`30 × 120% = 36` minutes.
 
 <hr class="double">
+
+## Specifications
+
+| | Sensor Expander |
+|:--|:--|
+| **Num. of ADC Channels:** | 16 |
+| **Dimensions:** | 63.5 × 63.5 × 25.4 mm<br>(2.5 × 2.5 × 1.0 in) |
+| **Weight:** | 113 g (4 oz) |
+
+<hr class="double">
