@@ -2052,7 +2052,7 @@ void server_change_sensor(OTF_PARAMS_DEF) {
 				children[i].uuid = SENSOR_UUID_NONE;
 			}
 
-			AggregateAction action = AggregateAction::Min;
+			AggregateAction action = static_cast<AggregateAction>(AGGREGATE_DEFAULT_ACTION);
 
 			if (sensor_type == original_sensor_type) {
 				if ((sensor = Sensor::get(sid))) {
