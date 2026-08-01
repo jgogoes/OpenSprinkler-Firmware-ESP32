@@ -796,9 +796,11 @@ void OpenSprinkler::begin() {
 	apply_all_station_bits();
 
 #if defined(ESP8266)
-	// OS 3.0 has two independent sensors
+	// Unavailable sensor pins remain 255, which pinModeExt safely ignores.
 	pinModeExt(PIN_SENSOR1, INPUT_PULLUP);
 	pinModeExt(PIN_SENSOR2, INPUT_PULLUP);
+	pinModeExt(PIN_SENSOR3, INPUT_PULLUP);
+	pinModeExt(PIN_SENSOR4, INPUT_PULLUP);
 
 #else
 	// pull shift register OE low to enable output
