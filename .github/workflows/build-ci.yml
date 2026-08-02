@@ -50,7 +50,7 @@ jobs:
           node-version: '20' # Or any recent LTS version
 
       - name: Install html-minifier-terser
-        run: npm ci
+        run: npm install html-minifier-terser
 
       - name: Build PlatformIO Project
         run: pio run --environment os3x_esp8266
