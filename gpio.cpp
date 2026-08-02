@@ -25,8 +25,6 @@
 
 #if defined(ARDUINO)
 
-#if defined(ESP8266)
-
 #include <Wire.h>
 #include "defines.h"
 
@@ -173,7 +171,6 @@ unsigned char digitalReadExt(unsigned char pin) {
 		return digitalRead(pin);
 	}
 }
-#endif
 
 #elif defined(OSPI)
 

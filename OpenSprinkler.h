@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-
-#ifndef _OPENSPRINKLER_H
-#define _OPENSPRINKLER_H
+#pragma once
 
 #include "types.h"
 #include "defines.h"
@@ -32,30 +30,26 @@
 #include "images.h"
 #include "mqtt.h"
 #include "RCSwitch.h"
+#include <cmath>
+#include <new>
 
-#if defined(ARDUINO) // headers for Arduino
+#if defined(ESP8266) // headers for Arduino
 	#include <Arduino.h>
 	#include <Wire.h>
 	#include <SPI.h>
 	#include <RCSwitch.h>
 	#include "I2CRTC.h"
 
-	#if defined(ESP8266) // for ESP8266
-		#include <FS.h>
-		#include <LittleFS.h>
-		#include <ENC28J60lwIP.h>
-		#include <W5500lwIP.h>
-		#include <OpenThingsFramework.h>
-		#include <DNSServer.h>
-		#include <Ticker.h>
-		#include "espconnect.h"
-		#include "EMailSender.h"
-		#include "ch224.h"
-	#else // for AVR
-		#include <SdFat.h>
-		#include <Ethernet.h>
-		#include "LiquidCrystal.h"
-	#endif
+	#include <FS.h>
+	#include <LittleFS.h>
+	#include <ENC28J60lwIP.h>
+	#include <W5500lwIP.h>
+	#include <OpenThingsFramework.h>
+	#include <DNSServer.h>
+	#include <Ticker.h>
+	#include "espconnect.h"
+	#include "EMailSender.h"
+	#include "ch224.h"
 
 #else // headers for RPI/LINUX
 	#include <time.h>
@@ -69,16 +63,19 @@
 	#include "smtp.h"
 #endif // end of headers
 
-#if defined(USE_LCD)
-	#include "LiquidCrystal.h"
-#endif
-
-#if defined(USE_SSD1306)
+#if defined(USE_DISPLAY)
 	#include "SSD1306Display.h"
 #endif
 
-#if defined(ARDUINO)
-	#if defined(ESP8266)
+#include "sensors/sensor.h"
+#include "sensors/aggregate_sensor.h"
+#include "sensors/weather_sensor.h"
+#include "sensors/system_internal_sensor.h"
+#include "sensors/onboard_digital_sensor.h"
+#include "ads1115.h"
+#include "sensors/ads1115_sensor.h"
+
+#if defined(ESP8266)
 	extern ESP8266WebServer *update_server;
 	extern ENC28J60lwIP enc28j60;
 	extern Wiznet5500lwIP w5500;
@@ -99,6 +96,9 @@
 		inline IPAddress gatewayIP() {
 			return (isW5500)?w5500.gatewayIP():enc28j60.gatewayIP();
 		}
+		inline IPAddress dnsIP() {
+			return IPAddress(dns_getserver(0));
+		}
 		inline void setDefault() {
 			(isW5500)?w5500.setDefault():enc28j60.setDefault();
 		}
@@ -110,28 +110,21 @@
 		}
 	};
 	extern lwipEth eth;
-	#else
-		// AVR specific
-	#endif
 	extern bool useEth;
 #else
 	// OSPI/Linux specific
 #endif
 
-#if defined(USE_OTF)
-	extern OTF::OpenThingsFramework *otf;
-#else
-	extern EthernetServer *m_server;
-	extern bool useEth;
-#endif
+extern OTF::OpenThingsFramework *otf;
 
 /** Non-volatile data structure */
 struct NVConData {
-	uint16_t sunrise_time;  // sunrise time (in minutes)
-	uint16_t sunset_time;   // sunset time (in minutes)
-	uint32_t rd_stop_time;  // rain delay stop time
-	uint32_t external_ip;   // external ip
-	uint8_t  reboot_cause;  // reboot cause
+	uint16_t sunrise_time;       // sunrise time (in minutes)
+	uint16_t sunset_time;        // sunset time (in minutes)
+	uint32_t rd_stop_time;       // rain delay stop time
+	uint32_t external_ip;        // external ip
+	uint8_t  reboot_cause;       // reboot cause
+	uint16_t last_sensor_uuid;   // counter for sensor UUID generation; next sensor gets ++this
 };
 
 struct StationAttrib {  // station attributes
@@ -145,8 +138,13 @@ struct StationAttrib {  // station attributes
 	unsigned char igpu:1; // todo: ignore pause
 
 	unsigned char gid;    // sequential group id
-	unsigned char reserved[2]; // reserved bytes for the future
-}; // total is 4 bytes so far
+	unsigned char mas3:1; // master 3 binding bit (was reserved[0])
+	unsigned char mas4:1; // master 4 binding bit
+	unsigned char igs3:1; // ignore sensor 3
+	unsigned char igs4:1; // ignore sensor 4
+	unsigned char :4;     // remaining bits of this byte, reserved
+	unsigned char reserved; // reserved for future use (was reserved[1])
+}; // total is 4 bytes
 
 /** Station data structure */
 struct StationData {
@@ -204,11 +202,41 @@ struct HTTPStationData {
 	unsigned char data[STATION_SPECIAL_DATA_SIZE];
 };
 
+// ========================================================================
+// Sensor framework (binary sensors SN1-SN4)
+// ========================================================================
+// Per-sensor state. For sensor 1, type may also be SENSOR_TYPE_FLOW (handled
+// outside this struct via flow_count / flow ISR). For sensors 2-4 the type
+// is restricted to rain/soil/program switch.
+#define NUM_SENSORS 4
+
+struct SensorState {
+	time_os_t on_timer;            // when raw input went on; 0 means inactive
+	time_os_t off_timer;           // when raw input went off; 0 means inactive
+	time_os_t active_lasttime;     // most recent time the sensor became active
+	uint8_t   raw         : 1;     // current raw debounced input (post-polarity)
+	uint8_t   active      : 1;     // current debounced active state
+	uint8_t   prev_active : 1;     // last-cycle active (for state-change detection)
+};
+
+// Per-sensor IOPT key lookup. PROGMEM in OpenSprinkler.cpp.
+struct SensorIoptKeys {
+	uint8_t type, option, on_delay, off_delay;
+};
+extern const SensorIoptKeys sensor_iopt_keys[NUM_SENSORS];
+extern const uint16_t sensor_notif_bits[NUM_SENSORS];   // NOTIFY_SENSOR1..4 bits
+extern const uint8_t  sensor_log_codes[NUM_SENSORS];    // LOGDATA_SENSOR1..4 codes
+
+// Helper accessors for sensor metadata. These index iopts[] which is RAM, so
+// they're plain inline reads (no pgm_read_byte needed for the iopts side).
+unsigned char sensor_pin(uint8_t i);  // implemented in OpenSprinkler.cpp
+bool sensor_available(uint8_t i);     // true if the physical SN input exists
+int8_t sensor_index_from_log_code(uint8_t type);
+
 /** Volatile controller status bits */
 struct ConStatus {
 	unsigned char enabled:1;         // operation enable (when set, controller operation is enabled)
 	unsigned char rain_delayed:1;    // rain delay bit (when set, rain delay is applied)
-	unsigned char sensor1:1;         // sensor1 status bit (when set, sensor1 on is detected)
 	unsigned char program_busy:1;    // HIGH means a program is being executed currently
 	unsigned char has_curr_sense:1;  // HIGH means the controller has a current sensing pin
 	unsigned char safe_reboot:1;     // HIGH means a safe reboot has been marked
@@ -218,12 +246,12 @@ struct ConStatus {
 	unsigned char network_fails:3;   // number of network fails
 	unsigned char mas:8;             // master station index
 	unsigned char mas2:8;            // master2 station index
-	unsigned char sensor2:1;         // sensor2 status bit (when set, sensor2 on is detected)
-	unsigned char sensor1_active:1;  // sensor1 active bit (when set, sensor1 is activated)
-	unsigned char sensor2_active:1;  // sensor2 active bit (when set, sensor2 is activated)
+	unsigned char mas3:8;            // master3 station index
+	unsigned char mas4:8;            // master4 station index
 	unsigned char req_mqtt_restart:1;// request mqtt restart
 	unsigned char pause_state:1;     // pause station runs
 	unsigned char overcurrent_sid:8; // overcurrent sid (0: no overcurrent; 1~254: overcurrent caused by opening zone; 255: system overcurrent)
+	// Sensor raw/active state lives in OpenSprinkler::sn_sensors[] (per-sensor SensorState).
 };
 
 /** OTF configuration */
@@ -234,18 +262,55 @@ struct OTCConfig {
 	uint32_t port;
 };
 
-extern const char iopt_json_names[];
-extern const uint8_t iopt_max[];
+// ========================================================================
+// IOPT metadata table
+// ========================================================================
+// Per-option metadata flags. The flags byte is reserved for future expansion.
+#define IOPT_FLAG_RETIRED      0x01  // skipped in /jo, /co, and LCD edit
+#define IOPT_FLAG_SIGNED_TIME  0x02  // value uses water_time_encode_signed
+#define IOPT_FLAG_READ_ONLY    0x04  // /co rejects writes; reads pass through
+#define IOPT_FLAG_HIDDEN_API   0x08  // omitted from /jo (still editable on LCD)
+
+// Per-option flash-resident metadata. One entry per IOPT_* in enum order.
+struct IOptDef {
+	char json[6];        // JSON name, up to 5 chars plus NUL
+	uint8_t max_val;     // permitted maximum (also used by LCD edit clamp)
+	uint8_t def_val;     // factory-default value
+	uint8_t flags;       // IOPT_FLAG_*
+	char prompt[17];     // LCD prompt, up to 16 chars plus NUL
+};                       // flash-resident only
+
+extern const IOptDef iopt_defs[NUM_IOPTS] PROGMEM;
+
+// Accessors that hide PROGMEM reads.
+uint8_t iopt_get_max(uint8_t oid);
+uint8_t iopt_get_def(uint8_t oid);
+uint8_t iopt_get_flags(uint8_t oid);
+void iopt_get_json_name(uint8_t oid, char *buf);  // buf size >= 6
+void iopt_get_prompt(uint8_t oid, char *buf);     // buf size >= 17
 
 class OpenSprinkler {
 public:
 
 	// data members
-#if defined(USE_SSD1306)
+#if defined(USE_DISPLAY)
 	static SSD1306Display lcd;  // 128x64 OLED display
-#elif defined(USE_LCD)
-	static LiquidCrystal lcd;   // 16x2 character LCD
 #endif
+
+	static ADS1115 *ads1115_devices[4];
+
+	// True if at least one ADS1115 chip was detected at boot (or always true on
+	// DEMO/SIM where the mock backend is unconditionally instantiated).
+	static bool has_ads1115();
+
+	union SensorUnion {
+		ADS1115Sensor ads1115;
+		AggregateSensor aggregate;
+		WeatherSensor weather;
+		SystemInternalSensor system_internal;
+		OnboardDigitalSensor onboard_digital;
+	};
+	static sensor_memory_t sensors[MAX_SENSORS];
 
 #if defined(OSPI)
 	static unsigned char pin_sr_data;  // RPi shift register data pin to handle RPi rev. 1
@@ -256,7 +321,7 @@ public:
 	static NVConData nvdata;
 	static ConStatus status;
 	static ConStatus old_status;
-	static unsigned char nboards, nstations;
+	static unsigned char nboards, nstations, nsensors;
 	static unsigned char hw_type;  // hardware type
 	static unsigned char hw_rev;   // hardware minor
 
@@ -266,9 +331,11 @@ public:
 																	// first byte-> master controller, second byte-> ext. board 1, and so on
 	// Note: the following attribute bytes are for backward compatibility
 	static unsigned char attrib_mas[];
-	static unsigned char attrib_igs[];
 	static unsigned char attrib_mas2[];
-	static unsigned char attrib_igs2[];
+	static unsigned char attrib_mas3[];
+	static unsigned char attrib_mas4[];
+	// Per-sensor per-board ignore mask. attrib_igs[i] is for sensor i+1.
+	static unsigned char attrib_igs[NUM_SENSORS][MAX_NUM_BOARDS];
 	static unsigned char attrib_igrd[];
 	static unsigned char attrib_dis[];
 	static unsigned char attrib_spe[];
@@ -276,17 +343,16 @@ public:
 	static unsigned char masters[NUM_MASTER_ZONES][NUM_MASTER_OPTS];
 	static time_os_t masters_last_on[NUM_MASTER_ZONES];
 
+	// Per-sensor state (timers + raw/active bits). Replaces the 12 separate
+	// per-sensor timers and the 8 per-sensor bit fields that used to live in
+	// ConStatus. Access via os.sn_sensors[i].active / .raw / .on_timer / etc.
+	static SensorState sn_sensors[NUM_SENSORS];
+
 	// variables for time keeping
-	static time_os_t sensor1_on_timer;  // time when sensor1 is detected on last time
-	static time_os_t sensor1_off_timer; // time when sensor1 is detected off last time
-	static time_os_t sensor1_active_lasttime; // most recent time sensor1 is activated
-	static time_os_t sensor2_on_timer;  // time when sensor2 is detected on last time
-	static time_os_t sensor2_off_timer; // time when sensor2 is detected off last time
-	static time_os_t sensor2_active_lasttime; // most recent time sensor1 is activated
 	static time_os_t raindelay_on_lasttime;  // time when the most recent rain delay started
-	static ulong pause_timer; // count down timer in paused state
-	static ulong flowcount_rt;     // flow count (for computing real-time flow rate)
-	static ulong flowcount_log_start; // starting flow count (for logging)
+	static uint32_t pause_timer; // count down timer in paused state
+	static uint32_t flowcount_rt;     // flow count (for computing real-time flow rate)
+	static uint32_t flowcount_log_start; // starting flow count (for logging)
 
 	static unsigned char  button_timeout;    // button timeout
 	static time_os_t checkwt_lasttime;  // time when weather was checked
@@ -327,8 +393,8 @@ public:
 	static void attribs_load(); // load and repackage attrib bits (backward compatibility)
 	static bool parse_rfstation_code(RFStationData *data, RFStationCode *code); // parse rf code into on/off/time sections
 	static void switch_rfstation(RFStationData *data, bool turnon);  // switch rf station
-	static void switch_remotestation(RemoteIPStationData *data, bool turnon, uint16_t dur=0); // switch remote IP station
-	static void switch_remotestation(RemoteOTCStationData *data, bool turnon, uint16_t dur=0); // switch remote OTC station
+	static void switch_remotestation(RemoteIPStationData *data, bool turnon, uint32_t dur=0); // switch remote IP station
+	static void switch_remotestation(RemoteOTCStationData *data, bool turnon, uint32_t dur=0); // switch remote OTC station
 	static void switch_gpiostation(GPIOStationData *data, bool turnon); // switch gpio station
 	static void switch_httpstation(HTTPStationData *data, bool turnon, bool usessl=false); // switch http station
 
@@ -339,6 +405,7 @@ public:
 	static void options_setup();
 	static void pre_factory_reset();
 	static void factory_reset();
+	static void load_iopt_defaults();   // populate iopts[] from iopt_defs[].def_val
 	static void iopts_load();
 	static void iopts_save();
 	static bool sopt_save(unsigned char oid, const char *buf);
@@ -362,9 +429,9 @@ public:
 	static int detect_exp();      // detect the number of expansion boards
 	static unsigned char weekday_today();  // returns index of today's weekday (Monday is 0)
 
-	static unsigned char set_station_bit(unsigned char sid, unsigned char value, uint16_t dur=0); // set station bit of one station (sid->station index, value->0/1)
+	static unsigned char set_station_bit(unsigned char sid, unsigned char value, uint32_t dur=0); // set station bit of one station (sid->station index, value->0/1)
 	static unsigned char get_station_bit(unsigned char sid); // get station bit of one station (sid->station index)
-	static void switch_special_station(unsigned char sid, unsigned char value, uint16_t dur=0); // swtich special station
+	static void switch_special_station(unsigned char sid, unsigned char value, uint32_t dur=0); // swtich special station
 	static void clear_all_station_bits(); // clear all station bits
 	static void apply_all_station_bits(void (*post_activation_callback)()=NULL); // apply all station bits (activate/deactive values)
 
@@ -372,10 +439,12 @@ public:
 	static int8_t send_http_request(const char* server, uint16_t port, char* p, void(*callback)(char*)=NULL, bool usessl=false, uint16_t timeout=5000);
 	static int8_t send_http_request(char* server_with_port, char* p, void(*callback)(char*)=NULL, bool usessl=false, uint16_t timeout=5000);
 
-	#if defined(USE_OTF)
 	static OTCConfig otc;
-	#endif
 
+	// -- Sensor functions
+    void log_sensor(uint8_t sid, float value);
+    static void poll_sensors();
+    static float get_sensor_weather_data(WeatherAction action);
 	// -- LCD functions
 #if defined(USE_DISPLAY)
 	static void lcd_print_time(time_os_t t);  // print current time
@@ -385,12 +454,9 @@ public:
 	static void lcd_print_version(unsigned char v);  // print version number
 	static void lcd_set_brightness(unsigned char value=1);
 	static void lcd_set_contrast();
-
-	#if defined(USE_SSD1306)
 	static void flash_screen();
 	static void toggle_screen_led();
 	static void set_screen_led(unsigned char status);
-	#endif
 
 	static String time2str(uint32_t t) {
 		uint16_t h = hour(t);
@@ -417,16 +483,10 @@ public:
 	static void ui_set_options(int oid);		// ui for setting options (oid-> starting option index)
 #endif
 
-#if defined(ARDUINO) // LCD functions for Arduino
-	#if defined(ESP8266)
+#if defined(ESP8266) // LCD functions for Arduino
 	static void lcd_print_pgm(PGM_P str); // ESP8266 does not allow PGM_P followed by PROGMEM
 	static void lcd_print_line_clear_pgm(PGM_P str, unsigned char line);
-	#else
-	static void lcd_print_pgm(PGM_P PROGMEM str);  // print a program memory string
-	static void lcd_print_line_clear_pgm(PGM_P PROGMEM str, unsigned char line);
-	#endif
 
-	#if defined(ESP8266)
 	static IOEXP *mainio, *drio;
 	static IOEXP *expanders[];
 	static CH224 usbpd;
@@ -442,11 +502,10 @@ public:
 	static void reset_to_ap();
 	static unsigned char state;
 	static void setup_pd_voltage();
-	#endif
 
 #else
-static void lcd_print_pgm(const char *str);
-static void lcd_print_line_clear_pgm(const char *str, unsigned char line);
+	static void lcd_print_pgm(const char *str);
+	static void lcd_print_line_clear_pgm(const char *str, unsigned char line);
 #endif // LCD functions for Arduino
 
 private:
@@ -471,9 +530,5 @@ private:
 	static unsigned char engage_booster;
 	static RCSwitch rfswitch;
 
-	#if defined(USE_OTF)
 	static void parse_otc_config();
-	#endif
 };
-
-#endif  // _OPENSPRINKLER_H

@@ -1,7 +1,7 @@
 ## Troubleshooting Instructions
 
 !!! note
-    This page covers the most common troubleshooting steps. For additional technical support, visit the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/). Before submitting a support ticket, make sure you have carefully read the [User Manual](https://opensprinkler.github.io/OpenSprinkler-Firmware/2.2.1/221_4_manual/), [FAQs](https://opensprinkler.github.io/OpenSprinkler-Firmware/faq/), and common issues listed on this page.
+    This page covers the most common troubleshooting steps. For additional technical support, visit the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/). Before submitting a support ticket, make sure you have carefully read the [User Manual](manual.md), [FAQs](faq.md), and common issues listed on this page.
 
 ### Identify Your Hardware & Firmware
 
@@ -83,6 +83,8 @@ First, perform a [solenoid resistance test](#wiring-and-solenoids) to rule out s
 
 ### Power and Expander
 
+For Zone Expander compatibility, wiring, DIP-switch settings, and configuration, see the [Zone Expander User Manual](zone-expander.md).
+
 **My controller doesn't power on.**
 <span class="vsp1"></span>
 If the controller no longer powers on (and the LCD displays nothing), follow these steps:
@@ -123,9 +125,10 @@ First confirm the expander is detected (see the question above). Note that detec
 **The expander is recognized, but zones on the expander don't work.**
 
 1. **Confirm detection:** Follow the questions above to verify the expander is detected.
-2. **Check the COM (common) wire:** All zones including expanded must have a common wire that goes to the COM terminal on the main controller. A missing/broken COM wire will cause zones to stop working.
-3. **Perform a [solenoid resistance test](#wiring-and-solenoids)** to rule out solenoid and wiring issues.
-4. **Check zones on the main controller:** If the first eight zones exhibit the same issue, this is likely due to a broken fuse/COM wire; otherwise, it's more likely an expander-specific issue.
+2. **Reboot the controller** to allow it to re-detect expanders. Any expander change (connecting, disconnecting, changing DIP) should be done **while the main controller is powered off**.
+3. **Check the COM (common) wire:** All zones including expanded must have a common wire that goes to the COM terminal on the main controller. A missing/broken COM wire will cause zones to stop working.
+4. **Perform a [solenoid resistance test](#wiring-and-solenoids)** to rule out solenoid and wiring issues.
+5. **Check zones on the main controller:** If the first eight zones exhibit the same issue, this is likely due to a broken fuse/COM wire; otherwise, it's more likely an expander-specific issue.
 
 ---
 
@@ -166,7 +169,7 @@ You can use buttons on the controller to bypass the device password. To do so:
 
 **I changed my WiFi router/SSID/password. How do I reset WiFi?**
 <span class="vsp1"></span>
-**Reset to AP (Access Point) mode**: hold **B3**, then press **B2** within 1-2 seconds (similar to pressing Ctrl+C on a keyboard). Confirm on the LCD when prompted. The unit will reboot into AP mode. Follow the [WiFi Configuration step](2.2.1/221_4_manual.md#step-4-setting-up-wifi-ethernet) in the user manual.
+**Reset to AP (Access Point) mode**: hold **B3**, then press **B2** within 1-2 seconds (similar to pressing Ctrl+C on a keyboard). Confirm on the LCD when prompted. The unit will reboot into AP mode. Follow the [WiFi Configuration step](manual.md#step-4-setting-up-wifi-ethernet) in the user manual.
 
 If Reset to AP doesn't work, perform a Factory Reset (see below).
 
@@ -236,7 +239,7 @@ If your controller can't connect or stay connected via wired Ethernet, try these
 2. **Disable PoE** (Power-over-Ethernet) on that port: OpenSprinkler’s wired module is **not PoE-compatible**. PoE-enabled port can cause it to malfunction.
 3. **DHCP Setting:** Leave the controller on DHCP, and set a **DHCP reservation** (IP-to-Mac) on your router to assign it a fixed IP. If you must use Static IP, verify **Gateway IP, DNS, Subnet Mask** are all correct and compatible with your router settings.
 4. **Use a dedicated router:** If your wired network is very busy, the most effective solution is to place OpenSprinkler on a dedicated router to isolate it from heavy traffic. 
-5. **Set an auto-reboot program:** If the controller connects initially but doesn't stay connected, a work-around is to set an auto-reboot program (daily or any regular interval of your choice). See [Program Name Annotation](2.2.1/221_4_manual.md#program-name-annotations) in the user manual.
+5. **Set an auto-reboot program:** If the controller connects initially but doesn't stay connected, a work-around is to set an auto-reboot program (daily or any regular interval of your choice). See [Program Name Annotation](manual.md#program-name-annotations) in the user manual.
 
 **<u>For OSPi</u>:** Networking is managed by RPi. Ensure RPi has adequate power (OSPi supplies up to 500 mA. RPi 3/4/5 may need extra power via USB, otherwise network may be unstable).
 
@@ -252,7 +255,7 @@ Remote access requires using an **OpenThings Cloud (OTC) token**. To check OTC s
 
 **Blank page when opening the controller's homepage**
 
-1. **Firmware too old:** If your controller's firmware is **older than `2.2.0`**, update to the latest. Older firmwares can't parse newer weather data format, causing corruption and blank homepage. See [firmware update instructions](index.md#firmware-update).
+1. **Firmware too old:** If your controller's firmware is **older than `2.2.0`**, update to the latest. Older firmwares can't parse newer weather data format, causing corruption and blank homepage. See [firmware update instructions](firmware-update.md).
 2. **Check for errors:** On a desktop/laptop, open a browser window, turn on **Developer Console** (e.g. in Chrome, go to **Settings** → **More Tools** → **Developer Tools** → click the **Console** tab). Open the controller's homepage and note any errors in the console window.
 3. **Reset UI Source:** If you used a custom UI, reset it to the default: visit `http://os-ip/su` where `os-ip` is your controller's IP address. Reset the `UI Source` to the default.
 4. **Diagnose with API test script:** [Download the API test script](assets/scripts/TestOSAPI220.html){: download="TestOSAPI220.html" }. Open it in a browser, test your controller with the `/ja` (JSON All) endpoint. If you see an **INVALID JSON** error, the stored data is corrupted, which is why the homepage hangs.
@@ -274,7 +277,7 @@ Starting with firmware 2.2.0, the old **Sequential** flag is replaced by a more 
 * Each zone can be assigned to **one of four Sequential groups** or to the **Parallel** group.
 * Putting a zone in **Parallel** group is equivalent to removing the **Sequential** flag in older firmwares.
 
-For details, refer to the [Firmware User Manual](2.2.1/221_4_manual.md#zones-group-attribute) and the [Video Tutorial](https://openthings.freshdesk.com/support/solutions/articles/5000860920-videos-introduction-to-opensprinkler-v3).
+For details, refer to the [Firmware User Manual](manual.md#zones-group-attribute) and the [Video Tutorial](https://openthings.freshdesk.com/support/solutions/articles/5000860920-videos-introduction-to-opensprinkler-v3).
 
 
 ---

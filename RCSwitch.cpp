@@ -32,7 +32,7 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 #include<Arduino.h>
 #endif
 
@@ -173,7 +173,7 @@ void RCSwitch::transmit(HighLow pulses) {
   uint8_t firstLogicLevel = (this->protocol.invertedSignal) ? LOW : HIGH;
   uint8_t secondLogicLevel = (this->protocol.invertedSignal) ? HIGH : LOW;
  
-  ulong timeout = micros() + this->protocol.pulseLength * pulses.high; 
+  uint32_t timeout = micros() + this->protocol.pulseLength * pulses.high; 
   digitalWrite(this->nTransmitterPin, firstLogicLevel);
   while(micros() < timeout) {
     delayMicroseconds(5);

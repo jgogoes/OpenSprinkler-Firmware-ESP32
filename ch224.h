@@ -1,7 +1,5 @@
 #pragma once
 
-#if defined(ESP8266)
-
 #include <Wire.h>
 #include <stdint.h>
 
@@ -232,5 +230,3 @@ private:
 	uint8_t _pps_apdo_count;
 	uint8_t _avs_apdo_count;
 };
-
-#endif

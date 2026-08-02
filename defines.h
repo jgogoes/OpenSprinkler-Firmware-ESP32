@@ -20,22 +20,19 @@
  * along with this program.  If not, see
  * <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _DEFINES_H
-#define _DEFINES_H
+#pragma once
 
 //#define ENABLE_DEBUG  // enable serial debug
 
-typedef unsigned long ulong;
-
-#define TMP_BUFFER_SIZE      320   // scratch buffer size
+#define TMP_BUFFER_SIZE       320   // scratch buffer size
+#define TMP_BUFFER_ALLOC_SIZE TMP_BUFFER_SIZE+32 // allocate extra space to allow overflow when needed
 
 /** Firmware version, hardware version, and maximal values */
 #define OS_FW_VERSION  221  // Firmware version: 221 means 2.2.1
 														// if this number is different from the one stored in non-volatile memory
 														// a device reset will be automatically triggered
 
-#define OS_FW_MINOR      4  // Firmware minor version
+#define OS_FW_MINOR      5  // Firmware minor version
 
 /** Hardware version base numbers */
 #define OS_HW_VERSION_BASE   0x00 // OpenSprinkler
@@ -55,6 +52,17 @@ typedef unsigned long ulong;
 #define NVCON_FILENAME        "nvcon.dat"   // non-volatile controller data file, see OpenSprinkler.h --> struct NVConData
 #define PROG_FILENAME         "prog.dat"    // program data file
 #define DONE_FILENAME         "done.dat"    // used to indicate the completion of all files
+// External sensor board (ADS1115-based analog inputs, see sensor.h).
+// Unrelated to the onboard SENSOR1/SENSOR2 GPIO inputs.
+#define SENSORS_FILENAME      "sens.dat"    // external sensor definitions
+#if defined(ESP8266)
+#define LOG_DIR                     "/logs/"   // absolute path on LittleFS; parent dir created implicitly
+#else
+#define LOG_DIR                     "logs/"    // relative to data dir on Linux; get_filename_fullpath prepends it
+#endif
+#define SENSORS_LOG_FILENAME        LOG_DIR "sens.log" // external sensor log data (…sens.log000 … sens.logNNN)
+#define SENSORS_LOG_HEADER_FILENAME LOG_DIR "sens.hdr" // external sensor log header
+#define SENADJ_FILENAME       "senadj.dat"  // external sensor adjustment data for programs
 
 /** Station macro defines */
 #define STN_TYPE_STANDARD    0x00 // standard solenoid station
@@ -78,6 +86,8 @@ typedef unsigned long ulong;
 #define NOTIFY_STATION_ON      0x0100
 #define NOTIFY_FLOW_ALERT      0x0200
 #define NOTIFY_CURR_ALERT      0x0400
+#define NOTIFY_SENSOR3         0x0800
+#define NOTIFY_SENSOR4         0x1000
 
 /** Queue Insertion Mode */
 enum {
@@ -139,7 +149,7 @@ enum {
 #define LED_SLOW_BLINK 500
 
 /** Storage / zone expander defines */
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	#define MAX_EXT_BOARDS    8  // maximum number of 8-zone expanders (each 16-zone expander counts as 2)
 #else
 	#define MAX_EXT_BOARDS    24 // allow more zones for linux-based firmwares
@@ -147,8 +157,25 @@ enum {
 
 #define MAX_NUM_BOARDS    (1+MAX_EXT_BOARDS)  // maximum number of 8-zone boards including expanders
 #define MAX_NUM_STATIONS  (MAX_NUM_BOARDS*8)  // maximum number of stations
+#define MAX_PROGRAMMED_DURATION 64800U // maximum stored/manual/remote-command duration (18 hours)
+#define MAX_RUNTIME_DURATION (7UL * 24UL * 60UL * 60UL) // maximum effective station run time after adjustments
 #define STATION_NAME_SIZE 32    // maximum number of characters in each station name
 #define MAX_SOPTS_SIZE    320   // maximum string option size
+
+#if defined(ESP8266)
+#define LOG_SPRINKLER_MAX_KB  1200  // max total size of sprinkler .txt log files in KB (~1.2 MB)
+#endif
+
+#define MAX_SENSORS 64
+#define SENSOR_LOG_MAGIC            0x55
+#define SENSOR_LOG_VERSION          0x01
+#define SENSOR_LOG_MAX_FILES        50    // number of data files in the rotation
+#if defined(ESP8266)
+	#define SENSOR_LOG_RECORDS_PER_FILE 819    // records per file; 819×10 B = 8 190 B fits in one 8 KB LittleFS block
+#else
+	// Linux/OSPi/DEMO: 50 × 16 384 = 819 200 records (about 8.2 MB).
+	#define SENSOR_LOG_RECORDS_PER_FILE 16384
+#endif
 
 #define STATION_SPECIAL_DATA_SIZE  (TMP_BUFFER_SIZE - STATION_NAME_SIZE - 12)
 
@@ -172,14 +199,6 @@ enum {
 #define DEFAULT_LATCH_BOOST_VOLTAGE  9 // default latch boost voltage in volt
 #define DEFAULT_TARGET_PD_VOLTAGE   75 // default target voltage (unit: 100mV, so 75 means 7500mV ot 7.5V)
 
-#if (defined(__AVR_ATmega1284P__) || defined(__AVR_ATmega1284__))
-	#define OS_AVR
-#else  // all non-AVR platforms support OTF, EMAIL and HTTPS
-	#define USE_OTF
-	#define SUPPORT_EMAIL
-	#define SUPPORT_HTTPS
-#endif
-
 /* Weather Adjustment Methods */
 enum {
 	WEATHER_METHOD_MANUAL = 0,
@@ -194,6 +213,8 @@ enum {
 enum {
 	MASTER_1 = 0,
 	MASTER_2,
+	MASTER_3,
+	MASTER_4,
 	NUM_MASTER_ZONES,
 };
 
@@ -285,6 +306,20 @@ enum {
 	IOPT_RESERVE_8,
 	IOPT_WIFI_MODE, //ro
 	IOPT_RESET,     //ro
+	IOPT_MASTER_STATION_3,
+	IOPT_MASTER_ON_ADJ_3,
+	IOPT_MASTER_OFF_ADJ_3,
+	IOPT_MASTER_STATION_4,
+	IOPT_MASTER_ON_ADJ_4,
+	IOPT_MASTER_OFF_ADJ_4,
+	IOPT_SENSOR3_TYPE,
+	IOPT_SENSOR3_OPTION,
+	IOPT_SENSOR3_ON_DELAY,
+	IOPT_SENSOR3_OFF_DELAY,
+	IOPT_SENSOR4_TYPE,
+	IOPT_SENSOR4_OPTION,
+	IOPT_SENSOR4_ON_DELAY,
+	IOPT_SENSOR4_OFF_DELAY,
 	NUM_IOPTS // total number of integer options
 };
 
@@ -312,61 +347,14 @@ enum {
 #define LOGDATA_WATERLEVEL 0x03
 #define LOGDATA_FLOWSENSE  0x04
 #define LOGDATA_SENSOR2    0x05
+#define LOGDATA_SENSOR3    0x06
+#define LOGDATA_SENSOR4    0x07
 #define LOGDATA_CURRENT    0x80
 
 #undef OS_HW_VERSION
 
 /** Hardware defines */
-#if defined(OS_AVR) // for OS 2.3
-
-	#define OS_HW_VERSION   (OS_HW_VERSION_BASE+23)
-	#define PIN_FREE_LIST   {2,10,12,13,14,15,18,19}  // Free GPIO pins
-
-	// hardware pins
-	#define PIN_BUTTON_1      31    // button 1
-	#define PIN_BUTTON_2      30    // button 2
-	#define PIN_BUTTON_3      29    // button 3
-	#define PIN_RFTX          28    // RF data pin
-	#define PORT_RF        PORTA
-	#define PINX_RF        PINA3
-	#define PIN_SR_LATCH       3    // shift register latch pin
-	#define PIN_SR_DATA       21    // shift register data pin
-	#define PIN_SR_CLOCK      22    // shift register clock pin
-	#define PIN_SR_OE          1    // shift register output enable pin
-
-	// regular 16x2 LCD pin defines
-	#define PIN_LCD_RS        19    // LCD rs pin
-	#define PIN_LCD_EN        18    // LCD enable pin
-	#define PIN_LCD_D4        20    // LCD d4 pin
-	#define PIN_LCD_D5        21    // LCD d5 pin
-	#define PIN_LCD_D6        22    // LCD d6 pin
-	#define PIN_LCD_D7        23    // LCD d7 pin
-	#define PIN_LCD_BACKLIGHT 12    // LCD backlight pin
-	#define PIN_LCD_CONTRAST  13    // LCD contrast pin
-
-	// DC controller pin defines
-	#define PIN_BOOST         20    // booster pin
-	#define PIN_BOOST_EN      23    // boost voltage enable pin
-
-	#define PIN_ETHER_CS       4    // Ethernet controller chip select pin
-	#define PIN_SENSOR1       11    //
-	#define PIN_SD_CS          0    // SD card chip select pin
-	#define PIN_FLOWSENSOR_INT 1    // flow sensor interrupt pin (INT1)
-	#define PIN_EXP_SENSE      4    // expansion board sensing pin (A4)
-	#define PIN_CURR_SENSE     7    // current sensing pin (A7)
-	#define PIN_CURR_DIGITAL  24    // digital pin index for A7
-
-	#define ETHER_BUFFER_SIZE   2048
-
-	#define 	wdt_reset()   __asm__ __volatile__ ("wdr")  // watchdog timer reset
-
-	#define pinModeExt        pinMode
-	#define digitalReadExt    digitalRead
-	#define digitalWriteExt   digitalWrite
-
-	#define USE_DISPLAY
-	#define USE_LCD
-#elif defined(ESP8266) // for ESP8266
+#if defined(ESP8266) // for ESP8266
 
 	#define OS_HW_VERSION    (OS_HW_VERSION_BASE+30)
 	#define IOEXP_PIN        0x80 // base for pins on main IO expander
@@ -383,6 +371,7 @@ enum {
 	#define PIN_LATCH_VOLT_SENSE A0 // latch voltage sensing pin
 	#define PIN_FREE_LIST     {} // no free GPIO pin at the moment
 	#define ETHER_BUFFER_SIZE   2048
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE
 
 	#define PIN_ETHER_CS       16 // Ethernet CS (chip select pin) is 16 on OS 3.2 and above
 	#define ETHER_SPI_CLOCK    10000000L // SPI clock for Ethernet (e.g. 10MHz)
@@ -400,6 +389,8 @@ enum {
 	extern unsigned char PIN_LATCH_COMK;
 	extern unsigned char PIN_SENSOR1;
 	extern unsigned char PIN_SENSOR2;
+	extern unsigned char PIN_SENSOR3;
+	extern unsigned char PIN_SENSOR4;
 	extern unsigned char PIN_IOEXP_INT;
 
 	/* Original OS30 pin defines */
@@ -450,10 +441,11 @@ enum {
 	#define V2_PIN_LATCH_COMK    IOEXP_PIN+15 // latch COM- (cathode)
 	#define V2_PIN_SENSOR1       3  // sensor 1
 	#define V2_PIN_SENSOR2       10 // sensor 2
+	#define V2_PIN_SENSOR3       IOEXP_PIN+10 // sensor 3 (OS 3.4 only — IO expander pin)
+	#define V2_PIN_SENSOR4       IOEXP_PIN+11 // sensor 4 (OS 3.4 only — IO expander pin)
 	#define V2_PIN_BOOST_SEL     IOEXP_PIN+8
 
 	#define USE_DISPLAY
-	#define USE_SSD1306
 
 #elif defined(OSPI) // for OSPi
 
@@ -465,19 +457,23 @@ enum {
 	#define PIN_SR_OE         17    // shift register output enable pin
 	#define PIN_SENSOR1       14
 	#define PIN_SENSOR2       23
+	// SN3/SN4 don't exist on OSPi hardware; sentinel values are referenced by
+	// sensor_pin() but never reached at runtime (sensor_available() returns false).
+	#define PIN_SENSOR3       255
+	#define PIN_SENSOR4       255
 	#define PIN_RFTX          15    // RF transmitter pin
 	#define PIN_BUTTON_1      24    // button 1
 	#define PIN_BUTTON_2      18    // button 2
 	#define PIN_BUTTON_3      10    // button 3
 
 	#define PIN_FREE_LIST       {5,6,7,8,9,11,12,13,16,19,20,21,23,25,26}  // free GPIO pins
-	#define ETHER_BUFFER_SIZE   16384
+	#define ETHER_BUFFER_SIZE   8192
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE
 
 	#define SDA 0
 	#define SCL 0
 
 	#define USE_DISPLAY
-	#define USE_SSD1306
 
 #else // for demo / simulation
 	// use fake hardware pins
@@ -492,15 +488,18 @@ enum {
 	#define PIN_SR_OE       0
 	#define PIN_SENSOR1     0
 	#define PIN_SENSOR2     0
+	#define PIN_SENSOR3     0
+	#define PIN_SENSOR4     0
 	#define PIN_RFTX        0
 	#define PIN_FREE_LIST  {}
-	#define ETHER_BUFFER_SIZE   16384
+	#define ETHER_BUFFER_SIZE   8192  // HTTP client send/receive (weather, notifier, remote station)
+	#define ETHER_BUFFER_ALLOC_SIZE   ETHER_BUFFER_SIZE
 
 #endif
 
 #if defined(ENABLE_DEBUG) /** Serial debug functions */
 
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 		#define DEBUG_BEGIN(x)   {Serial.begin(x);}
 		#define DEBUG_PRINT(x)   {Serial.print(x);}
 		#define DEBUG_PRINTLN(x) {Serial.println(x);}
@@ -516,7 +515,7 @@ enum {
 
 #else
 
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 	// work-around for PIN_SENSOR1 on OS3.2 and above
 	#define DEBUG_BEGIN(x)   {Serial.begin(115200); Serial.end();}
 	#else
@@ -528,8 +527,8 @@ enum {
 
 #endif
 
-/** Re-define avr-specific (e.g. PGM) types to use standard types */
-#if !defined(ARDUINO)
+/** Re-define arduino-specific (e.g. PGM) types to use standard types */
+#if !defined(ESP8266)
 	#include <stdio.h>
 	#include <stdlib.h>
 	#include <string.h>
@@ -579,5 +578,3 @@ enum {
 #define BUTTON_WAIT_HOLD       2  // wait until button hold time expires
 
 #define DISPLAY_MSG_MS      2000  // message display time (milliseconds)
-
-#endif  // _DEFINES_H

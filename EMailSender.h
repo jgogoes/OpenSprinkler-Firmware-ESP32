@@ -384,6 +384,15 @@ public:
 	EMailSender(const char* email_login, const char* email_password, const char* email_from);
 	EMailSender(const char* email_login, const char* email_password);
 
+	~EMailSender();
+
+	// Owns five heap-allocated C-strings — non-copyable and non-movable to avoid
+	// double-free / dangling-pointer surprises.
+	EMailSender(const EMailSender&) = delete;
+	EMailSender& operator=(const EMailSender&) = delete;
+	EMailSender(EMailSender&&) = delete;
+	EMailSender& operator=(EMailSender&&) = delete;
+
 #define STORAGE_SPIFFS (1)
 #define STORAGE_LITTLEFS (2)
 #define STORAGE_FFAT (3)
@@ -508,7 +517,7 @@ private:
 	bool isSASLLogin = false;
 
 	bool useAuth = true;
-        bool isCramMD5Login = false;
+	bool isCramMD5Login = false;
 
     String _serverResponce;
 

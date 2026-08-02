@@ -14,6 +14,8 @@ unsigned char PIN_LATCH_COMA = 255;
 unsigned char PIN_LATCH_COMK = 255;
 unsigned char PIN_SENSOR1 = 255;
 unsigned char PIN_SENSOR2 = 255;
+unsigned char PIN_SENSOR3 = 255;
+unsigned char PIN_SENSOR4 = 255;
 unsigned char PIN_IOEXP_INT = 255;
 
 #endif

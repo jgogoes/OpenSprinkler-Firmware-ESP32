@@ -21,12 +21,9 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GPIO_H
-#define GPIO_H
+#pragma once
 
 #if defined(ARDUINO)
-
-#if defined(ESP8266)
 
 #include "Arduino.h"
 
@@ -45,6 +42,7 @@
 class IOEXP {
 public:
 	IOEXP(uint8_t addr=255) { address = addr; type = IOEXP_TYPE_NONEXIST; }
+	virtual ~IOEXP() {}
 
 	virtual void pinMode(uint8_t pin, uint8_t IOMode) { }
 	virtual uint16_t i2c_read(uint8_t reg) { return 0xFFFF; }
@@ -113,8 +111,6 @@ void pinModeExt(unsigned char pin, unsigned char mode);
 void digitalWriteExt(unsigned char pin, unsigned char value);
 unsigned char digitalReadExt(unsigned char pin);
 
-#endif	// ESP8266
-
 #else
 
 #include <sys/stat.h>
@@ -145,4 +141,3 @@ void attachInterrupt(int pin, const char* mode, void (*isr)(void));
 
 #endif
 
-#endif // GPIO_H

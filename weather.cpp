@@ -127,7 +127,7 @@ static void getweather_callback(char* buffer) {
 	if (findKeyVal(p, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rd"), true)) {
 		v = atoi(tmp_buffer);
 		if (v>0) {
-			os.nvdata.rd_stop_time = tnow + (unsigned long) v * 3600;
+			os.nvdata.rd_stop_time = tnow + (uint32_t) v * 3600;
 			os.raindelay_start();
 		} else if (v==0) {
 			os.raindelay_stop();
@@ -160,7 +160,7 @@ static void getweather_callback_with_peel_header(char* buffer) {
 void GetWeather() {
 	if(!os.network_connected()) return;
 	// use temp buffer to construct get command
-	BufferFiller bf = BufferFiller(tmp_buffer, TMP_BUFFER_SIZE*2);
+	BufferFiller bf = BufferFiller(tmp_buffer, TMP_BUFFER_ALLOC_SIZE);
 	int method = os.iopts[IOPT_USE_WEATHER];
 	// use manual adjustment call for monthly adjustment -- a bit ugly, but does not involve weather server changes
 	if(method==WEATHER_METHOD_MONTHLY) method=WEATHER_METHOD_MANUAL;
@@ -186,13 +186,6 @@ void GetWeather() {
 	// Parse protocol and extract host/port
 	char *host_start = host;
 
-#if defined(OS_AVR)
-	if (strncmp_P(host, PSTR("http://"), 7) == 0) {
-		host_start = host + 7;
-	} else if (strncmp_P(host, PSTR("https://"), 8) == 0) { // note that avr does not support https
-		host_start = host + 8;
-	}
-#else
 	bool use_ssl = true;  // default to https
 	int port = 443;       // default to https port
 
@@ -214,8 +207,6 @@ void GetWeather() {
 		port = atoi(colon + 1);
 	}
 
-#endif
-
 	strcat(ether_buffer, " HTTP/1.0\r\nHOST: ");
 	strcat(ether_buffer, host_start);
 	strcat(ether_buffer, "\r\nUser-Agent: ");
@@ -224,11 +215,7 @@ void GetWeather() {
 
 	wt_errCode = HTTP_RQT_NOT_RECEIVED;
 	DEBUG_PRINT(ether_buffer);
-#if defined(OS_AVR)
-	int ret = os.send_http_request(host_start, ether_buffer, getweather_callback_with_peel_header);
-#else
 	int ret = os.send_http_request(host_start, port, ether_buffer, getweather_callback_with_peel_header, use_ssl);
-#endif
 	if(ret!=HTTP_RQT_SUCCESS) {
 		if(wt_errCode < 0) wt_errCode = ret;
 		// if wt_errCode > 0, the call is successful but weather script may return error
@@ -270,11 +257,11 @@ void parse_wto(char* wto) {
 void apply_monthly_adjustment(time_os_t curr_time) {
 	// ====== Check monthly water percentage ======
 	if(os.iopts[IOPT_USE_WEATHER]==WEATHER_METHOD_MONTHLY) {
-#if defined(ARDUINO)
+#if defined(ESP8266)
 		unsigned char m = month(curr_time)-1;
 #else
-		time_os_t ct = curr_time;
-		struct tm *ti = gmtime(&ct);
+		time_t _ct = curr_time;
+		struct tm *ti = gmtime(&_ct);
 		unsigned char m = ti->tm_mon;  // tm_mon ranges from [0,11]
 #endif
 		if(os.iopts[IOPT_WATER_PERCENTAGE]!=wt_monthly[m]) {
@@ -295,7 +282,7 @@ unsigned char parseMdScalesArray (const char* input) {
 	int count = 0;
 	while (*p && *p != ']' && count < MAX_N_MD_SCALES) {
 		char* endptr;
-		long val = strtol(p, &endptr, 10);   // parse number
+		int32_t val = (int32_t)strtol(p, &endptr, 10);   // parse number
 		md_scales[count] = static_cast<unsigned char>(val);
 		DEBUG_PRINT(md_scales[count]);
 		DEBUG_PRINT(",");
