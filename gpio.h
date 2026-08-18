@@ -21,8 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GPIO_H
-#define GPIO_H
+#pragma once
 
 #if defined(ARDUINO)
 
@@ -53,6 +52,7 @@
 class IOEXP {
 public:
 	IOEXP(uint8_t addr=255) { address = addr; type = IOEXP_TYPE_NONEXIST; }
+	virtual ~IOEXP() {}
 
 	virtual void pinMode(uint8_t pin, uint8_t IOMode) { }
 	virtual uint16_t i2c_read(uint8_t reg) { return 0xFFFF; }
@@ -192,4 +192,3 @@ void attachInterrupt(int pin, const char* mode, void (*isr)(void));
 
 #endif
 
-#endif // GPIO_H

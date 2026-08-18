@@ -24,9 +24,6 @@
 	23 Dec 2013 -- modified by Ray Wang (Rayshobby LLC) to add support for MCP7940
  */
 
-
-#if defined(ARDUINO)
-
 #include "I2CRTC.h"
 #include <Wire.h>
 
@@ -170,5 +167,3 @@ uint8_t I2CRTC::bcd2dec(uint8_t num)
 }
 
 I2CRTC RTC = I2CRTC(); // create an instance for the user
-
-#endif

@@ -1,5 +1,4 @@
-#ifndef SSD1306_DISPLAY_H
-#define SSD1306_DISPLAY_H
+#pragma once
 
 #if defined(ESP8266) || defined(ESP32)
 
@@ -13,81 +12,81 @@
 
 class SSD1306Display : public SSD1306 {
 public:
-  SSD1306Display(uint8_t _addr, uint8_t _sda, uint8_t _scl)
-      : SSD1306(_addr, _sda, _scl) {
-    cx = 0;
-    cy = 0;
-    for (unsigned char i = 0; i < NUM_CUSTOM_ICONS; i++)
-      custom_chars[i] = NULL;
-  }
-  void begin() {
-    Wire.setClock(400000L); // lower clock to 400kHz
-    flipScreenVertically();
-    setFont(Monospaced_plain_13);
-    fontWidth = 8;
-    fontHeight = 16;
-  }
-  void clear() { SSD1306::clear(); }
-  void clear(int start, int end) {
-    setColor(BLACK);
-    fillRect(0, (start + 1) * fontHeight, 128, (end - start + 1) * fontHeight);
-    setColor(WHITE);
-  }
+	SSD1306Display(uint8_t _addr, uint8_t _sda, uint8_t _scl)
+			: SSD1306(_addr, _sda, _scl) {
+		cx = 0;
+		cy = 0;
+		for (unsigned char i = 0; i < NUM_CUSTOM_ICONS; i++)
+			custom_chars[i] = NULL;
+	}
+	void begin() {
+		Wire.setClock(400000L); // lower clock to 400kHz
+		flipScreenVertically();
+		setFont(Monospaced_plain_13);
+		fontWidth = 8;
+		fontHeight = 16;
+	}
+	void clear() { SSD1306::clear(); }
+	void clear(int start, int end) {
+		setColor(BLACK);
+		fillRect(0, (start + 1) * fontHeight, 128, (end - start + 1) * fontHeight);
+		setColor(WHITE);
+	}
 
-  uint8_t type() { return LCD_I2C; }
-  void noBlink() { /*no support*/ }
-  void blink() { /*no support*/ }
-  void setCursor(uint8_t col, int8_t row) {
-    /* assume 4 lines, the middle two lines
-                     are row 0 and 1 */
-    cy = (row + 1) * fontHeight;
-    cx = col * fontWidth;
-  }
-  void noBacklight() { /*no support*/ }
-  void backlight() { /*no support*/ }
-  size_t write(uint8_t c) {
-    setColor(BLACK);
-    fillRect(cx, cy, fontWidth, fontHeight);
-    setColor(WHITE);
+	uint8_t type() { return LCD_I2C; }
+	void noBlink() { /*no support*/ }
+	void blink() { /*no support*/ }
+	void setCursor(uint8_t col, int8_t row) {
+		/* assume 4 lines, the middle two lines
+										 are row 0 and 1 */
+		cy = (row + 1) * fontHeight;
+		cx = col * fontWidth;
+	}
+	void noBacklight() { /*no support*/ }
+	void backlight() { /*no support*/ }
+	size_t write(uint8_t c) {
+		setColor(BLACK);
+		fillRect(cx, cy, fontWidth, fontHeight);
+		setColor(WHITE);
 
-    if (c < NUM_CUSTOM_ICONS && custom_chars[c] != NULL) {
-      drawXbm(cx, cy, fontWidth, fontHeight,
-              (const unsigned char *)custom_chars[c]);
-    } else {
-      drawString(cx, cy, String((char)c));
-    }
-    cx += fontWidth;
-    if (auto_display)
-      display(); // todo: not very efficient
-    return 1;
-  }
-  size_t write(const char *s) {
-    uint8_t nc = strlen(s);
-    setColor(BLACK);
-    fillRect(cx, cy, fontWidth * nc, fontHeight);
-    setColor(WHITE);
-    drawString(cx, cy, String(s));
-    cx += fontWidth * nc;
-    if (auto_display)
-      display(); // todo: not very efficient
-    return nc;
-  }
-  void createChar(unsigned char idx, PGM_P ptr) {
-    if (idx >= 0 && idx < NUM_CUSTOM_ICONS)
-      custom_chars[idx] = ptr;
-  }
+		if (c < NUM_CUSTOM_ICONS && custom_chars[c] != NULL) {
+			drawXbm(cx, cy, fontWidth, fontHeight,
+							(const unsigned char *)custom_chars[c]);
+		} else {
+			drawString(cx, cy, String((char)c));
+		}
+		cx += fontWidth;
+		if (auto_display)
+			display();
+		return 1;
+	}
+	size_t write(const char *s) {
+		uint8_t nc = strlen(s);
+		setColor(BLACK);
+		fillRect(cx, cy, fontWidth * nc, fontHeight);
+		setColor(WHITE);
+		drawString(cx, cy, String(s));
+		cx += fontWidth * nc;
+		if (auto_display)
+			display();
+		return nc;
+	}
+	void createChar(unsigned char idx, PGM_P ptr) {
+		if (idx >= 0 && idx < NUM_CUSTOM_ICONS)
+			custom_chars[idx] = ptr;
+	}
 
-  void createChar(unsigned char idx, const unsigned char *ptr) {
-    createChar(idx, (const char *)ptr);
-  }
+	void createChar(unsigned char idx, const unsigned char *ptr) {
+		createChar(idx, (const char *)ptr);
+	}
 
-  void setAutoDisplay(bool v) { auto_display = v; }
+	void setAutoDisplay(bool v) { auto_display = v; }
 
 private:
-  bool auto_display = true;
-  uint8_t cx, cy;
-  uint8_t fontWidth, fontHeight;
-  PGM_P custom_chars[NUM_CUSTOM_ICONS];
+	bool auto_display = true;
+	uint8_t cx, cy;
+	uint8_t fontWidth, fontHeight;
+	PGM_P custom_chars[NUM_CUSTOM_ICONS];
 };
 
 #else
@@ -171,387 +170,380 @@ private:
 
 class SSD1306Display {
 public:
-  SSD1306Display(uint8_t addr, uint8_t _sda, uint8_t _scl) {
-    cx = 0;
-    cy = 0;
-    _addr = addr;
-    for (uint8_t i = 0; i < NUM_CUSTOM_ICONS; i++)
-      custom_chars[i] = 0;
+	SSD1306Display(uint8_t addr, uint8_t _sda, uint8_t _scl) : i2c(Bus, addr) {
+		cx = 0;
+		cy = 0;
+		for (uint8_t i = 0; i < NUM_CUSTOM_ICONS; i++)
+			custom_chars[i] = 0;
 
-    clear_buffer();
+		clear_buffer();
 
-    height = 64;
-    width = 128;
+		height = 64;
+		width = 128;
+		color = WHITE;
+	}
 
-    i2c = I2CDevice();
-  }
+	~SSD1306Display() {
+		displayOff();
+		close(file);
+	}
 
-  ~SSD1306Display() {
-    displayOff();
-    close(file);
-  }
+	void init() {} // Dummy function to match ESP8266
 
-  void init() {} // Dummy function to match ESP8266
+	int begin() {
+		setFont(Monospaced_plain_13);
+		fontWidth = 8;
+		fontHeight = 16;
 
-  int begin() {
-    i2c.begin(_addr);
+		i2c.begin_transaction(SSD1306_COMMAND_ADDRESS);
+		ssd1306_command(SSD1306_DISPLAY_OFF);
+		ssd1306_command(SSD1306_SET_DISPLAY_CLOCK_DIV_RATIO);
+		ssd1306_command(0x80);
+		ssd1306_command(SSD1306_SET_MULTIPLEX_RATIO);
+		ssd1306_command(height - 1);
+		ssd1306_command(SSD1306_SET_DISPLAY_OFFSET);
+		ssd1306_command(0x00);
+		ssd1306_command(SSD1306_SET_START_LINE);
+		ssd1306_command(SSD1306_CHARGE_PUMP);
+		ssd1306_command(0x14);
+		ssd1306_command(SSD1306_MEMORY_ADDR_MODE);
+		ssd1306_command(0x00);
+		ssd1306_command(SSD1306_SET_SEGMENT_REMAP | 0x01);
+		ssd1306_command(SSD1306_COM_SCAN_DIR_DEC);
 
-    setFont(Monospaced_plain_13);
-    fontWidth = 8;
-    fontHeight = 16;
+		switch (height) {
+		case 64:
+			ssd1306_command(SSD1306_SET_COM_PINS);
+			ssd1306_command(0x12);
+			ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
+			ssd1306_command(0xCF);
+			break;
+		case 32:
+			ssd1306_command(SSD1306_SET_COM_PINS);
+			ssd1306_command(0x02);
+			ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
+			ssd1306_command(0x8F);
+			break;
+		case 16: // NOTE: not tested, lacking part.
+			ssd1306_command(SSD1306_SET_COM_PINS);
+			ssd1306_command(0x2);
+			ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
+			ssd1306_command(0xAF);
+			break;
+		}
 
-    i2c.begin_transaction(SSD1306_COMMAND_ADDRESS);
-    ssd1306_command(SSD1306_DISPLAY_OFF);
-    ssd1306_command(SSD1306_SET_DISPLAY_CLOCK_DIV_RATIO);
-    ssd1306_command(0x80);
-    ssd1306_command(SSD1306_SET_MULTIPLEX_RATIO);
-    ssd1306_command(height - 1);
-    ssd1306_command(SSD1306_SET_DISPLAY_OFFSET);
-    ssd1306_command(0x00);
-    ssd1306_command(SSD1306_SET_START_LINE);
-    ssd1306_command(SSD1306_CHARGE_PUMP);
-    ssd1306_command(0x14);
-    ssd1306_command(SSD1306_MEMORY_ADDR_MODE);
-    ssd1306_command(0x00);
-    ssd1306_command(SSD1306_SET_SEGMENT_REMAP | 0x01);
-    ssd1306_command(SSD1306_COM_SCAN_DIR_DEC);
+		ssd1306_command(SSD1306_SET_PRECHARGE_PERIOD);
+		ssd1306_command(0xF1);
 
-    switch (height) {
-    case 64:
-      ssd1306_command(SSD1306_SET_COM_PINS);
-      ssd1306_command(0x12);
-      ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
-      ssd1306_command(0xCF);
-      break;
-    case 32:
-      ssd1306_command(SSD1306_SET_COM_PINS);
-      ssd1306_command(0x02);
-      ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
-      ssd1306_command(0x8F);
-      break;
-    case 16: // NOTE: not tested, lacking part.
-      ssd1306_command(SSD1306_SET_COM_PINS);
-      ssd1306_command(0x2);
-      ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
-      ssd1306_command(0xAF);
-      break;
-    }
+		ssd1306_command(SSD1306_SET_VCOM_DESELECT);
+		ssd1306_command(0x40);
 
-    ssd1306_command(SSD1306_SET_PRECHARGE_PERIOD);
-    ssd1306_command(0xF1);
+		ssd1306_command(SSD1306_DISPLAY_ALL_ON_RESUME);
+		ssd1306_command(SSD1306_NORMAL_DISPLAY);
+		ssd1306_command(SSD1306_DEACTIVATE_SCROLL);
+		ssd1306_command(SSD1306_DISPLAY_ON);
 
-    ssd1306_command(SSD1306_SET_VCOM_DESELECT);
-    ssd1306_command(0x40);
+		i2c.end_transaction();
 
-    ssd1306_command(SSD1306_DISPLAY_ALL_ON_RESUME);
-    ssd1306_command(SSD1306_NORMAL_DISPLAY);
-    ssd1306_command(SSD1306_DEACTIVATE_SCROLL);
-    ssd1306_command(SSD1306_DISPLAY_ON);
+		return 0;
+	}
 
-    i2c.end_transaction();
+	void setFont(const uint8_t *f) { font = (uint8_t *)f; }
 
-    return 0;
-  }
+	void display() {
+		i2c.begin_transaction(SSD1306_COMMAND_ADDRESS);
+		ssd1306_command(SSD1306_SET_PAGE_ADDR);
+		ssd1306_command(0x00); // Page start address (0 = reset)
+		switch (height) {
+		case 64:
+			ssd1306_command(7);
+			break;
+		case 32:
+			ssd1306_command(3);
+			break;
+		case 16:
+			ssd1306_command(1);
+			break;
+		}
 
-  void setFont(const uint8_t *f) { font = (uint8_t *)f; }
-
-  void display() {
-    i2c.begin_transaction(SSD1306_COMMAND_ADDRESS);
-    ssd1306_command(SSD1306_SET_PAGE_ADDR);
-    ssd1306_command(0x00); // Page start address (0 = reset)
-    switch (height) {
-    case 64:
-      ssd1306_command(7);
-      break;
-    case 32:
-      ssd1306_command(3);
-      break;
-    case 16:
-      ssd1306_command(1);
-      break;
-    }
-
-    ssd1306_command(SSD1306_SET_COLUMN_ADDR);
-    ssd1306_command(0x00); // Column start address (0 = reset)
+		ssd1306_command(SSD1306_SET_COLUMN_ADDR);
+		ssd1306_command(0x00); // Column start address (0 = reset)
 	ssd1306_command(width - 1); // Column end address (127 = reset)
 
-    i2c.end_transaction();
+		i2c.end_transaction();
 
-    i2c.begin_transaction(SSD1306_DATA_CONTINUE_ADDRESS);
+		i2c.begin_transaction(SSD1306_DATA_CONTINUE_ADDRESS);
 
-    int b;
-    for (b = 0; b < 1024; b++) {
-      ssd1306_data(frame[b]);
-    }
+		int b;
+		for (b = 0; b < 1024; b++) {
+			ssd1306_data(frame[b]);
+		}
 
-    i2c.end_transaction();
-  }
+		i2c.end_transaction();
+	}
 
-  void clear() {
-    clear_buffer();
-    display();
-  }
+	void clear() {
+		clear_buffer();
+		display();
+	}
 
-  void setBrightness(uint8_t brightness) {
-    ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
-    ssd1306_command(brightness);
-  }
+	void setBrightness(uint8_t brightness) {
+		ssd1306_command(SSD1306_SET_CONTRAST_CONTROL);
+		ssd1306_command(brightness);
+	}
 
-  void displayOn() { ssd1306_command(SSD1306_DISPLAY_ON); }
+	void displayOn() { ssd1306_command(SSD1306_DISPLAY_ON); }
 
-  void displayOff() { ssd1306_command(SSD1306_DISPLAY_OFF); }
+	void displayOff() { ssd1306_command(SSD1306_DISPLAY_OFF); }
 
-  void setColor(uint8_t color) { this->color = color; }
+	void setColor(uint8_t color) { this->color = color; }
 
-  void drawPixel(uint8_t x, uint8_t y) {
-    if (x >= 128 || y >= 64)
-      return;
+	void drawPixel(uint8_t x, uint8_t y) {
+		if (x >= 128 || y >= 64)
+			return;
 
-    if (color == WHITE) {
-      frame[x + (y / 8) * 128] |= 1 << (y % 8);
-    } else {
-      frame[x + (y / 8) * 128] &= ~(1 << (y % 8));
-    }
-  }
+		if (color == WHITE) {
+			frame[x + (y / 8) * 128] |= 1 << (y % 8);
+		} else {
+			frame[x + (y / 8) * 128] &= ~(1 << (y % 8));
+		}
+	}
 
-  void fillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
-    for (int _x = x; _x < x + w; _x++) {
-      for (int _y = y; _y < y + h; _y++) {
-        drawPixel(_x, _y);
-      }
-    }
-  }
+	void fillRect(uint8_t x, uint8_t y, uint8_t w, uint8_t h) {
+		for (int _x = x; _x < x + w; _x++) {
+			for (int _y = y; _y < y + h; _y++) {
+				drawPixel(_x, _y);
+			}
+		}
+	}
 
-  void clear(int start, int end) {
-    setColor(BLACK);
-    fillRect(0, (start + 1) * fontHeight, 128, (end - start + 1) * fontHeight);
-    setColor(WHITE);
-  }
+	void clear(int start, int end) {
+		setColor(BLACK);
+		fillRect(0, (start + 1) * fontHeight, 128, (end - start + 1) * fontHeight);
+		setColor(WHITE);
+	}
 
-  void print(const char *s) { write(s); }
+	void print(const char *s) { write(s); }
 
-  void print(char s) { write(s); }
+	void print(char s) { write(s); }
 
-  void print(int i) {
-    char buf[100];
-    snprintf(buf, 100, "%d", i);
-    print((const char *)buf);
-  }
+	void print(int i) {
+		char buf[100];
+		snprintf(buf, 100, "%d", i);
+		print((const char *)buf);
+	}
 
-  void print(unsigned int i) {
-    char buf[100];
-    snprintf(buf, 100, "%u", i);
-    print((const char *)buf);
-  }
-  void print(float f) {
-    char buf[100];
-    snprintf(buf, 100, "%f", f);
-    print((const char *)buf);
-  }
+	void print(unsigned int i) {
+		char buf[100];
+		snprintf(buf, 100, "%u", i);
+		print((const char *)buf);
+	}
+	void print(float f) {
+		char buf[100];
+		snprintf(buf, 100, "%f", f);
+		print((const char *)buf);
+	}
 
 #define DEC 10
 #define HEX 16
 #define OCT 8
 #define BIN 2
 
-  void print(int i, int base) {
-    char buf[100];
-    switch (base) {
-    case DEC:
-      snprintf(buf, 100, "%d", i);
-      break;
-    case HEX:
-      snprintf(buf, 100, "%x", i);
-      break;
-    case OCT:
-      snprintf(buf, 100, "%o", i);
-      break;
-    case BIN:
-      snprintf(buf, 100, "%b", i);
-      break;
-    default:
-      snprintf(buf, 100, "%d", i);
-      break;
-    }
-    print((const char *)buf);
-  }
+	void print(int i, int base) {
+		char buf[100];
+		switch (base) {
+		case DEC:
+			snprintf(buf, 100, "%d", i);
+			break;
+		case HEX:
+			snprintf(buf, 100, "%x", i);
+			break;
+		case OCT:
+			snprintf(buf, 100, "%o", i);
+			break;
+		case BIN:
+			snprintf(buf, 100, "%b", i);
+			break;
+		default:
+			snprintf(buf, 100, "%d", i);
+			break;
+		}
+		print((const char *)buf);
+	}
 
-  uint8_t type() { return LCD_I2C; }
-  void noBlink() { /*no support*/ }
-  void blink() { /*no support*/ }
-  void setCursor(uint8_t col, int8_t row) {
-    /* assume 4 lines, the middle two lines
-                    are row 0 and 1 */
-    cy = (row + 1) * fontHeight;
-    cx = col * fontWidth;
-  }
-  void noBacklight() { /*no support*/ }
-  void backlight() { /*no support*/ }
-  void drawXbm(int x, int y, int w, int h, const char *xbm) {
-    int xbmWidth = (w + 7) / 8;
-    uint8_t data = 0;
+	uint8_t type() { return LCD_I2C; }
+	void noBlink() { /*no support*/ }
+	void blink() { /*no support*/ }
+	void setCursor(uint8_t col, int8_t row) {
+		/* assume 4 lines, the middle two lines
+										are row 0 and 1 */
+		cy = (row + 1) * fontHeight;
+		cx = col * fontWidth;
+	}
+	void noBacklight() { /*no support*/ }
+	void backlight() { /*no support*/ }
+	void drawXbm(int x, int y, int w, int h, const char *xbm) {
+		int xbmWidth = (w + 7) / 8;
+		uint8_t data = 0;
 
-    for (int i = 0; i < h; i++) {
-      for (int j = 0; j < w; j++) {
-        if (j & 7) {
-          data >>= 1;
-        } else {
-          data = xbm[(i * xbmWidth) + (j / 8)];
-        }
+		for (int i = 0; i < h; i++) {
+			for (int j = 0; j < w; j++) {
+				if (j & 7) {
+					data >>= 1;
+				} else {
+					data = xbm[(i * xbmWidth) + (j / 8)];
+				}
 
-        if (data & 0x01) {
-          drawPixel(x + j, y + i);
-        }
-      }
-    }
-  }
+				if (data & 0x01) {
+					drawPixel(x + j, y + i);
+				}
+			}
+		}
+	}
 
-  void drawXbm(int x, int y, int w, int h, const uint8_t *data) {
-    drawXbm(x, y, w, h, (const char *)data);
-  }
+	void drawXbm(int x, int y, int w, int h, const uint8_t *data) {
+		drawXbm(x, y, w, h, (const char *)data);
+	}
 
-  void fillCircle(int x0, int y0, int r) {
-    for (int y = -r; y <= r; y++) {
-      for (int x = -r; x <= r; x++) {
-        if (x * x + y * y <= r * r) {
-          drawPixel(x0 + x, y0 + y);
-        }
-      }
-    }
-  }
+	void fillCircle(int x0, int y0, int r) {
+		for (int y = -r; y <= r; y++) {
+			for (int x = -r; x <= r; x++) {
+				if (x * x + y * y <= r * r) {
+					drawPixel(x0 + x, y0 + y);
+				}
+			}
+		}
+	}
 
-  void drawChar(int x, int y, char c) {
-    uint8_t textHeight = font[HEIGHT_POS];
-    uint8_t firstChar = font[FIRST_CHAR_POS];
-    uint8_t numChars = font[CHAR_NUM_POS];
-    uint16_t sizeOfJumpTable = numChars * JUMPTABLE_BYTES;
+	void drawChar(int x, int y, char c) {
+		uint8_t textHeight = font[HEIGHT_POS];
+		uint8_t firstChar = font[FIRST_CHAR_POS];
+		uint8_t numChars = font[CHAR_NUM_POS];
+		uint16_t sizeOfJumpTable = numChars * JUMPTABLE_BYTES;
 
-    if (c < firstChar || c >= firstChar + numChars)
-      return;
+		if (c < firstChar || c >= firstChar + numChars)
+			return;
 
-    // 4 Bytes per char code
-    uint8_t charCode = c - firstChar;
+		// 4 Bytes per char code
+		uint8_t charCode = c - firstChar;
 
-    uint8_t msbJumpToChar =
-        font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES]; // MSB \ JumpAddress
-    uint8_t lsbJumpToChar = font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES +
-                                 JUMPTABLE_LSB]; // LSB /
-    uint8_t charByteSize = font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES +
-                                JUMPTABLE_SIZE]; // Size
-    uint8_t currentCharWidth =
-        font[JUMPTABLE_START + (c - firstChar) * JUMPTABLE_BYTES +
-             JUMPTABLE_WIDTH]; // Width
+		uint8_t msbJumpToChar =
+				font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES]; // MSB \ JumpAddress
+		uint8_t lsbJumpToChar = font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES +
+																 JUMPTABLE_LSB]; // LSB /
+		uint8_t charByteSize = font[JUMPTABLE_START + charCode * JUMPTABLE_BYTES +
+																JUMPTABLE_SIZE]; // Size
+		uint8_t currentCharWidth =
+				font[JUMPTABLE_START + (c - firstChar) * JUMPTABLE_BYTES +
+						 JUMPTABLE_WIDTH]; // Width
 
-    // Test if the char is drawable
-    if (!(msbJumpToChar == 255 && lsbJumpToChar == 255)) {
-      // Get the position of the char data
-      uint16_t charDataPosition = JUMPTABLE_START + sizeOfJumpTable +
-                                  ((msbJumpToChar << 8) + lsbJumpToChar);
-      int _y = y;
-      int _x = x;
+		// Test if the char is drawable
+		if (!(msbJumpToChar == 255 && lsbJumpToChar == 255)) {
+			// Get the position of the char data
+			uint16_t charDataPosition = JUMPTABLE_START + sizeOfJumpTable +
+																	((msbJumpToChar << 8) + lsbJumpToChar);
+			int _y = y;
+			int _x = x;
 
-      setColor(WHITE);
+			setColor(WHITE);
 
-      for (int b = 0; b < charByteSize; b++) {
-        for (int i = 0; i < 8; i++) {
-          if (font[charDataPosition + b] & (1 << i)) {
-            drawPixel(_x, _y);
-          }
+			for (int b = 0; b < charByteSize; b++) {
+				for (int i = 0; i < 8; i++) {
+					if (font[charDataPosition + b] & (1 << i)) {
+						drawPixel(_x, _y);
+					}
 
-          _y++;
-          if (_y >= y + textHeight) {
-            _y = y;
-            _x++;
-            break;
-          }
-        }
-      }
-    }
-  }
+					_y++;
+					if (_y >= y + textHeight) {
+						_y = y;
+						_x++;
+						break;
+					}
+				}
+			}
+		}
+	}
 
-  void drawString(int x, int y, const char *text) {
-    int _x = x;
-    int _y = y;
+	void drawString(int x, int y, const char *text) {
+		int _x = x;
+		int _y = y;
 
-    while (*text) {
-      if (*text == '\n') {
-        _x = x;
-        _y += fontHeight;
-      } else {
-        drawChar(_x, _y, *text);
-        _x += fontWidth;
-      }
+		while (*text) {
+			if (*text == '\n') {
+				_x = x;
+				_y += fontHeight;
+			} else {
+				drawChar(_x, _y, *text);
+				_x += fontWidth;
+			}
 
-      text++;
-    }
-  }
+			text++;
+		}
+	}
 
-  size_t write(uint8_t c) {
-    setColor(BLACK);
-    fillRect(cx, cy, fontWidth, fontHeight);
-    setColor(WHITE);
-    char cc[2] = {(char)c, 0};
+	size_t write(uint8_t c) {
+		setColor(BLACK);
+		fillRect(cx, cy, fontWidth, fontHeight);
+		setColor(WHITE);
+		char cc[2] = {(char)c, 0};
 
-    if (c < NUM_CUSTOM_ICONS && custom_chars[c] != 0) {
-      drawXbm(cx, cy, fontWidth, fontHeight, (const char *)custom_chars[c]);
-    } else {
-      drawString(cx, cy, cc);
-    }
-    cx += fontWidth;
-    if (auto_display)
-      display(); // todo: not very efficient
-    return 1;
-  }
+		if (c < NUM_CUSTOM_ICONS && custom_chars[c] != 0) {
+			drawXbm(cx, cy, fontWidth, fontHeight, (const char *)custom_chars[c]);
+		} else {
+			drawString(cx, cy, cc);
+		}
+		cx += fontWidth;
+		if (auto_display)
+			display();
+		return 1;
+	}
 
-  uint8_t write(const char *s) {
-    uint8_t nc = strlen(s);
-    bool temp_auto_display = auto_display;
-    auto_display = false;
-    setColor(BLACK);
-    fillRect(cx, cy, fontWidth * nc, fontHeight);
-    setColor(WHITE);
-    drawString(cx, cy, s);
-    auto_display = temp_auto_display;
-    cx += fontWidth * nc;
-    if (auto_display)
-      display(); // todo: not very efficient
-    return nc;
-  }
+	uint8_t write(const char *s) {
+		uint8_t nc = strlen(s);
+		bool temp_auto_display = auto_display;
+		auto_display = false;
+		setColor(BLACK);
+		fillRect(cx, cy, fontWidth * nc, fontHeight);
+		setColor(WHITE);
+		drawString(cx, cy, s);
+		auto_display = temp_auto_display;
+		cx += fontWidth * nc;
+		if (auto_display)
+			display();
+		return nc;
+	}
 
-  void createChar(uint8_t idx, const char *ptr) {
-    if (idx >= 0 && idx < NUM_CUSTOM_ICONS)
-      custom_chars[idx] = ptr;
-  }
+	void createChar(uint8_t idx, const char *ptr) {
+		if (idx >= 0 && idx < NUM_CUSTOM_ICONS)
+			custom_chars[idx] = ptr;
+	}
 
-  void createChar(unsigned char idx, const unsigned char *ptr) {
-    createChar(idx, (const char *)ptr);
-  }
+	void createChar(unsigned char idx, const unsigned char *ptr) {
+		createChar(idx, (const char *)ptr);
+	}
 
-  void setAutoDisplay(bool v) { auto_display = v; }
+	void setAutoDisplay(bool v) { auto_display = v; }
 
 private:
-  int file = -1;
-  bool auto_display = false;
-  uint8_t cx, cy = 0;
-  uint8_t fontWidth, fontHeight;
-  const char *custom_chars[NUM_CUSTOM_ICONS];
-  uint8_t frame[1024];
-  int i2cd;
-  bool color;
-  uint8_t *font;
+	int file = -1;
+	bool auto_display = false;
+	uint8_t cx, cy = 0;
+	uint8_t fontWidth, fontHeight;
+	const char *custom_chars[NUM_CUSTOM_ICONS];
+	uint8_t frame[1024];
+	int i2cd;
+	bool color;
+	uint8_t *font;
 
-  I2CDevice i2c;
-  unsigned char _addr;
+	I2CDevice i2c;
 
-  unsigned char height;
-  unsigned char width;
+	unsigned char height;
+	unsigned char width;
 
-  void clear_buffer() { memset(frame, 0x00, sizeof(frame)); }
+	void clear_buffer() { memset(frame, 0x00, sizeof(frame)); }
 
-  int ssd1306_command(unsigned char command) { return i2c.send(0x00, command); }
+	int ssd1306_command(unsigned char command) { return i2c.send(0x00, command); }
 
-  int ssd1306_data(unsigned char value) { return i2c.send(0x40, value); }
+	int ssd1306_data(unsigned char value) { return i2c.send(0x40, value); }
 };
 #endif
-
-#endif // SSD1306_DISPLAY_H

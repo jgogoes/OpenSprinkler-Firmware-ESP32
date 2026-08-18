@@ -21,7 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-#if defined(ARDUINO)
+#if defined(ESP8266)
 	#include <Arduino.h>
 	#if defined(ESP8266)
 		#include <ESP8266WiFi.h>
@@ -55,17 +55,17 @@
 // Debug routines to help identify any blocking of the event loop for an extended period
 
 #if defined(ENABLE_DEBUG)
-	#if defined(ARDUINO)
+	#if defined(ESP8266)
 		#include "TimeLib.h"
 		#define DEBUG_TIMESTAMP(msg, ...) {time_os_t t = os.now_tz(); Serial.printf("%02d-%02d-%02d %02d:%02d:%02d - ", year(t), month(t), day(t), hour(t), minute(t), second(t));}
 	#else
 		#include <sys/time.h>
-		#define DEBUG_TIMESTAMP()         {char tstr[21]; time_os_t t = time(NULL); struct tm *tm = localtime(&t); strftime(tstr, 21, "%y-%m-%d %H:%M:%S - ", tm);printf("%s", tstr);}
+		#define DEBUG_TIMESTAMP()         {char tstr[21]; time_t t = time(NULL); struct tm *tm = localtime(&t); strftime(tstr, 21, "%y-%m-%d %H:%M:%S - ", tm);printf("%s", tstr);}
 	#endif
 	#define DEBUG_LOGF(msg, ...)        {DEBUG_TIMESTAMP(); DEBUG_PRINTF(msg, ##__VA_ARGS__);}
 
-	static unsigned long _lastMillis = 0; // Holds the timestamp associated with the last call to DEBUG_DURATION()
-	inline unsigned long DEBUG_DURATION() {unsigned long dur = millis() - _lastMillis; _lastMillis = millis(); return dur;}
+	static uint32_t _lastMillis = 0; // Holds the timestamp associated with the last call to DEBUG_DURATION()
+	inline uint32_t DEBUG_DURATION() {uint32_t dur = millis() - _lastMillis; _lastMillis = millis(); return dur;}
 #else
 	#define DEBUG_LOGF(msg, ...)    {}
 	#define DEBUG_DURATION()        {}
@@ -153,7 +153,7 @@ void changeValues(char *message){
 	if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("rd"), true)){
 		int rd = atoi(tmp_buffer);
 		if(rd>0){
-			os.nvdata.rd_stop_time = os.now_tz() + (unsigned long) rd * 3600;
+			os.nvdata.rd_stop_time = os.now_tz() + (uint32_t) rd * 3600;
 			os.raindelay_start();
 		}else if (rd==0){
 			os.raindelay_stop();
@@ -183,16 +183,15 @@ void manualRun(char *message){
 		return;
 	}
 
-	uint16_t timer = 0;
-	unsigned long curr_time = os.now_tz();
+	uint32_t timer = 0;
+	uint32_t curr_time = os.now_tz();
 	if(en){
 		if(findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("t"), true)){
-			timer = (uint16_t)atol(tmp_buffer);
-			if(timer==0 || timer>64800){
+			if(!parse_program_duration(tmp_buffer, &timer)){
 				DEBUG_LOGF("Time out of bounds.\r\n");
 				return;
 			}
-			if((os.status.mas==sid+1) || (os.status.mas2==sid+1)){
+			if(os.is_master_station(sid)){
 				DEBUG_LOGF("Cannot independently schedule master.\r\n");
 				return;
 			}
@@ -209,7 +208,7 @@ void manualRun(char *message){
 				q->st = 0;
 				q->dur = timer;
 				q->sid = sid;
-				q->pid = 99;
+				q->pid = MANUAL_PID;
 				schedule_all_stations(curr_time);
 			}else{
 				DEBUG_LOGF("Queue is full.\r\n");
@@ -232,7 +231,7 @@ void manualRun(char *message){
 }
 
 //handles /mp command
-void manual_start_program(unsigned char, unsigned char, unsigned char);
+void manual_start_program(unsigned char, unsigned char, unsigned char, unsigned char usa=0);
 void programStart(char *message){
 	if(!findKeyVal(message, tmp_buffer, TMP_BUFFER_SIZE, PSTR("pid"), true)){
 		DEBUG_LOGF("Program ID missing.\r\n")
@@ -281,7 +280,7 @@ void runOnceProgram(char *message){
 	pv+=3;
 
 	unsigned char sid, bid, s;
-	uint16_t dur;
+	uint32_t dur;
 	boolean match_found = false;
 	unsigned char wl = 100;
 	if(findKeyVal(message,tmp_buffer,TMP_BUFFER_SIZE,PSTR("uwt"),true)){
@@ -298,7 +297,7 @@ void runOnceProgram(char *message){
 	}
 
 	for(sid = 0; sid < os.nstations; sid++){
-		dur = parse_listdata(&pv)*wl/100;
+		dur = water_time_scale(water_time_resolve(parse_listdata(&pv)), wl, 1.f);
 		bid = sid >> 3;
 		s = sid&0x07;
 
@@ -306,8 +305,8 @@ void runOnceProgram(char *message){
 			RuntimeQueueStruct *q = pd.enqueue();
 			if(q){
 				q->st = 0;
-				q->dur = water_time_resolve(dur);
-				q->pid = 254;
+				q->dur = dur;
+				q->pid = RUNONCE_PID;
 				q->sid = sid;
 				match_found = true;
 			}
@@ -445,7 +444,7 @@ void OSMqtt::subscribe(void){
 
 // Regularly call the loop function to ensure "keep alive" messages are sent to the broker and to reconnect if needed.
 void OSMqtt::loop(void) {
-	static unsigned long last_reconnect_attempt = 0;
+	static uint32_t last_reconnect_attempt = 0;
 
 	if (mqtt_client == NULL || !_enabled || os.status.network_fails > 0) return;
 
@@ -495,7 +494,13 @@ void OSMqtt::loop(void) {
 int OSMqtt::_init(void) {
 	Client * client = NULL;
 
-	if (mqtt_client) { delete mqtt_client; mqtt_client = 0; }
+	if (mqtt_client) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
+		delete mqtt_client;
+#pragma GCC diagnostic pop
+		mqtt_client = 0;
+	}
 
 	#if defined(ESP8266) || defined(ESP32)
 		client = &wifiClient;

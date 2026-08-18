@@ -248,7 +248,6 @@ unsigned char digitalReadExt(unsigned char pin) {
 		return digitalRead(pin);
 	}
 }
-#endif
 
 #elif defined(OSPI)
 
