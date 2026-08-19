@@ -2165,6 +2165,7 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 
 	#define HTTP_CONNECT_NTRIES 3
 	unsigned char tries = 0;
+	int _conn = -2;
 	do {
 		DEBUG_PRINT(server);
 		DEBUG_PRINT(":");
@@ -2172,7 +2173,15 @@ int8_t OpenSprinkler::send_http_request(const char* server, uint16_t port, char*
 		DEBUG_PRINT("(");
 		DEBUG_PRINT(tries);
 		DEBUG_PRINTLN(")");
-		if(client->connect(server, port)==1) break;
+#if defined(ESP32)
+		// DIAGNOSTIC: surface why the TLS/plain connect fails (heap + connect rc)
+		DEBUG_PRINTF("  [diag] heap=%lu ", (unsigned long)ESP.getFreeHeap());
+		_conn = client->connect(server, port);
+		DEBUG_PRINTF("  [diag] connect rc=%d\r\n", _conn);
+#else
+		_conn = client->connect(server, port);
+#endif
+		if(_conn==1) break;
 		tries++;
 	} while(tries<HTTP_CONNECT_NTRIES);
 
