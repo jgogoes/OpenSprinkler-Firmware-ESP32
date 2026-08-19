@@ -60,12 +60,16 @@ void start_network_ap(const char *ssid, const char *pass) {
 	DEBUG_PRINT(ssid);
 	DEBUG_PRINTLN("'");
 
+	// Set AP_STA mode BEFORE softAP: calling WiFi.mode() AFTER WiFi.softAP() on the
+	// newer espressif32 core re-configures the interface and additionally spawns the
+	// hardware-default "ESP_<mac>" AP alongside the firmware's "OS_<mac>" one (the
+	// duplicate-SSID bug). Setting mode first yields exactly one softAP, while still
+	// allowing a later STA connection for onboarding.
+	WiFi.mode(WIFI_AP_STA);
 	if(pass) WiFi.softAP(ssid, pass);
 	else WiFi.softAP(ssid);
 	DEBUG_PRINT(F("Starting AP with SSID "));
 	DEBUG_PRINTLN(ssid);
-	WiFi.mode(WIFI_AP_STA); // start in AP_STA mode
-	WiFi.disconnect();	// disconnect from router
 }
 
 void start_network_sta_with_ap(const char *ssid, const char *pass, int32_t channel, const unsigned char *bssid) {
