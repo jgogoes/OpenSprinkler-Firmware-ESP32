@@ -98,8 +98,8 @@
   #define E0_PIN_BOOST         255 // special HW needed
   #define E0_PIN_BOOST_EN      255 // special HW needed
   #define E0_PIN_LATCH_COM     255 // not needed for ESP32
-  #define E0_PIN_SENSOR1       39 // sensor 1 - v1pr 39, default 36
-  #define E0_PIN_SENSOR2       33 // sensor 2  - v1pr 33, default 2
+  #define E0_PIN_SENSOR1       4  // rain/sensor 1 (digital switch; full GPIO, pullup works)
+  #define E0_PIN_SENSOR2       39 // soil/sensor 2 (ADC1_CH3; input-only, needs external pullup if used)
   #define E0_PIN_IOEXP_INT     255 // not needed for ESP32
  
   #define PIN_ETHER_CS         255 // ENC28J60 CS (chip select pin) is 16 on OS 3.2.
@@ -109,7 +109,8 @@
   // default
   // #define ON_BOARD_GPIN_LIST     {12,13,14,15,16,255,255,255} //  ESP32 on board pins to be used as sections, 255 = pin not defined
   // v1pr's board, these are the GPIO pins user for stations - IOEXP PCF/PCA not (yet) supported
-  #define ON_BOARD_GPIN_LIST     {2,4,255,255,255,255,255,255} // was 2,4
+  // ESP32-Relay-X8 8-relay board: GPIO32,33,25,26,27,14,12,13
+  #define ON_BOARD_GPIN_LIST     {32,33,25,26,27,14,12,13}
   #define PIN_FREE_LIST     {} // no free GPIO pin at the moment
 
   // if set to a real ADC pin, than it means the board has current sensor capabilities
@@ -117,11 +118,11 @@
   
   #define STATION_LOGIC 1 // Zone output logic for relays - 1 => HIGH in ON, 0 => LOW is ON - v1pr board: 1
 
-  // Rotary Encoder instead of buttons - not used for now, testing/development
-  //#define USE_ROTARY_ENCODER
-  #define ROTARY_ENCODER_A_PIN 35 // must be interrupt capable PIN!
-  #define ROTARY_ENCODER_B_PIN 34
-  #define ROTARY_ENCODER_BUTTON_PIN 5 // this should be same, BUTTON_2, default 33
+  // Rotary Encoder instead of buttons - EC11 + SH1106 OLED combo module
+  #define USE_ROTARY_ENCODER
+  #define ROTARY_ENCODER_A_PIN 15 // must be interrupt capable PIN! (avoid input-only GPIO34/35/39)
+  #define ROTARY_ENCODER_B_PIN 16 // interrupt capable
+  #define ROTARY_ENCODER_BUTTON_PIN 5 // EC11 switch; also BUTTON_2
   
   //#define BOOT_MENU_V2
 
@@ -133,7 +134,7 @@
   #define IOEXP_SR_CLK_PIN 27 // SH_CP
   #define IOEXP_SR_LATCH_PIN 32 // ST_CP
 
-  #define SYS_STATUS_LED_PIN  13
+  #define SYS_STATUS_LED_PIN  2  // moved off GPIO13 (now relay 8 on ESP32-Relay-X8); GPIO2 previously a relay, now free
 
   #define ENABLE_WIFI_ROAMING // if uncommented, than WiFi.begin() will bind with BSSID + channel!
 
