@@ -13,6 +13,10 @@
 #define NVCON_FILENAME        "/nvcon.dat"   // non-volatile controller data file, see OpenSprinkler.h --> struct NVConData
 #define PROG_FILENAME         "/prog.dat"    // program data file
 #define DONE_FILENAME         "/done.dat"    // used to indicate the completion of all files
+#define SENSORS_FILENAME      "/sens.dat"    // external sensor definitions
+#define SENADJ_FILENAME       "/senadj.dat"  // external sensor adjustment data for programs
+#define SENSORS_LOG_FILENAME        "/sens.log"    // external sensor log data (…sens.log000 … sens.logNNN)
+#define SENSORS_LOG_HEADER_FILENAME "/sens.hdr"    // external sensor log header
 
 #define ESP32_FS_BLOCK_SIZE	4096
 // for testing only - factory reset should do it anyway

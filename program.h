@@ -21,9 +21,7 @@
  * <http://www.gnu.org/licenses/>.
  */
 
-
-#ifndef _PROGRAM_H
-#define _PROGRAM_H
+#pragma once
 
 #define MAX_NUM_PROGRAMS    40  // maximum number of programs
 #define MAX_NUM_STARTTIMES  4
@@ -33,11 +31,13 @@
 #include "OpenSprinkler.h"
 #include "types.h"
 
+class SensorAdjustment; // forward declaration to avoid pulling sensors/sensor.h into this header
+
 /** Log data structure */
 struct LogStruct {
 	unsigned char station;
 	unsigned char program;
-	uint16_t duration;
+	uint32_t duration;
 	uint32_t endtime;
 };
 
@@ -45,6 +45,11 @@ struct LogStruct {
 #define PROGRAM_TYPE_SINGLERUN 1
 #define PROGRAM_TYPE_MONTHLY   2
 #define PROGRAM_TYPE_INTERVAL  3
+
+// special program indexes used in the runtime queue and log records
+#define MANUAL_PID 99
+#define RUNONCE_PID 254
+#define RUNONCE_REPEAT_PREFIX "Run-Once with repeat"
 
 #define STARTTIME_SUNRISE_BIT 14
 #define STARTTIME_SUNSET_BIT  13
@@ -79,7 +84,7 @@ public:
 	unsigned char en_daterange:1;
 
 	// weekly:    days[0][0..6] correspond to Monday till Sunday
-	// single-run:days[0] and [1] store the epoch time in days of the start 
+	// single-run:days[0] and [1] store the epoch time in days of the start
 	// monthly:   days[0][0..5] stores the day of the month (32 means last day of month)
 	// interval:  days[1] stores the interval (0 to 255), days[0] stores the starting day remainder (0 to 254)
 	unsigned char days[2];
@@ -119,7 +124,7 @@ extern OpenSprinkler os;
 class RuntimeQueueStruct {
 public:
 	time_os_t   st;  // start time
-	uint16_t dur; // water time
+	uint32_t dur; // effective water time after weather/sensor adjustments
 	unsigned char  sid;
 	unsigned char  pid;
 	time_os_t   deque_time; // deque time, which can be larger than st+dur to allow positive master off adjustment time
@@ -134,7 +139,7 @@ public:
 	static LogStruct lastrun;
 	static time_os_t last_seq_stop_times[]; // the last stop time of a sequential station (for each sequential group respectively)
 
-	static void toggle_pause(ulong delay);
+	static void toggle_pause(uint32_t delay);
 	static void set_pause();
 	static void resume_stations();
 	static void clear_pause();
@@ -146,8 +151,8 @@ public:
 	static void init();
 	static void eraseall();
 	static void read(unsigned char pid, ProgramStruct *buf);
-	static unsigned char add(ProgramStruct *buf);
-	static unsigned char modify(unsigned char pid, ProgramStruct *buf);
+	static unsigned char add(ProgramStruct *buf, SensorAdjustment *adj = nullptr);
+	static unsigned char modify(unsigned char pid, ProgramStruct *buf, SensorAdjustment *adj = nullptr);
 	static unsigned char set_flagbit(unsigned char pid, unsigned char bid, unsigned char value);
 	static void moveup(unsigned char pid);
 	static unsigned char del(unsigned char pid);
@@ -157,5 +162,3 @@ private:
 	static void load_count();
 	static void save_count();
 };
-
-#endif  // _PROGRAM_H

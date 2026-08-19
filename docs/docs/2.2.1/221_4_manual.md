@@ -73,7 +73,7 @@ The diagram below shows how to wire valves on the main controller and expanders.
 
 * If you have a master valve or pump start relay, connect it to any zone port — OpenSprinkler uses software-defined master/pump zones, so you can configure which zones act as master.
 
-![Zone Wiring](images/zone_wiring.jpg)
+![Zone Wiring](../assets/images/zone_wiring.jpg)
 
 <hr class="double">
 
@@ -131,31 +131,12 @@ For additional details on specific sensors (rain/soil/flow), refer to [Sensor Se
 #### Step 3: Zone Expanders (Optional)
 
 !!! warning "Power Off Before Wiring Expanders"
-    Always **power off the main controller** before making changes to expanders (connecting, disconnecting, reconfiguring).
+    Always **power off the main controller** before connecting, disconnecting, or reconfiguring an expander.
 
 !!! warning "Verify the Correct Port"
-    Check [Zone Wiring Diagram](#zone-wiring-diagram) to verify it's plugged into the correct port. Do **NOT** plug into the port marked **Ether** (that's for Ethernet module)!
+    Connect the Zone Expander only to the controller port marked **Expander**. Do **NOT** connect it to the port marked **Ether**.
 
-* With the main controller powered off, plug one end of the expander cable into OpenSprinkler’s **Zone Expander** port (keyed; only fits one way).
-
-* **Connect the other end of the cable**:
-    * **OpenSprinkler v3:** to either side of the expander (the two ports are equivalent). For multiple expanders, link them with additional cables.
-    * **OpenSprinkler Pi (OSPi):** to the expander's **IN** port. For multiple expanders, daisy-chain by following the **OUT → IN** links.
-* **Set Index:** ![DIP Switch](images/dip_switch.png){ .img-shadow .img-border style="float: right; margin: 5px 5px 5px 5px;"}
-    * For **OpenSprinkler v3**, you MUST set a unique index (1-4) for each expander, using the DIP switch on its back (see picture on the right).
-        * `1st` expander: index `1` (DIP switch: `DOWN DOWN`)
-        * `2nd` expander: index `2` (`UP DOWN`)
-        * `3rd` expander: index `3` (`DOWN UP`)
-        * `4th` expander: index `4` (`UP UP`).
-    * For **OSPi**: there is no DIP switch - the expander index is implied by the order the expanders are daisy-chained.
-* **Zone Mapping:**
-    * Main controller: zones `1-8`
-    * `1st` expander: zones `9-24`
-    * `2nd` expander: zones `25-40`
-    * `3rd` expander: zones `41-56`
-    * `4th` expander: zones `57-72`
-
-**<u>Select Number of Zones</u>:** The firmware automatically detects the highest expander index, but you still **must manually set the total number of zones** in software settings. You may enable more zones than physically available, to use them as **Virtual Zones** (Remote/HTTP(S)/RF). See [Station Types](#station-cards).
+For compatibility, DIP-switch settings, keyed ribbon-cable orientation, daisy chaining, zone mapping, and software configuration, follow the dedicated [Zone Expander User Manual](../zone-expander.md).
 
 ---
 
@@ -541,7 +522,7 @@ OpenSprinkler supports **two independent sensors** (`SN1`, `SN2`) with configura
     * `SN2`: Starts `Program 2`
     * Activated if the switch / button is pressed for more than 1 second.
 * **Flow Sensor:** Detect flow pulses to measure **real-time flow rate** and **log total flow volume** at the end of each station run and program cycle.
-    * Support all **dry-contact, 2-wire** flow sensors (recommended). ![Flow Sensor](images/flow_sensor_example.png){ .img-shadow width="150" style="float: right; margin: 5px 5px 5px 5px;"}
+    * Support all **dry-contact, 2-wire** flow sensors (recommended). ![Flow Sensor](../assets/images/flow_sensor_example.png){ .img-shadow width="150" style="float: right; margin: 5px 5px 5px 5px;"}
         * Connect the two wires to **SN1 + GND**.
         * They are essentially reed switches that open and close repeatedly as water flows through the meter. They do not need power and the two wires have no polarity.
     * Also support **3-wire** flow sensors that work with **+5V**.
@@ -774,7 +755,7 @@ For details on the log data format and example scripts to export logs (e.g. as s
 
 ### Firmware Update
 
-Follow the [firmware update instructions](../index.md#firmware-update).
+Follow the [firmware update instructions](../firmware-update.md).
 
 <hr class="double">
 
@@ -822,4 +803,3 @@ For detailed setup steps and examples, see the [RF Station blog post](https://op
 
 <br>
 <hr class="double">
-

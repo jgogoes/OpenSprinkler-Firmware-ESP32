@@ -248,7 +248,8 @@ unsigned char digitalReadExt(unsigned char pin) {
 		return digitalRead(pin);
 	}
 }
-#endif
+
+#endif	// ESP8266 || ESP32
 
 #elif defined(OSPI)
 

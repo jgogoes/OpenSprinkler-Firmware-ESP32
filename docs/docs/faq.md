@@ -1,7 +1,7 @@
 ## OpenSprinkler Frequently Asked Questions
 
 !!! note
-    This page covers the most common questions. For technical support, check the [User Manual](2.2.1/221_4_manual.md), the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/).
+    This page covers the most common questions. For technical support, check the [User Manual](manual.md), the [Support Portal](https://support.openthings.io) or the [Community Forums](https://opensprinkler.com/forums/).
 
 ### Pre-Sales
 
@@ -102,8 +102,8 @@ OS v3.x is compatible with 2.4GHz WiFi. It does **NOT** support 5GHz currently. 
 
 **Q: Where are OpenSprinkler's documents and source code?**
 
-* [User Manual](https://opensprinkler.github.io/OpenSprinkler-Firmware/2.2.1/221_4_manual/)
-* [API Reference](https://opensprinkler.github.io/OpenSprinkler-Firmware/2.2.1/221_4_api/)
+* [User Manual](manual.md)
+* [API Reference](api.md)
 * [Video Tutorials](https://openthings.freshdesk.com/support/solutions/articles/5000860920-videos-introduction-to-opensprinkler-v3)
 * [GitHub Repository](https://github.com/opensprinkler)
 
@@ -366,6 +366,6 @@ OpenSprinkler's language localization is crowd-sourced; open the **About** page 
 
 **Q: Can I build my own app / home assistant integration?**
 <br>
-Absolutely. Please refer to the [OpenSprinkler Firmware API doc](https://opensprinkler.github.io/OpenSprinkler-Firmware/2.2.1/221_4_api/). Note that [Home Assistant integration](https://opensprinkler.com/forums/topic/home-assistant-integration/) for OpenSprinkler already exists, created by third-party developers.
+Absolutely. Please refer to the [OpenSprinkler Firmware API doc](api.md). Note that [Home Assistant integration](https://opensprinkler.com/forums/topic/home-assistant-integration/) for OpenSprinkler already exists, created by third-party developers.
 
 ---

@@ -1,6 +1,12 @@
 # Archived Manuals and API References
 
-These documents are for older versions of the OpenSprinkler firmware and are provided in their original PDF format. For the latest documentation, please use the versioned navigation at the top of the page.
+These documents are for older versions of the OpenSprinkler firmware. Recent versions are available within this site; earlier versions are provided in their original PDF format. For the latest documentation, use the versioned navigation at the top of the page.
+
+---
+
+### Firmware 2.2.1(4)
+* [User Manual](2.2.1/221_4_manual.md)
+* [API Reference](2.2.1/221_4_api.md)
 
 ---
 

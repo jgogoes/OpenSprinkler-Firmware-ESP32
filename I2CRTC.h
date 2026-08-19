@@ -4,8 +4,7 @@
  */
 
 
-#ifndef I2CRTC_h
-#define I2CRTC_h
+#pragma once
 
 #define DS1307_ADDR  0x68
 #define MCP7940_ADDR 0x6F
@@ -35,5 +34,3 @@ class I2CRTC
 
 extern I2CRTC RTC;
 
-#endif
- 

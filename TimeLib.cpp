@@ -157,7 +157,7 @@ void breakTime(time_os_t timeInput, tmElements_t &tm){
 	uint8_t year;
 	uint8_t month, monthLength;
 	uint32_t time;
-	unsigned long days;
+	uint32_t days;
 
 	time = (uint32_t)timeInput;
 	tm.Second = time % 60;
