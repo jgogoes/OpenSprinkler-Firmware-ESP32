@@ -11,11 +11,14 @@ def merge_bin(source, target, env):
     flash_images = env.Flatten(env.get("FLASH_EXTRA_IMAGES", [])) + ["$ESP32_APP_OFFSET", APP_BIN]
 
     # Run esptool to merge images into a single binary
+    # Quote $PYTHONEXE/$OBJCOPY: paths may contain spaces (e.g. Homebrew pipx
+    # venv under "/Library/Application Support/..."), which the shell would
+    # otherwise split and fail on ("No such file or directory" / Error 127).
     env.Execute(
         " ".join(
             [
-                "$PYTHONEXE",
-                "$OBJCOPY",
+                '"$PYTHONEXE"',
+                '"$OBJCOPY"',
                 "--chip",
                 BOARD_CONFIG.get("build.mcu", "esp32"),
                 "merge_bin",
