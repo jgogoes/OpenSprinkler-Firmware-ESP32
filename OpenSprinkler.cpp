@@ -183,6 +183,10 @@ OTCConfig OpenSprinkler::otc;
 #if defined(ESP8266)
 #define DEFAULT_HTTPPORT_0 80
 #define DEFAULT_HTTPPORT_1 0
+#elif defined(ESP32)
+// ESP32: default to standard port 80 so plain http://<ip> works out of the box.
+#define DEFAULT_HTTPPORT_0 80
+#define DEFAULT_HTTPPORT_1 0
 #else
 #define DEFAULT_HTTPPORT_0 144
 #define DEFAULT_HTTPPORT_1 31

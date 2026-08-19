@@ -119,12 +119,22 @@ Two supported approaches:
 
 ## 6. Build / flash
 
+`esp32_sprinkler` is the **default env**, so a bare `pio run` targets the ESP32 board (no `-e` needed for the GUI/VS Code buttons).
+
 ```bash
-pio run -e esp32_sprinkler                  # compile (verified: RAM ~21%, Flash ~77%)
-pio run -e esp32_sprinkler -t upload        # flash over USB
+pio run                                  # compile default env (esp32_sprinkler)
+pio run -e esp32_sprinkler               # explicit
+pio run -e esp32_sprinkler -t upload     # flash over USB
 ```
 
 Flash layout: `ESP32_FLASH_4MB` (default). Change in `esp32.h` if your module is 8/32 MB.
+
+### Accessing the web UI
+Default HTTP port is **80** (standard). On first boot the board is in **AP mode** and broadcasts
+its own WiFi `OS_<last-6-of-MAC>` — connect to it and open **`http://192.168.4.1`** to run the WiFi onboarding
+(choose your home network + password). After it joins your home network, reach it at **`http://opensprinkler.local`**
+or its DHCP IP (mDNS name `opensprinkler`).
+
 
 ---
 

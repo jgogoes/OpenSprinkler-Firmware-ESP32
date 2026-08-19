@@ -54,7 +54,7 @@ String scan_network() {
 }
 
 void start_network_ap(const char *ssid, const char *pass) {
-	if(!ssid || ssid == "\0" ) return;
+	if(!ssid || ssid[0] == '\0') return;   // FIX: was ssid == "\0" (pointer compare, never true)
 
 	DEBUG_PRINT("SSID: '");
 	DEBUG_PRINT(ssid);
