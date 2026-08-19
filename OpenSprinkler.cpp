@@ -462,6 +462,15 @@ unsigned char OpenSprinkler::start_network() {
 	// FIXME, just for testing
 	//::start_server_ap();
 
+	// Bring up the WiFi radio / lwIP TCPIP thread BEFORE creating the OTF
+	// local server (a WiFiServer). On the newer espressif32 Arduino framework,
+	// WiFiServer::begin() calls socket() -> tcpip_send_msg_wait_sem, which
+	// asserts "Invalid mbox" if WiFi hasn't been initialized yet (the TCPIP
+	// thread mailbox doesn't exist). Creating OTF first therefore crashed at
+	// boot on AP bring-up (this dash previously ran v1pr on an older framework
+	// where the assert wasn't enforced).
+	WiFi.mode(WIFI_AP_STA);
+
 	if((useEth || get_wifi_mode()==WIFI_MODE_STA) && otc.en>0 && otc.token.length()>=DEFAULT_OTC_TOKEN_LENGTH) {
 		otf = new OTF::OpenThingsFramework(httpport, otc.server, otc.port, otc.token, false, ether_buffer, ETHER_BUFFER_SIZE);
 		DEBUG_PRINTLN(F("Started OTF with remote connection"));
