@@ -783,9 +783,14 @@ void do_loop()
 		#endif  
 		} else {
 			if((int32_t)((uint32_t)millis()-connecting_timeout)>0) {
+				// STA connect timed out. Fall back to AP mode so the board is
+				// always reachable at http://192.168.4.1 to re-run onboarding,
+				// instead of retrying STA forever with no SSID broadcast.
+				os.iopts[IOPT_WIFI_MODE] = WIFI_MODE_AP;   // will be re-set to STA once WiFi is configured
+				os.iopts_save();
 				os.state = OS_STATE_INITIAL;
 				WiFi.disconnect(true);
-				DEBUG_PRINTLN(F("timeout"));
+				DEBUG_PRINTLN(F("timeout, falling back to AP"));
 			}
 		}
 		break;
