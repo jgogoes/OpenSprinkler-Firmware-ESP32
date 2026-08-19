@@ -57,7 +57,7 @@
 // External sensor board (ADS1115-based analog inputs, see sensor.h).
 // Unrelated to the onboard SENSOR1/SENSOR2 GPIO inputs.
 #define SENSORS_FILENAME      "sens.dat"    // external sensor definitions
-#if defined(ESP8266)
+#if defined(ESP8266) || defined(ESP32)
 #define LOG_DIR                     "/logs/"   // absolute path on LittleFS; parent dir created implicitly
 #else
 #define LOG_DIR                     "logs/"    // relative to data dir on Linux; get_filename_fullpath prepends it
