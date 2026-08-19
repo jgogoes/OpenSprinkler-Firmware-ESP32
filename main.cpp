@@ -451,6 +451,12 @@ void ui_state_machine() {
 // Setup Function
 // ======================
 #if defined(ESP8266) || defined(ESP32)
+// ESP32 brownout detector disable (declared at file scope; the function lives in
+// libesp_system.a but its header isn't on the default include path).
+#if defined(ESP32)
+extern "C" void esp_brownout_disable(void);
+#endif
+
 void do_setup() {
 	
 	DEBUG_BEGIN(115200);
@@ -461,6 +467,11 @@ void do_setup() {
 	DEBUG_PRINTLN(__TIME__);
 
 	#if defined(ESP32)
+	// Disable the ESP32 brownout detector at runtime. The ESP32-Relay-X8 (and many
+	// 8-relay ESP32 boards) run on a marginal supply; the default brownout detector
+	// trips on power dips during WiFi/relay activity and hard-resets the board in a
+	// loop. This stops that loop. Still recommended to use an adequate supply.
+	esp_brownout_disable();
 
 	/* Setting internal station pins to prevent unstable behavior on startup */
 	  int i;
